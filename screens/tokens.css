@@ -1,0 +1,108 @@
+/*
+  Tetrofall — Design Tokens
+  Phase 0: shared visual language for every screen mockup.
+  Load this file first, before components.css, on every screen.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap');
+
+:root {
+  /* Colors */
+  --color-wood-dark: #4a2f1c;
+  --color-wood-mid: #7a5230;
+  --color-wood-light: #c89b6a;
+  --color-bg: #2b1c12;
+  --color-panel: rgba(255, 255, 255, 0.06);
+  --color-panel-border: rgba(255, 255, 255, 0.1);
+  --color-gold: #f2b632;
+  --color-red: #d9432e;
+  --color-blue: #3aa0d9;
+  --color-purple: #9b5cd6;
+  --color-green: #4caf6b;
+  --color-text: #f5ead9;
+  --color-text-muted: #b9a889;
+
+  /* Typography */
+  --font-display: 'Baloo 2', 'Trebuchet MS', ui-rounded, system-ui, sans-serif;
+  --font-body: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.75rem;
+  --font-size-xxl: 2.5rem;
+
+  /* Shadows */
+  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 8px 20px rgba(0, 0, 0, 0.45);
+  --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.25);
+
+  /* Shape */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+
+  /* Spacing scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+
+  /* Shared wood-grain background, reused on <body> and any full-bleed screen */
+  --bg-wood-texture:
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.08) 0px,
+      rgba(0, 0, 0, 0.08) 2px,
+      transparent 2px,
+      transparent 18px
+    ),
+    linear-gradient(180deg, var(--color-wood-dark) 0%, var(--color-bg) 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  background-image: var(--bg-wood-texture);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  -webkit-font-smoothing: antialiased;
+}
+
+.bg-wood-grain {
+  background-color: var(--color-bg);
+  background-image: var(--bg-wood-texture);
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  margin: 0;
+}
+
+p,
+span,
+.font-body {
+  font-family: var(--font-body);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}

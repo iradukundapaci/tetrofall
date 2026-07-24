@@ -1,0 +1,244 @@
+/*
+  Tetrofall — Base Components
+  Phase 0: shared building blocks reused across every screen.
+  Requires tokens.css to be loaded first.
+*/
+
+/* Primary Button */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: 14px 32px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--color-gold) 0%, #d99a1f 100%);
+  color: var(--color-wood-dark);
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.btn-primary:hover {
+  box-shadow: var(--shadow-lift);
+}
+
+.btn-primary:active {
+  transform: scale(0.96);
+  box-shadow: var(--shadow-inset);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Secondary / outline button (Quit, Restart, etc.) */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: 12px 28px;
+  border: 2px solid var(--color-panel-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-panel);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-secondary:active {
+  transform: scale(0.96);
+}
+
+/* Icon Button (circular) */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-panel);
+  border: 1px solid var(--color-panel-border);
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
+  position: relative;
+}
+
+.btn-icon:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.btn-icon:active {
+  transform: scale(0.94);
+}
+
+.btn-icon .badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-red);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--color-bg);
+}
+
+/* Counter Pill (icon + number — coins, score, etc.) */
+.pill-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--color-panel);
+  border: 1px solid var(--color-panel-border);
+  box-shadow: var(--shadow-soft);
+  font-family: var(--font-display);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.pill-counter .pill-icon {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-md);
+}
+
+/* Modal / Panel Container */
+.panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-panel-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lift);
+  padding: var(--space-lg);
+}
+
+.panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Progress Bar */
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-inset);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--color-gold), #ffd873);
+  transition: width 0.3s ease;
+}
+
+/*
+  Device Frame (Phase 1 onward)
+  Every screen from here on wraps its markup in .device-frame > .device-frame__screen
+  instead of stretching full-bleed to the browser window. Mobile is the default size;
+  the toggle adds/removes .is-tablet on the frame. Portrait/upright only — there is no
+  landscape variant, the frame just stays centered at its portrait size on wide viewports.
+*/
+.device-stage {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  padding: var(--space-xl) var(--space-md);
+}
+
+.device-toggle {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-panel-border);
+  border-radius: var(--radius-pill);
+  padding: 4px;
+}
+
+.device-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  padding: 6px 18px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.device-toggle button.is-active {
+  background: var(--color-gold);
+  color: var(--color-wood-dark);
+}
+
+.device-frame {
+  width: 375px;
+  height: 812px;
+  flex: none;
+  border-radius: 40px;
+  border: 10px solid #111;
+  box-shadow: var(--shadow-lift);
+  overflow: hidden;
+  position: relative;
+  background: var(--color-bg);
+  transition: width 0.2s ease, height 0.2s ease, border-radius 0.2s ease;
+}
+
+.device-frame.is-tablet {
+  width: 768px;
+  height: 1024px;
+  border-radius: 24px;
+}
+
+.device-frame__screen {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}

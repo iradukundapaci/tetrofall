@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tetrofall — Tokens &amp; Components Preview</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="components.css" />
+  <style>
+    /* Preview-only layout — not part of tokens.css/components.css */
+    .preview-wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: var(--space-xl) var(--space-lg) var(--space-xxl);
+    }
+    .preview-section {
+      margin-bottom: var(--space-xxl);
+    }
+    .preview-section h2 {
+      font-size: var(--font-size-xl);
+      margin-bottom: var(--space-md);
+    }
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: var(--space-md);
+    }
+    .swatch {
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-soft);
+    }
+    .swatch-color {
+      height: 64px;
+    }
+    .swatch-label {
+      padding: var(--space-sm);
+      background: var(--color-panel);
+      font-size: var(--font-size-xs);
+      font-family: var(--font-body);
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-md);
+      margin-bottom: var(--space-md);
+    }
+    .type-sample {
+      margin-bottom: var(--space-sm);
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-wrap">
+    <h1 class="font-display" style="font-size: var(--font-size-xxl); margin-bottom: var(--space-xs);">Tetrofall</h1>
+    <p class="text-muted" style="margin-bottom: var(--space-xl);">Phase 0 verification — confirm colors, fonts, shadows, and base components render correctly.</p>
+
+    <section class="preview-section">
+      <h2>Colors</h2>
+      <div class="swatch-grid">
+        <div class="swatch"><div class="swatch-color" style="background: var(--color-wood-dark);"></div><div class="swatch-label">--color-wood-dark</div></div>
+        <div class="swatch"><div class="swatch-color" style="background: var(--color-wood-mid);"></div><div class="swatch-label">--color-wood-mid</div></div>
+        <div class="swatch"><div class="swatch-color" style="background: var(--color-wood-light);"></div><div class="swatch-label">--color-wood-light</div></div>
+        <div class="swatch"><div class="swatch-color" style="background: var(--color-bg);"></div><div class="swatch-label">--color-bg</div></div>
+        <div class="swatch"><div class="swatch-color" style="background: var(--color-gold);"></div><div class="swatch-label">--color-gold</div></div>
+        <div class="swatch"><div class="swatch-color" style="background: var(--color-red);"></div><div class="swatch-label">--color-red</div></div>
+        <div class="swatch"><div class="swatch-color" style="background: var(--color-blue);"></div><div class="swatch-label">--color-blue</div></div>
+        <div class="swatch"><div class="swatch-color" style="background: var(--color-purple);"></div><div class="swatch-label">--color-purple</div></div>
+        <div class="swatch"><div class="swatch-color" style="background: var(--color-green);"></div><div class="swatch-label">--color-green</div></div>
+        <div class="swatch"><div class="swatch-color" style="background: var(--color-panel);"></div><div class="swatch-label">--color-panel</div></div>
+      </div>
+    </section>
+
+    <section class="preview-section">
+      <h2>Typography</h2>
+      <div class="type-sample font-display" style="font-size: var(--font-size-xxl); font-weight: 700;">Display / Baloo 2 — 10143</div>
+      <div class="type-sample font-display" style="font-size: var(--font-size-lg); font-weight: 600;">Display — PLAY</div>
+      <div class="type-sample font-body" style="font-size: var(--font-size-md);">Body / Nunito — Place blocks, breathe out. Clear rows before the stack reaches the top.</div>
+      <div class="type-sample font-body text-muted" style="font-size: var(--font-size-sm);">Muted body text — secondary labels, hints.</div>
+    </section>
+
+    <section class="preview-section">
+      <h2>Shadows &amp; Shape</h2>
+      <div class="row">
+        <div class="panel" style="width: 160px; height: 80px; display:flex; align-items:center; justify-content:center;">radius-lg + shadow-lift</div>
+        <div style="width:160px; height:80px; border-radius: var(--radius-md); background: var(--color-wood-mid); box-shadow: var(--shadow-soft); display:flex; align-items:center; justify-content:center;">radius-md + shadow-soft</div>
+        <div style="width:160px; height:80px; border-radius: var(--radius-sm); background: var(--color-wood-mid); box-shadow: var(--shadow-inset); display:flex; align-items:center; justify-content:center;">radius-sm + shadow-inset</div>
+      </div>
+    </section>
+
+    <section class="preview-section">
+      <h2>Base Components</h2>
+
+      <div class="row">
+        <button class="btn-primary">Play</button>
+        <button class="btn-secondary">Restart</button>
+        <button class="btn-icon">⚙</button>
+        <button class="btn-icon">🎁<span class="badge">1</span></button>
+      </div>
+
+      <div class="row">
+        <span class="pill-counter"><span class="pill-icon">🏆</span> 10143</span>
+        <span class="pill-counter"><span class="pill-icon">🪙</span> 248</span>
+      </div>
+
+      <div class="row" style="width: 100%;">
+        <div class="progress-bar" style="flex: 1;">
+          <div class="progress-bar-fill" style="width: 65%;"></div>
+        </div>
+      </div>
+
+      <div class="panel" style="max-width: 320px;">
+        <h3 class="font-display" style="font-size: var(--font-size-lg); margin-bottom: var(--space-sm);">Panel / Modal</h3>
+        <p class="text-muted" style="margin: 0 0 var(--space-md);">Used for pause, game over, and other overlays.</p>
+        <button class="btn-primary" style="width: 100%;">Resume</button>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
