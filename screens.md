@@ -92,8 +92,6 @@ Build notes: import the actual `assets/logo.svg` file rather than redrawing it �
 
 The source `logo.svg` is black ink on a flat white rectangle, which reads as a harsh box against the wood-dark background if placed as-is. Apply `mix-blend-mode: multiply;` on the `<img>` — this drops the white field out entirely (white × background = background) while keeping the ink black (black × anything = black), so only the black linework shows against the page with no visible edge. Reuse this same treatment anywhere else the logo appears.
 
-Navigation: `logo.html` holds for a fixed timeout (2s), fades out (`@keyframes fadeOut`), then hands off to `splash.html` via `setTimeout(() => location.href = 'splash.html', LOGO_TIMEOUT_SECONDS * 1000)`. This is the click-through link between Phase 1 and Phase 2 — no button, just a timed auto-advance, matching how a real app would show its icon/mark for a beat before the loading screen takes over.
-
 ---
 
 ## Phase 2 — Splash Screen (`splash.html`)
