@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tetrofall — Game Over</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="components.css" />
+  <style>
+    .go-stage {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-xl) var(--space-lg);
+      box-sizing: border-box;
+      gap: var(--space-xl);
+    }
+
+    /* ---------- Score block ---------- */
+    .go-score-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-xs);
+    }
+
+    .go-new-best {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      margin-bottom: var(--space-xs);
+      border-radius: var(--radius-pill);
+      background: linear-gradient(180deg, var(--color-gold) 0%, #d99a1f 100%);
+      color: var(--color-wood-dark);
+      font-family: var(--font-display);
+      font-size: var(--font-size-xs);
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      box-shadow: var(--shadow-soft);
+      animation: newBestPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .go-new-best svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    @keyframes newBestPop {
+      0%   { transform: scale(0.4); opacity: 0; }
+      70%  { transform: scale(1.12); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .go-score-label {
+      font-size: var(--font-size-sm);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+    }
+
+    .go-current-score {
+      font-family: var(--font-display);
+      font-size: clamp(2.5rem, 14vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      line-height: 1;
+      background: linear-gradient(180deg, #ffe9b0 0%, var(--color-gold) 55%, #c9821a 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+      margin: 2px 0;
+    }
+
+    .go-best-row {
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      color: var(--color-text-muted);
+    }
+
+    .go-best-row strong {
+      color: var(--color-text);
+      font-weight: 700;
+    }
+
+    /* ---------- Coins earned ---------- */
+    .icon-coin {
+      fill: var(--color-gold);
+    }
+
+    .go-coins-pill .pill-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* ---------- Actions ---------- */
+    .go-actions {
+      width: 100%;
+      max-width: 280px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-md);
+    }
+
+    .go-actions .btn-secondary,
+    .go-actions .btn-primary {
+      width: 100%;
+      text-decoration: none;
+    }
+
+    /* Play Again — the dominant action */
+    .go-play-again {
+      padding: 18px 0;
+      font-size: var(--font-size-lg);
+    }
+
+    .go-home {
+      align-self: center;
+      margin-top: var(--space-xs);
+      text-decoration: none;
+    }
+
+    .go-home svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  </style>
+</head>
+<body>
+  <div class="device-stage">
+    <div class="device-toggle">
+      <button type="button" class="is-active" data-size="mobile">Mobile</button>
+      <button type="button" data-size="tablet">Tablet</button>
+    </div>
+    <div class="device-frame" id="frame">
+      <div class="device-frame__screen bg-wood-grain">
+        <div class="go-stage">
+
+          <div class="go-score-block">
+            <div class="go-new-best">
+              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.6 6.8L12 16.9 5.8 20.4l1.6-6.8L2.2 9l6.9-.7z"/></svg>
+              NEW BEST!
+            </div>
+            <span class="go-score-label">Score</span>
+            <div class="go-current-score">12,480</div>
+            <div class="go-best-row">Previous best: <strong>10,140</strong></div>
+          </div>
+
+          <div class="pill-counter go-coins-pill">
+            <span class="pill-icon">
+              <svg viewBox="0 0 24 24" class="icon-coin"><circle cx="12" cy="12" r="10"/><path d="M12 6.5v11M8.7 9.3c0-1.1 1.2-1.9 3.3-1.9s3.3.8 3.3 1.9c0 1-.9 1.5-3.3 1.9-2.4.4-3.3.9-3.3 2 0 1.1 1.3 1.9 3.3 1.9s3.3-.8 3.3-1.9" fill="none" stroke="#4a2f1c" stroke-width="1.3" stroke-linecap="round"/></svg>
+            </span>
+            <span>+180 coins</span>
+          </div>
+
+          <div class="go-actions">
+            <button type="button" class="btn-secondary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
+              Watch Ad to Continue
+            </button>
+
+            <a href="gameplay.html" class="btn-primary go-play-again">Play Again</a>
+
+            <a href="main-menu.html" class="btn-icon go-home" aria-label="Home">
+              <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9a1 1 0 0 0 1 1h4v-6h2v6h4a1 1 0 0 0 1-1v-9"/></svg>
+            </a>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var frame = document.getElementById('frame');
+    var buttons = document.querySelectorAll('.device-toggle button');
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        buttons.forEach(function (b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        frame.classList.toggle('is-tablet', btn.dataset.size === 'tablet');
+      });
+    });
+  </script>
+</body>
+</html>
