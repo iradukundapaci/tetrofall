@@ -17,7 +17,7 @@
       box-sizing: border-box;
     }
 
-    /* Top: highest score, small and out of the way */
+    /* Top: coin balance + highest score on the left, settings on the right */
     .menu-topbar {
       flex: 0 0 auto;
       width: 100%;
@@ -26,9 +26,17 @@
       justify-content: space-between;
     }
 
+    .menu-coin-pill .pill-icon svg,
     .menu-score-pill .pill-icon svg {
-      width: 100px;
-      height: 100px;
+      width: 16px;
+      height: 16px;
+    }
+
+    .icon-coin {
+      fill: var(--color-gold);
+    }
+
+    .menu-score-pill .pill-icon svg {
       fill: var(--color-gold);
     }
 
@@ -37,7 +45,6 @@
       font-size: var(--font-size-xs);
       font-weight: 700;
       letter-spacing: 0.05em;
-      margin-right: 2px;
     }
 
     /* Middle: side icon columns flanking the play button, vertically
@@ -146,6 +153,12 @@
         <div class="menu-stage">
 
           <div class="menu-topbar">
+            <div class="pill-counter menu-coin-pill">
+              <span class="pill-icon">
+                <svg viewBox="0 0 24 24" class="icon-coin"><circle cx="12" cy="12" r="10"/><path d="M12 6.5v11M8.7 9.3c0-1.1 1.2-1.9 3.3-1.9s3.3.8 3.3 1.9c0 1-.9 1.5-3.3 1.9-2.4.4-3.3.9-3.3 2 0 1.1 1.3 1.9 3.3 1.9s3.3-.8 3.3-1.9" fill="none" stroke="var(--color-wood-dark)" stroke-width="1.3" stroke-linecap="round"/></svg>
+              </span>
+              <span>640</span>
+            </div>
             <div class="pill-counter menu-score-pill">
               <span class="menu-score-label">BEST</span>
               <span class="pill-icon">
