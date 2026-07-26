@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tetrofall — Settings</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="components.css" />
+  <style>
+    .st-stage {
+      width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      padding: var(--space-lg) var(--space-lg) var(--space-xl);
+      box-sizing: border-box;
+      gap: var(--space-lg);
+    }
+
+    .st-header {
+      flex: 0 0 auto;
+    }
+
+    .st-title {
+      font-family: var(--font-display);
+      font-size: var(--font-size-xl);
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      color: var(--color-text);
+      margin: 0;
+    }
+
+    .st-section {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .st-section-title {
+      font-size: var(--font-size-xs);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+
+    /* ---------- Shared row shell ---------- */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md);
+      border-radius: var(--radius-lg);
+      background: var(--color-panel);
+      border: 1px solid var(--color-panel-border);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .setting-icon {
+      flex: 0 0 auto;
+      width: 20px;
+      height: 20px;
+      stroke: var(--color-text);
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .setting-label {
+      flex: 1 1 auto;
+      font-size: var(--font-size-sm);
+      font-weight: 700;
+      color: var(--color-text);
+    }
+
+    /* ---------- Slider rows (Music / SFX volume) ---------- */
+    .setting-row.is-slider {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-sm);
+    }
+
+    .slider-row-top {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .slider-mute-btn {
+      flex: 0 0 auto;
+      width: 32px;
+      height: 32px;
+    }
+
+    .slider-mute-btn svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .slider-mute-btn.is-active {
+      background: rgba(217, 67, 46, 0.22);
+      border-color: var(--color-red);
+      color: var(--color-red);
+    }
+
+    input[type='range'].volume-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 8px;
+      border-radius: var(--radius-pill);
+      background: rgba(0, 0, 0, 0.35);
+      box-shadow: var(--shadow-inset);
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type='range'].volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #ffe9b0 0%, var(--color-gold) 100%);
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      box-shadow: var(--shadow-soft);
+      cursor: pointer;
+      margin-top: -5px;
+    }
+
+    input[type='range'].volume-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #ffe9b0 0%, var(--color-gold) 100%);
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      box-shadow: var(--shadow-soft);
+      cursor: pointer;
+    }
+
+    input[type='range'].volume-slider::-webkit-slider-runnable-track {
+      height: 8px;
+      border-radius: var(--radius-pill);
+      background: transparent;
+    }
+
+    input[type='range'].volume-slider::-moz-range-track {
+      height: 8px;
+      border-radius: var(--radius-pill);
+      background: transparent;
+    }
+
+    input[type='range'].volume-slider::-moz-range-progress {
+      height: 8px;
+      border-radius: var(--radius-pill);
+      background: var(--color-gold);
+    }
+
+    /* ---------- Toggle switch ---------- */
+    .switch {
+      position: relative;
+      flex: 0 0 auto;
+      width: 46px;
+      height: 26px;
+    }
+
+    .switch input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 2;
+    }
+
+    .switch-track {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--color-panel-border);
+      border-radius: var(--radius-pill);
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .switch-knob {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--color-text-muted);
+      box-shadow: var(--shadow-soft);
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .switch input:checked ~ .switch-track {
+      background: rgba(242, 182, 50, 0.3);
+      border-color: var(--color-gold);
+    }
+
+    .switch input:checked ~ .switch-knob {
+      transform: translateX(20px);
+      background: var(--color-gold);
+    }
+
+    /* ---------- Link rows (Restore / Privacy / Terms) ---------- */
+    .setting-row.is-link {
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .setting-chevron {
+      flex: 0 0 auto;
+      width: 16px;
+      height: 16px;
+      stroke: var(--color-text-muted);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .st-version {
+      flex: 0 0 auto;
+      text-align: center;
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      margin-top: var(--space-xs);
+    }
+
+    /* ---------- Persistent bottom nav (same as other screens) ---------- */
+    .menu-icon-row {
+      flex: 0 0 auto;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-lg) var(--space-lg);
+      background: rgba(20, 12, 6, 0.92);
+      border-top: 1px solid var(--color-panel-border);
+      box-sizing: border-box;
+    }
+
+    .menu-icon-btn {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .menu-icon-btn a.btn-icon {
+      text-decoration: none;
+    }
+
+    .menu-icon-btn .btn-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .menu-icon-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--color-text-muted);
+      letter-spacing: 0.02em;
+      text-align: center;
+    }
+
+    .menu-icon-btn.is-active .btn-icon {
+      background: rgba(242, 182, 50, 0.18);
+      border-color: var(--color-gold);
+      color: var(--color-gold);
+    }
+
+    .menu-icon-btn.is-active .menu-icon-label {
+      color: var(--color-gold);
+    }
+  </style>
+</head>
+<body>
+  <div class="device-stage">
+    <div class="device-toggle">
+      <button type="button" class="is-active" data-size="mobile">Mobile</button>
+      <button type="button" data-size="tablet">Tablet</button>
+    </div>
+    <div class="device-frame" id="frame">
+      <div class="device-frame__screen bg-wood-grain">
+        <div class="st-stage">
+
+          <div class="st-header">
+            <h1 class="st-title">Settings</h1>
+          </div>
+
+          <!-- Sound -->
+          <div class="st-section">
+            <span class="st-section-title">Sound</span>
+
+            <div class="setting-row is-slider">
+              <div class="slider-row-top">
+                <svg class="setting-icon" viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>
+                <span class="setting-label">Music</span>
+                <button type="button" class="btn-icon slider-mute-btn" id="musicMuteBtn" aria-label="Mute music">
+                  <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+                </button>
+              </div>
+              <input type="range" class="volume-slider" id="musicSlider" min="0" max="100" value="70" />
+            </div>
+
+            <div class="setting-row is-slider">
+              <div class="slider-row-top">
+                <svg class="setting-icon" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>
+                <span class="setting-label">Sound Effects</span>
+                <button type="button" class="btn-icon slider-mute-btn" id="sfxMuteBtn" aria-label="Mute sound effects">
+                  <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+                </button>
+              </div>
+              <input type="range" class="volume-slider" id="sfxSlider" min="0" max="100" value="85" />
+            </div>
+          </div>
+
+          <!-- Gameplay -->
+          <div class="st-section">
+            <span class="st-section-title">Gameplay</span>
+
+            <label class="setting-row">
+              <svg class="setting-icon" viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/><path d="M2 9v6"/><path d="M22 9v6"/></svg>
+              <span class="setting-label">Vibration</span>
+              <span class="switch">
+                <input type="checkbox" checked />
+                <span class="switch-track"></span>
+                <span class="switch-knob"></span>
+              </span>
+            </label>
+
+            <label class="setting-row">
+              <svg class="setting-icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span class="setting-label">Combo Callouts</span>
+              <span class="switch">
+                <input type="checkbox" checked />
+                <span class="switch-track"></span>
+                <span class="switch-knob"></span>
+              </span>
+            </label>
+          </div>
+
+          <!-- Notifications -->
+          <div class="st-section">
+            <span class="st-section-title">Notifications</span>
+
+            <label class="setting-row">
+              <svg class="setting-icon" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+              <span class="setting-label">Push Notifications</span>
+              <span class="switch">
+                <input type="checkbox" checked />
+                <span class="switch-track"></span>
+                <span class="switch-knob"></span>
+              </span>
+            </label>
+
+            <label class="setting-row">
+              <svg class="setting-icon" viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M4 9h16"/><path d="M12 9v11"/></svg>
+              <span class="setting-label">Daily Reward Reminder</span>
+              <span class="switch">
+                <input type="checkbox" />
+                <span class="switch-track"></span>
+                <span class="switch-knob"></span>
+              </span>
+            </label>
+          </div>
+
+          <!-- About -->
+          <div class="st-section">
+            <span class="st-section-title">About</span>
+
+            <a href="#" class="setting-row is-link">
+              <svg class="setting-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+              <span class="setting-label">Restore Purchases</span>
+              <svg class="setting-chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+            </a>
+
+            <a href="#" class="setting-row is-link">
+              <svg class="setting-icon" viewBox="0 0 24 24"><path d="M12 2 3 6v6c0 5 3.8 8.7 9 10 5.2-1.3 9-5 9-10V6z"/></svg>
+              <span class="setting-label">Privacy Policy</span>
+              <svg class="setting-chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+            </a>
+
+            <a href="#" class="setting-row is-link">
+              <svg class="setting-icon" viewBox="0 0 24 24"><path d="M9 2h6l3 4v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6z"/><path d="M9 10h6M9 14h6M9 18h3"/></svg>
+              <span class="setting-label">Terms of Service</span>
+              <svg class="setting-chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+            </a>
+
+            <span class="st-version">Tetrofall v1.0.0</span>
+          </div>
+
+        </div>
+
+        <!-- Persistent bottom nav — same markup as other screens -->
+        <div class="menu-icon-row">
+          <div class="menu-icon-btn">
+            <a href="daily-reward.html" class="btn-icon" aria-label="Daily Reward">
+              <svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M4 9h16"/><path d="M12 9v11"/><path d="M12 9c-1.5-4-6-4-6-1.2C6 9 9 9 12 9z"/><path d="M12 9c1.5-4 6-4 6-1.2C18 9 15 9 12 9z"/></svg>
+              <span class="badge">1</span>
+            </a>
+            <span class="menu-icon-label">Daily</span>
+          </div>
+
+          <div class="menu-icon-btn">
+            <a href="themes.html" class="btn-icon" aria-label="Themes">
+              <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a2.5 2.5 0 0 0 2.5-2.5c0-.7-.3-1.3-.7-1.8-.4-.4-.6-1-.6-1.6a2 2 0 0 1 2-2H18a3 3 0 0 0 3-3c0-4.4-4-6.1-9-6.1z"/><circle cx="7.5" cy="10.5" r="1.1"/><circle cx="9.5" cy="7" r="1.1"/><circle cx="14" cy="6.8" r="1.1"/><circle cx="16.5" cy="9.5" r="1.1"/></svg>
+            </a>
+            <span class="menu-icon-label">Themes</span>
+          </div>
+
+          <div class="menu-icon-btn">
+            <a href="achievements.html" class="btn-icon" aria-label="Achievements">
+              <svg viewBox="0 0 24 24"><path d="M8 3l2 6-3 2-3-6z"/><path d="M16 3l-2 6 3 2 3-6z"/><circle cx="12" cy="15" r="6"/><circle cx="12" cy="15" r="2.5"/></svg>
+            </a>
+            <span class="menu-icon-label">Awards</span>
+          </div>
+
+          <div class="menu-icon-btn is-active">
+            <a href="settings.html" class="btn-icon" aria-label="Settings">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V20a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10c.1.7.6 1.3 1.5 1.5H20a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+            </a>
+            <span class="menu-icon-label">Settings</span>
+          </div>
+
+          <div class="menu-icon-btn">
+            <a href="shop.html" class="btn-icon" aria-label="Shop">
+              <svg viewBox="0 0 24 24"><path d="M6 9h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9z"/><path d="M9 9V7a3 3 0 0 1 6 0v2"/></svg>
+            </a>
+            <span class="menu-icon-label">Shop</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var frame = document.getElementById('frame');
+    var buttons = document.querySelectorAll('.device-toggle button');
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        buttons.forEach(function (b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        frame.classList.toggle('is-tablet', btn.dataset.size === 'tablet');
+      });
+    });
+
+    // Fill the played portion of each volume slider with gold (native
+    // range inputs don't expose a cross-browser "filled track" without
+    // this — repaint the WebKit track background on every input event).
+    function paintSlider(el) {
+      var pct = (el.value - el.min) / (el.max - el.min) * 100;
+      el.style.background =
+        'linear-gradient(to right, var(--color-gold) 0%, var(--color-gold) ' + pct +
+        '%, rgba(0,0,0,0.35) ' + pct + '%, rgba(0,0,0,0.35) 100%)';
+    }
+
+    var sliders = document.querySelectorAll('.volume-slider');
+    sliders.forEach(function (el) {
+      paintSlider(el);
+      el.addEventListener('input', function () { paintSlider(el); });
+    });
+
+    // Mute buttons: remember the slider's last value, toggle it to 0 / back.
+    function wireMute(btnId, sliderId) {
+      var btn = document.getElementById(btnId);
+      var slider = document.getElementById(sliderId);
+      var lastValue = slider.value;
+      var muted = false;
+
+      btn.addEventListener('click', function () {
+        muted = !muted;
+        if (muted) {
+          lastValue = slider.value;
+          slider.value = 0;
+        } else {
+          slider.value = lastValue > 0 ? lastValue : 70;
+        }
+        paintSlider(slider);
+        btn.classList.toggle('is-active', muted);
+      });
+    }
+
+    wireMute('musicMuteBtn', 'musicSlider');
+    wireMute('sfxMuteBtn', 'sfxSlider');
+  </script>
+</body>
+</html>
