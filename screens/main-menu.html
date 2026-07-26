@@ -38,7 +38,7 @@
       margin-right: 2px;
     }
 
-    /* Middle: logo + play button, vertically centered in remaining space */
+    /* Middle: play button, vertically centered in remaining space */
     .menu-center {
       flex: 1 1 auto;
       width: 100%;
@@ -46,53 +46,16 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: var(--space-xxl);
     }
 
-    /* Logo — same CSS block mark as splash.html, scaled down since this is
-       a secondary appearance (splash is the focal moment). Static here,
-       no drop animation. */
-    .menu-logo {
+    /* Placeholder slot for a looping gameplay video (to be dropped in
+       later, above the PLAY button). Swap this div's contents for a
+       <video> (muted, autoplay, loop, playsinline) once the clip is
+       ready — it's empty for now. */
+    .menu-video-slot {
+      width: 100%;
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: var(--space-sm);
-    }
-
-    .menu-logo-mark {
-      display: grid;
-      grid-template-columns: repeat(3, 26px);
-      grid-template-rows: repeat(2, 26px);
-      gap: 4px;
-    }
-
-    .logo-block {
-      border-radius: 6px;
-      background: linear-gradient(160deg, var(--color-wood-light) 0%, var(--color-wood-mid) 55%, var(--color-wood-dark) 100%);
-      border: 1px solid rgba(0, 0, 0, 0.35);
-      box-shadow:
-        var(--shadow-soft),
-        inset 0 2px 3px rgba(255, 255, 255, 0.28),
-        inset 0 -2px 3px rgba(0, 0, 0, 0.3);
-    }
-
-    .logo-block--1 { grid-column: 2; grid-row: 1; }
-    .logo-block--2 { grid-column: 1; grid-row: 2; }
-    .logo-block--3 { grid-column: 2; grid-row: 2; }
-    .logo-block--4 { grid-column: 3; grid-row: 2; }
-
-    .menu-logo-word {
-      font-family: var(--font-display);
-      font-size: clamp(1.35rem, 6vw, 1.75rem);
-      font-weight: 800;
-      letter-spacing: 0.03em;
-      margin: 0;
-      background: linear-gradient(180deg, #ffe9b0 0%, var(--color-gold) 55%, #c9821a 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
-      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
+      justify-content: center;
     }
 
     /* PLAY — the one large/bright element on the whole screen */
@@ -160,15 +123,8 @@
           </div>
 
           <div class="menu-center">
-            <div class="menu-logo">
-              <div class="menu-logo-mark">
-                <div class="logo-block logo-block--1"></div>
-                <div class="logo-block logo-block--2"></div>
-                <div class="logo-block logo-block--3"></div>
-                <div class="logo-block logo-block--4"></div>
-              </div>
-              <h1 class="menu-logo-word">TETROFALL</h1>
-            </div>
+            <!-- Video placeholder: drop a <video muted autoplay loop playsinline> in here once the gameplay clip is ready -->
+            <div class="menu-video-slot"></div>
 
             <button type="button" class="btn-primary btn-play">PLAY</button>
           </div>
