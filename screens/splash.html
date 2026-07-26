@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tetrofall — Splash</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="components.css" />
+  <style>
+    .splash-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-xl);
+      overflow: hidden;
+      transition: opacity 0.6s ease;
+    }
+
+    .splash-stage.is-fading {
+      animation: fadeOut 0.6s ease forwards;
+    }
+
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+
+    /* Logo mark — built from CSS block cells (same wood-block language as the
+       gameplay board) instead of a raster asset, so it sits flush on the
+       wood-grain background with no halo or hard edge to mask out. It falls
+       into place like a dropping tetromino, which is what kicks off the
+       whole splash sequence below. */
+    .splash-logo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-md);
+      z-index: 1;
+    }
+
+    .splash-logo-mark {
+      display: grid;
+      grid-template-columns: repeat(3, 40px);
+      grid-template-rows: repeat(2, 40px);
+      gap: 5px;
+      transform: translateY(-420px);
+      transition: transform 0.55s cubic-bezier(0.55, 0, 0.85, 0.15);
+    }
+
+    .splash-logo-mark.is-dropped {
+      transform: translateY(0);
+    }
+
+    .splash-logo-mark.is-landed {
+      animation: landSquash 0.4s ease;
+    }
+
+    @keyframes landSquash {
+      0%   { transform: scaleY(1) scaleX(1); }
+      30%  { transform: scaleY(0.7) scaleX(1.18); }
+      55%  { transform: scaleY(1.1) scaleX(0.94); }
+      78%  { transform: scaleY(0.96) scaleX(1.03); }
+      100% { transform: scaleY(1) scaleX(1); }
+    }
+
+    .logo-block {
+      border-radius: 8px;
+      background: linear-gradient(160deg, var(--color-wood-light) 0%, var(--color-wood-mid) 55%, var(--color-wood-dark) 100%);
+      border: 1px solid rgba(0, 0, 0, 0.35);
+      box-shadow:
+        var(--shadow-soft),
+        inset 0 2px 3px rgba(255, 255, 255, 0.28),
+        inset 0 -3px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .logo-block--1 { grid-column: 2; grid-row: 1; }
+    .logo-block--2 { grid-column: 1; grid-row: 2; }
+    .logo-block--3 { grid-column: 2; grid-row: 2; }
+    .logo-block--4 { grid-column: 3; grid-row: 2; }
+
+    /* Landing shadow — grows under the piece as it falls, grounding it. */
+    .splash-logo-shadow {
+      width: 96px;
+      height: 14px;
+      margin-top: -6px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.45) 0%, transparent 75%);
+      transform: scaleX(0.3);
+      opacity: 0;
+      transition: transform 0.55s ease, opacity 0.55s ease;
+    }
+
+    .splash-logo-shadow.is-dropped {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+
+    .splash-logo-word {
+      font-family: var(--font-display);
+      font-size: clamp(1.75rem, 8vw, 2.5rem);
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      margin: 0;
+      background: linear-gradient(180deg, #ffe9b0 0%, var(--color-gold) 55%, #c9821a 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+
+    .splash-logo-word.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Loader */
+    .splash-loader {
+      width: min(55vw, 220px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-sm);
+      opacity: 0;
+      transition: opacity 0.35s ease;
+    }
+
+    .splash-loader.is-visible {
+      opacity: 1;
+    }
+
+    .splash-loader .progress-bar {
+      width: 100%;
+    }
+
+    .splash-loader .progress-bar-fill {
+      width: 0%;
+      transition: width 1.8s cubic-bezier(0.3, 0.6, 0.3, 1);
+    }
+
+    .splash-loader-label {
+      font-family: var(--font-body);
+      font-size: var(--font-size-sm);
+      font-weight: 700;
+      color: var(--color-text-muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    /* Next-screen placeholder — stands in for main-menu.html, which is built
+       in Phase 3. The falling logo's landing is what kicks off the timer
+       that fades the splash out and reveals this. */
+    .menu-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-lg);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+    }
+
+    .menu-placeholder.is-visible {
+      opacity: 1;
+    }
+
+    .menu-placeholder .splash-logo-word {
+      opacity: 1;
+      transform: none;
+      font-size: clamp(1.5rem, 6vw, 1.9rem);
+      transition: none;
+    }
+
+    .menu-placeholder-note {
+      font-family: var(--font-body);
+      font-size: var(--font-size-xs);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+
+    /* Dust particles drifting upward */
+    .splash-dust {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .dust-particle {
+      position: absolute;
+      bottom: -20px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--color-gold);
+      opacity: 0;
+      animation: driftUp linear infinite;
+    }
+
+    @keyframes driftUp {
+      0% {
+        transform: translateY(0) translateX(0);
+        opacity: 0;
+      }
+      10% {
+        opacity: 0.7;
+      }
+      90% {
+        opacity: 0.4;
+      }
+      100% {
+        transform: translateY(-820px) translateX(var(--drift-x, 20px));
+        opacity: 0;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="device-stage">
+    <div class="device-toggle">
+      <button type="button" class="is-active" data-size="mobile">Mobile</button>
+      <button type="button" data-size="tablet">Tablet</button>
+    </div>
+    <div class="device-frame" id="frame">
+      <div class="device-frame__screen bg-wood-grain">
+        <div class="splash-stage" id="splashStage">
+          <div class="splash-dust" id="dust"></div>
+
+          <div class="splash-logo">
+            <div class="splash-logo-mark" id="logoMark">
+              <div class="logo-block logo-block--1"></div>
+              <div class="logo-block logo-block--2"></div>
+              <div class="logo-block logo-block--3"></div>
+              <div class="logo-block logo-block--4"></div>
+            </div>
+            <div class="splash-logo-shadow" id="logoShadow"></div>
+            <h1 class="splash-logo-word" id="logoWord">TETROFALL</h1>
+          </div>
+
+          <div class="splash-loader" id="loader">
+            <div class="progress-bar">
+              <div class="progress-bar-fill" id="loaderFill"></div>
+            </div>
+            <span class="splash-loader-label">Loading…</span>
+          </div>
+        </div>
+
+        <!-- Placeholder for main-menu.html (Phase 3) — the splash fades into
+             this once the logo has landed and loading finishes. -->
+        <div class="menu-placeholder" id="menuPlaceholder">
+          <h1 class="splash-logo-word">TETROFALL</h1>
+          <span class="menu-placeholder-note">Main Menu — built in Phase 3</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var frame = document.getElementById('frame');
+    var buttons = document.querySelectorAll('.device-toggle button');
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        buttons.forEach(function (b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        frame.classList.toggle('is-tablet', btn.dataset.size === 'tablet');
+      });
+    });
+
+    // Seed a handful of upward-drifting dust particles at random positions/timings.
+    var dust = document.getElementById('dust');
+    for (var i = 0; i < 14; i++) {
+      var p = document.createElement('div');
+      p.className = 'dust-particle';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.setProperty('--drift-x', (Math.random() * 40 - 20) + 'px');
+      p.style.animationDuration = 4 + Math.random() * 4 + 's';
+      p.style.animationDelay = Math.random() * 6 + 's';
+      dust.appendChild(p);
+    }
+
+    // Sequence: tetromino drops in -> lands -> wordmark + loader reveal ->
+    // loader fills -> landing/loading finishing is what triggers the
+    // fade into the next screen (main-menu.html, stubbed here as a
+    // placeholder since it isn't built until Phase 3). Loops so the mockup
+    // demonstrates the full splash -> menu hand-off without a manual trigger.
+    var splashStage = document.getElementById('splashStage');
+    var logoMark = document.getElementById('logoMark');
+    var logoShadow = document.getElementById('logoShadow');
+    var logoWord = document.getElementById('logoWord');
+    var loader = document.getElementById('loader');
+    var loaderFill = document.getElementById('loaderFill');
+    var menuPlaceholder = document.getElementById('menuPlaceholder');
+
+    function runSplashSequence() {
+      // Reset to pre-drop state.
+      logoMark.classList.remove('is-dropped', 'is-landed');
+      logoShadow.classList.remove('is-dropped');
+      logoWord.classList.remove('is-visible');
+      loader.classList.remove('is-visible');
+      loaderFill.style.width = '0%';
+      splashStage.classList.remove('is-fading');
+      menuPlaceholder.classList.remove('is-visible');
+      splashStage.style.opacity = '1';
+
+      // Force reflow so the reset above is committed before re-triggering.
+      void logoMark.offsetWidth;
+
+      // 1. Tetromino falls into place.
+      requestAnimationFrame(function () {
+        logoMark.classList.add('is-dropped');
+        logoShadow.classList.add('is-dropped');
+      });
+
+      // 2. Landing squash + this is what triggers the rest of the reveal.
+      setTimeout(function () {
+        logoMark.classList.add('is-landed');
+        logoWord.classList.add('is-visible');
+        loader.classList.add('is-visible');
+      }, 550);
+
+      // 3. Loading bar fills.
+      setTimeout(function () {
+        loaderFill.style.width = '100%';
+      }, 850);
+
+      // 4. Load "finishes" -> fade splash out, reveal main-menu placeholder.
+      setTimeout(function () {
+        splashStage.classList.add('is-fading');
+        menuPlaceholder.classList.add('is-visible');
+      }, 3100);
+
+      // 5. Hold on the placeholder, then loop back to the splash.
+      setTimeout(runSplashSequence, 5600);
+    }
+
+    runSplashSequence();
+  </script>
+</body>
+</html>

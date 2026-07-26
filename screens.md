@@ -107,7 +107,7 @@ Loading spinner or progress bar beneath logo
 Optional: soft dust-particle animation drifting upward
 ```
 
-Build notes: logo should be the single focal point, vertically and horizontally centered. Keep it on screen only a few seconds — no interactive elements needed, just a fade-to-menu transition placeholder (CSS `@keyframes fadeOut`). Render inside the shared `.device-frame` (mobile default, tablet toggle), portrait only.
+Build notes: logo(game logo) should be the single focal point, vertically and horizontally centered. Keep it on screen only a few seconds — no interactive elements needed, just a fade-to-menu transition placeholder (CSS `@keyframes fadeOut`). Render inside the shared `.device-frame` (mobile default, tablet toggle), portrait only.
 
 ---
 
