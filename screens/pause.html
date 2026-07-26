@@ -3,10 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tetrofall — Gameplay</title>
+  <title>Tetrofall — Pause</title>
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="components.css" />
   <style>
+    /* ---------- Background: a frozen snapshot of gameplay.html ---------- */
+    /* Same board/topbar/booster styles as gameplay.html, reused so the
+       paused frame reads as "this exact game, dimmed" rather than a
+       generic backdrop. */
     .game-stage {
       width: 100%;
       height: 100%;
@@ -55,7 +59,6 @@
 
     .game-pause {
       justify-self: end;
-      text-decoration: none;
     }
 
     .game-pause svg {
@@ -308,6 +311,76 @@
       background: var(--color-gold);
       color: var(--color-wood-dark);
     }
+
+    .pause-bg {
+      filter: blur(4px);
+      opacity: 0.4;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* Paused means frozen — kill the falling-piece glow and any other
+       background motion rather than let it animate under the blur. */
+    .pause-bg,
+    .pause-bg * {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    /* ---------- Pause modal ---------- */
+    .pause-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-lg);
+      box-sizing: border-box;
+    }
+
+    .pause-panel {
+      width: 100%;
+      max-width: 280px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-md);
+      text-align: center;
+      background: rgba(20, 12, 6, 0.88);
+      backdrop-filter: blur(2px);
+    }
+
+    .pause-title {
+      font-family: var(--font-display);
+      font-size: var(--font-size-xxl);
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: var(--color-text);
+      margin: 0 0 var(--space-xs);
+    }
+
+    .pause-panel .btn-secondary {
+      width: 100%;
+    }
+
+    /* Quit — visually lightest: no fill, no border, just text */
+    .pause-btn-quit {
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      font-family: var(--font-display);
+      font-size: var(--font-size-md);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      padding: 8px;
+      cursor: pointer;
+      transition: color 0.15s ease;
+    }
+
+    .pause-btn-quit:hover {
+      color: var(--color-text);
+    }
   </style>
 </head>
 <body>
@@ -318,6 +391,8 @@
     </div>
     <div class="device-frame" id="frame">
       <div class="device-frame__screen bg-wood-grain">
+
+        <div class="pause-bg">
         <div class="game-stage">
 
           <div class="game-topbar">
@@ -333,9 +408,9 @@
               <div class="game-score-best">BEST 10,140</div>
             </div>
 
-            <a href="pause.html" class="btn-icon game-pause" aria-label="Pause">
+            <button type="button" class="btn-icon game-pause" aria-label="Pause">
               <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-            </a>
+            </button>
           </div>
 
           <div class="game-combo-zone">
@@ -569,6 +644,18 @@
           </div>
 
         </div>
+        </div>
+
+        <div class="pause-overlay">
+          <div class="panel pause-panel">
+            <h2 class="pause-title">PAUSED</h2>
+            <button type="button" class="btn-primary">Resume</button>
+            <button type="button" class="btn-secondary">Restart</button>
+            <button type="button" class="btn-secondary">Settings</button>
+            <button type="button" class="pause-btn-quit">Quit</button>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -584,11 +671,8 @@
       });
     });
 
-    // Force the board frame to a pixel-exact size so every cell is a true
-    // square. A flat CSS aspect-ratio can't do this: 10 columns share 9
-    // gaps while 16 rows share 15, so the two axes don't scale in lockstep.
-    // Instead measure the available box, solve for the largest whole-pixel
-    // cell size that fits both axes, then size the frame to exactly match.
+    // Same pixel-exact square-cell sizing as gameplay.html, so the frozen
+    // board behind the modal lines up identically.
     (function () {
       var COLS = 10, ROWS = 16, GAP = 3, PAD = 4;
       var wrap = document.querySelector('.game-board-wrap');
@@ -614,27 +698,6 @@
         sizeBoard();
       }
     })();
-
-    // Combo callout: resting state is empty; this just cycles the
-    // "triggered" tiers on a loop so both states are visible over time
-    // without a manual control.
-    var comboMessages = ['GOOD!', 'AWESOME!', 'INCREDIBLE!', 'UNBELIEVABLE!'];
-    var comboEl = document.getElementById('comboText');
-    var comboIndex = 0;
-
-    function showCombo() {
-      comboEl.textContent = comboMessages[comboIndex % comboMessages.length];
-      comboIndex++;
-      comboEl.classList.add('is-active');
-      setTimeout(function () {
-        comboEl.classList.remove('is-active');
-      }, 1100);
-    }
-
-    setTimeout(function () {
-      showCombo();
-      setInterval(showCombo, 3200);
-    }, 900);
   </script>
 </body>
 </html>
