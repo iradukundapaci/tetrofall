@@ -9,13 +9,69 @@
   <style>
     .dr-stage {
       width: 100%;
-      height: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
       align-items: center;
       padding: var(--space-lg) var(--space-lg) var(--space-xl);
       box-sizing: border-box;
       gap: var(--space-lg);
+    }
+
+    /* ---------- Persistent bottom nav ---------- */
+    /* Same markup/classes as main-menu.html's nav, reused verbatim. */
+    .menu-icon-row {
+      flex: 0 0 auto;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-lg) var(--space-lg);
+      background: rgba(20, 12, 6, 0.92);
+      border-top: 1px solid var(--color-panel-border);
+      box-sizing: border-box;
+    }
+
+    .menu-icon-btn {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .menu-icon-btn a.btn-icon {
+      text-decoration: none;
+    }
+
+    .menu-icon-btn .btn-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .menu-icon-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--color-text-muted);
+      letter-spacing: 0.02em;
+      text-align: center;
+    }
+
+    .menu-icon-btn.is-active .btn-icon {
+      background: rgba(242, 182, 50, 0.18);
+      border-color: var(--color-gold);
+      color: var(--color-gold);
+    }
+
+    .menu-icon-btn.is-active .menu-icon-label {
+      color: var(--color-gold);
     }
 
     .dr-header {
@@ -326,6 +382,46 @@
             <button type="button" class="btn-primary dr-claim-btn">Claim</button>
           </div>
 
+        </div>
+
+        <!-- Persistent bottom nav — same markup as main-menu.html, reused
+             verbatim so it's identical on every screen. -->
+        <div class="menu-icon-row">
+          <div class="menu-icon-btn is-active">
+            <a href="daily-reward.html" class="btn-icon" aria-label="Daily Reward">
+              <svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M4 9h16"/><path d="M12 9v11"/><path d="M12 9c-1.5-4-6-4-6-1.2C6 9 9 9 12 9z"/><path d="M12 9c1.5-4 6-4 6-1.2C18 9 15 9 12 9z"/></svg>
+              <span class="badge">1</span>
+            </a>
+            <span class="menu-icon-label">Daily</span>
+          </div>
+
+          <div class="menu-icon-btn">
+            <a href="themes.html" class="btn-icon" aria-label="Themes">
+              <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a2.5 2.5 0 0 0 2.5-2.5c0-.7-.3-1.3-.7-1.8-.4-.4-.6-1-.6-1.6a2 2 0 0 1 2-2H18a3 3 0 0 0 3-3c0-4.4-4-6.1-9-6.1z"/><circle cx="7.5" cy="10.5" r="1.1"/><circle cx="9.5" cy="7" r="1.1"/><circle cx="14" cy="6.8" r="1.1"/><circle cx="16.5" cy="9.5" r="1.1"/></svg>
+            </a>
+            <span class="menu-icon-label">Themes</span>
+          </div>
+
+          <div class="menu-icon-btn">
+            <a href="achievements.html" class="btn-icon" aria-label="Achievements">
+              <svg viewBox="0 0 24 24"><path d="M8 3l2 6-3 2-3-6z"/><path d="M16 3l-2 6 3 2 3-6z"/><circle cx="12" cy="15" r="6"/><circle cx="12" cy="15" r="2.5"/></svg>
+            </a>
+            <span class="menu-icon-label">Awards</span>
+          </div>
+
+          <div class="menu-icon-btn">
+            <button type="button" class="btn-icon" aria-label="Settings">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V20a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10c.1.7.6 1.3 1.5 1.5H20a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+            </button>
+            <span class="menu-icon-label">Settings</span>
+          </div>
+
+          <div class="menu-icon-btn">
+            <a href="shop.html" class="btn-icon" aria-label="Shop">
+              <svg viewBox="0 0 24 24"><path d="M6 9h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9z"/><path d="M9 9V7a3 3 0 0 1 6 0v2"/></svg>
+            </a>
+            <span class="menu-icon-label">Shop</span>
+          </div>
         </div>
       </div>
     </div>
