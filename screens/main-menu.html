@@ -75,14 +75,20 @@
     }
 
     /* PLAY — the one large/bright element on the whole screen. It's an <a>
-       (links to gameplay.html) styled as .btn-primary, so strip link defaults. */
+       (links to gameplay.html) styled as .btn-primary, so strip link defaults.
+       Fills the width of the center column (capped on tablet) instead of
+       sizing to its own text, so it reads as a substantial primary CTA
+       rather than a small floating button. */
     .btn-play {
-      padding: 16px 28px;
-      font-size: var(--font-size-lg);
+      width: 100%;
+      max-width: 160px;
+      box-sizing: border-box;
+      padding: 14px 0;
+      font-size: var(--font-size-md);
       border-radius: var(--radius-lg);
       letter-spacing: 0.04em;
       text-decoration: none;
-      white-space: nowrap;
+      text-align: center;
     }
 
     /* Left/right HUD columns — Daily+Awards on the left, Themes+Shop on
