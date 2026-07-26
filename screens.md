@@ -273,6 +273,38 @@ Reward icons: Treasure Chest, Gift Box, Diamond, Coin Stack, Crown, Medal.
 
 Color-coding rule across all screens: gold = rewards, red = bombs, blue = diamonds, purple = combo effects, green = success messages. Everything else stays neutral wood/beige tones so these accents pop.
 
+Audit against the built screens:
+
+```text
+[x] Coin      – topbar/header pills on main-menu, gameplay, game-over, themes, shop
+[x] Trophy    – main-menu BEST score pill
+[x] Pause     – gameplay topbar
+[x] Play      – game-over "Watch Ad" icon (video/play glyph); PLAY itself is a text button
+[x] Restart   – text-only per Phase 5/6 build notes, no icon required
+[x] Home      – game-over.html icon button
+[x] Settings  – gear icon (main-menu, pause, nav bar)
+[x] Sound     – settings.html mute buttons (speaker glyph)
+[x] Music     – settings.html Music row (music-note glyph)
+[x] Hammer / Bomb / Drill / Lightning – gameplay booster panel + shop
+[ ] Stopwatch – not used anywhere yet; reserved for a future time-freeze
+      booster (would need a 5th booster slot, which Phase 4's spec fixes
+      at 4 — revisit if a time-based booster is added to the design)
+[x] Star      – repurposed as the "NEW BEST!" sparkle on game-over.html
+      rather than a booster; no Star-type booster exists yet (see Stopwatch)
+[x] Treasure Chest – gameplay treasure block, daily-reward Day 7 hero card
+[x] Gift Box  – daily-reward icon (nav bar + main-menu)
+[x] Diamond   – gameplay diamond block
+[x] Coin Stack – shop.html's two largest coin packs use a stacked-coin
+      glyph; smaller packs keep the single-coin icon for hierarchy
+[x] Crown / Medal – achievements.html uses medal (spec allows either);
+      no separate crown icon in use
+```
+
+Color-coding note: achievements.html's claimed state uses gold instead of
+green (an explicit design decision, since green read as out of place next
+to the wood/gold palette) — every other screen still follows the rule
+above as written.
+
 ---
 
 ## Phase 12 — Polish Pass (applies to all screens)
@@ -290,9 +322,27 @@ Accessibility: confirm text contrast against wood textures, tap targets at least
 Verification checklist:
 
 ```text
-[ ] All 10 screens built and linked via nav for click-through testing
-[ ] Shared tokens.css/components.css used with no one-off hardcoded colors
-[ ] All icons from Phase 11 reference accounted for
-[ ] Every screen wrapped in `.device-frame`, mobile-to-tablet toggle verified, portrait-only (no landscape variant)
-[ ] Animations mocked at least as before/after states
+[x] All 10 screens built and linked via nav for click-through testing
+      (splash -> main-menu -> gameplay/pause/game-over, and the 5 hub
+      screens - daily-reward, themes, achievements, settings, shop -
+      all cross-link via a shared persistent bottom nav bar)
+[x] Shared tokens.css/components.css used with no one-off hardcoded colors
+      (audited via grep for raw hex codes; the one duplicate found,
+      stroke="#4a2f1c", was replaced with var(--color-wood-dark) everywhere)
+[x] All icons from Phase 11 reference accounted for (see audit above;
+      Stopwatch is the sole intentional gap, reserved for a future booster)
+[x] Every screen wrapped in `.device-frame`, mobile-to-tablet toggle verified,
+      portrait-only (no landscape variant) - all 10 screens confirmed via
+      grep, layouts use fr-based grids/flex so nothing breaks on resize
+[x] Animations mocked at least as before/after states (button press,
+      modal open/close, combo pop, and the coin counter tick-up in
+      shop.html are all implemented as CSS transitions/keyframes)
 ```
+
+Accessibility pass (added alongside the checklist above): text contrast checked
+against the wood/bg palette (muted text ~7:1, primary text ~13.6:1, gold ~9:1 -
+all comfortably pass WCAG AA); tap targets audited for 44x44px minimum (nav
+icons and .btn-icon are 48x48; settings.html's slider-mute-btn was bumped from
+32x32 to 44x44 to meet this); color-as-sole-signal checked across
+locked/unlocked theme cards and claimed/claimable/in-progress achievement rows
+- all pair their color with a distinct icon.

@@ -22,7 +22,8 @@
       flex: 0 0 auto;
       width: 100%;
       display: flex;
-      justify-content: center;
+      align-items: center;
+      justify-content: space-between;
     }
 
     .menu-score-pill .pill-icon svg {
@@ -39,14 +40,28 @@
       margin-right: 2px;
     }
 
-    /* Middle: play button, vertically centered in remaining space */
-    .menu-center {
+    /* Middle: side icon columns flanking the play button, vertically
+       centered as a game HUD instead of a mobile-app bottom tab bar. The
+       play button itself sits lower, anchored to the bottom of its own
+       column while the icons stay centered. */
+    .menu-body {
       flex: 1 1 auto;
       width: 100%;
       display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .menu-center {
+      flex: 1 1 auto;
+      min-width: 0;
+      align-self: stretch;
+      display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-end;
+      padding-bottom: var(--space-xl);
+      box-sizing: border-box;
     }
 
     /* Placeholder slot for a looping gameplay video (to be dropped in
@@ -62,24 +77,29 @@
     /* PLAY — the one large/bright element on the whole screen. It's an <a>
        (links to gameplay.html) styled as .btn-primary, so strip link defaults. */
     .btn-play {
-      padding: 20px 64px;
-      font-size: var(--font-size-xl);
+      padding: 16px 28px;
+      font-size: var(--font-size-lg);
       border-radius: var(--radius-lg);
       letter-spacing: 0.04em;
       text-decoration: none;
+      white-space: nowrap;
     }
 
-    /* Bottom: row of secondary icon buttons */
-    .menu-icon-row {
+    /* Left/right HUD columns — Daily+Awards on the left, Themes+Shop on
+       the right, vertically centered (independent of the play button's
+       lower position). */
+    .menu-side {
       flex: 0 0 auto;
-      width: 100%;
+      width: 56px;
       display: flex;
-      justify-content: space-between;
-      gap: var(--space-sm);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-lg);
     }
 
     .menu-icon-btn {
-      flex: 1 1 0;
+      flex: 0 0 auto;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -132,50 +152,50 @@
               </span>
               <span>10,140</span>
             </div>
+            <a href="settings.html" class="btn-icon header-settings-btn" aria-label="Settings">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V20a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10c.1.7.6 1.3 1.5 1.5H20a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+            </a>
           </div>
 
-          <div class="menu-center">
-            <!-- Video placeholder: drop a <video muted autoplay loop playsinline> in here once the gameplay clip is ready -->
-            <div class="menu-video-slot"></div>
+          <div class="menu-body">
+            <div class="menu-side menu-side-left">
+              <div class="menu-icon-btn">
+                <a href="daily-reward.html" class="btn-icon" aria-label="Daily Reward">
+                  <svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M4 9h16"/><path d="M12 9v11"/><path d="M12 9c-1.5-4-6-4-6-1.2C6 9 9 9 12 9z"/><path d="M12 9c1.5-4 6-4 6-1.2C18 9 15 9 12 9z"/></svg>
+                  <span class="badge">1</span>
+                </a>
+                <span class="menu-icon-label">Daily</span>
+              </div>
 
-            <a href="gameplay.html" class="btn-primary btn-play">PLAY</a>
-          </div>
-
-          <div class="menu-icon-row">
-            <div class="menu-icon-btn">
-              <a href="daily-reward.html" class="btn-icon" aria-label="Daily Reward">
-                <svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M4 9h16"/><path d="M12 9v11"/><path d="M12 9c-1.5-4-6-4-6-1.2C6 9 9 9 12 9z"/><path d="M12 9c1.5-4 6-4 6-1.2C18 9 15 9 12 9z"/></svg>
-                <span class="badge">1</span>
-              </a>
-              <span class="menu-icon-label">Daily</span>
+              <div class="menu-icon-btn">
+                <a href="achievements.html" class="btn-icon" aria-label="Achievements">
+                  <svg viewBox="0 0 24 24"><path d="M8 3l2 6-3 2-3-6z"/><path d="M16 3l-2 6 3 2 3-6z"/><circle cx="12" cy="15" r="6"/><circle cx="12" cy="15" r="2.5"/></svg>
+                </a>
+                <span class="menu-icon-label">Awards</span>
+              </div>
             </div>
 
-            <div class="menu-icon-btn">
-              <button type="button" class="btn-icon" aria-label="Themes">
-                <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a2.5 2.5 0 0 0 2.5-2.5c0-.7-.3-1.3-.7-1.8-.4-.4-.6-1-.6-1.6a2 2 0 0 1 2-2H18a3 3 0 0 0 3-3c0-4.4-4-6.1-9-6.1z"/><circle cx="7.5" cy="10.5" r="1.1"/><circle cx="9.5" cy="7" r="1.1"/><circle cx="14" cy="6.8" r="1.1"/><circle cx="16.5" cy="9.5" r="1.1"/></svg>
-              </button>
-              <span class="menu-icon-label">Themes</span>
+            <div class="menu-center">
+              <!-- Video placeholder: drop a <video muted autoplay loop playsinline> in here once the gameplay clip is ready -->
+              <div class="menu-video-slot"></div>
+
+              <a href="gameplay.html" class="btn-primary btn-play">PLAY</a>
             </div>
 
-            <div class="menu-icon-btn">
-              <a href="achievements.html" class="btn-icon" aria-label="Achievements">
-                <svg viewBox="0 0 24 24"><path d="M8 3l2 6-3 2-3-6z"/><path d="M16 3l-2 6 3 2 3-6z"/><circle cx="12" cy="15" r="6"/><circle cx="12" cy="15" r="2.5"/></svg>
-              </a>
-              <span class="menu-icon-label">Awards</span>
-            </div>
+            <div class="menu-side menu-side-right">
+              <div class="menu-icon-btn">
+                <a href="themes.html" class="btn-icon" aria-label="Themes">
+                  <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a2.5 2.5 0 0 0 2.5-2.5c0-.7-.3-1.3-.7-1.8-.4-.4-.6-1-.6-1.6a2 2 0 0 1 2-2H18a3 3 0 0 0 3-3c0-4.4-4-6.1-9-6.1z"/><circle cx="7.5" cy="10.5" r="1.1"/><circle cx="9.5" cy="7" r="1.1"/><circle cx="14" cy="6.8" r="1.1"/><circle cx="16.5" cy="9.5" r="1.1"/></svg>
+                </a>
+                <span class="menu-icon-label">Themes</span>
+              </div>
 
-            <div class="menu-icon-btn">
-              <a href="settings.html" class="btn-icon" aria-label="Settings">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V20a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10c.1.7.6 1.3 1.5 1.5H20a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-              </a>
-              <span class="menu-icon-label">Settings</span>
-            </div>
-
-            <div class="menu-icon-btn">
-              <a href="shop.html" class="btn-icon" aria-label="Shop">
-                <svg viewBox="0 0 24 24"><path d="M6 9h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9z"/><path d="M9 9V7a3 3 0 0 1 6 0v2"/></svg>
-              </a>
-              <span class="menu-icon-label">Shop</span>
+              <div class="menu-icon-btn">
+                <a href="shop.html" class="btn-icon" aria-label="Shop">
+                  <svg viewBox="0 0 24 24"><path d="M6 9h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9z"/><path d="M9 9V7a3 3 0 0 1 6 0v2"/></svg>
+                </a>
+                <span class="menu-icon-label">Shop</span>
+              </div>
             </div>
           </div>
 

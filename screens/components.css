@@ -91,6 +91,32 @@
   transform: scale(0.94);
 }
 
+/* Screen header right-hand cluster — pill/subtitle + settings gear, used
+   across the hub screens (shop, themes, achievements, daily-reward,
+   settings, main-menu) so the header layout stays identical everywhere. */
+.screen-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.header-settings-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Marks the gear as "you are here" on settings.html itself. */
+.header-settings-btn.is-active {
+  background: rgba(242, 182, 50, 0.18);
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+
 .btn-icon .badge {
   position: absolute;
   top: -4px;
@@ -241,4 +267,90 @@
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/*
+  Pop-page bottom sheet (Daily Reward, Themes, Achievements, Shop)
+  These open as a drawer over a dimmed, frozen sliver of main-menu.html
+  instead of being their own full screen — same "mock it as a static
+  snapshot" technique pause.html uses for gameplay.html. Closing (the X)
+  returns to main-menu.html. Settings is the one screen that stays a real
+  full page, not a popup, so it doesn't use any of this.
+*/
+.sheet-bg {
+  filter: blur(4px);
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+.sheet-bg,
+.sheet-bg * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.menu-topbar-bg {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg);
+  box-sizing: border-box;
+}
+
+.sheet-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet-scrim {
+  flex: 1 1 auto;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.bottom-sheet {
+  flex: 0 0 auto;
+  height: 85%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  animation: sheetUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Drag-to-dismiss handle — no visible close button, closing is a gesture:
+   drag the handle down past the threshold (or tap the dimmed scrim) and
+   the sheet releases back to main-menu.html. See the per-file <script>
+   for the pointer-drag logic. */
+.sheet-handle-row {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  padding: 14px 0 6px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sheet-handle-row:active {
+  cursor: grabbing;
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
 }

@@ -154,42 +154,6 @@
       text-transform: uppercase;
     }
 
-    /* Next-screen placeholder — stands in for main-menu.html, which is built
-       in Phase 3. The falling logo's landing is what kicks off the timer
-       that fades the splash out and reveals this. */
-    .menu-placeholder {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-lg);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.6s ease;
-    }
-
-    .menu-placeholder.is-visible {
-      opacity: 1;
-    }
-
-    .menu-placeholder .splash-logo-word {
-      opacity: 1;
-      transform: none;
-      font-size: clamp(1.5rem, 6vw, 1.9rem);
-      transition: none;
-    }
-
-    .menu-placeholder-note {
-      font-family: var(--font-body);
-      font-size: var(--font-size-xs);
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--color-text-muted);
-    }
-
     /* Dust particles drifting upward */
     .splash-dust {
       position: absolute;
@@ -257,13 +221,6 @@
             <span class="splash-loader-label">Loading…</span>
           </div>
         </div>
-
-        <!-- Placeholder for main-menu.html (Phase 3) — the splash fades into
-             this once the logo has landed and loading finishes. -->
-        <div class="menu-placeholder" id="menuPlaceholder">
-          <h1 class="splash-logo-word">TETROFALL</h1>
-          <span class="menu-placeholder-note">Main Menu — built in Phase 3</span>
-        </div>
       </div>
     </div>
   </div>
@@ -295,29 +252,16 @@
     // loader fills -> landing/loading finishing is what triggers the
     // fade into the next screen (main-menu.html, stubbed here as a
     // placeholder since it isn't built until Phase 3). Loops so the mockup
-    // demonstrates the full splash -> menu hand-off without a manual trigger.
+    // demonstrates the full drop-and-load sequence, then hands off to the
+    // real main-menu.html for good — no more looping back to a placeholder.
     var splashStage = document.getElementById('splashStage');
     var logoMark = document.getElementById('logoMark');
     var logoShadow = document.getElementById('logoShadow');
     var logoWord = document.getElementById('logoWord');
     var loader = document.getElementById('loader');
     var loaderFill = document.getElementById('loaderFill');
-    var menuPlaceholder = document.getElementById('menuPlaceholder');
 
     function runSplashSequence() {
-      // Reset to pre-drop state.
-      logoMark.classList.remove('is-dropped', 'is-landed');
-      logoShadow.classList.remove('is-dropped');
-      logoWord.classList.remove('is-visible');
-      loader.classList.remove('is-visible');
-      loaderFill.style.width = '0%';
-      splashStage.classList.remove('is-fading');
-      menuPlaceholder.classList.remove('is-visible');
-      splashStage.style.opacity = '1';
-
-      // Force reflow so the reset above is committed before re-triggering.
-      void logoMark.offsetWidth;
-
       // 1. Tetromino falls into place.
       requestAnimationFrame(function () {
         logoMark.classList.add('is-dropped');
@@ -336,14 +280,14 @@
         loaderFill.style.width = '100%';
       }, 850);
 
-      // 4. Load "finishes" -> fade splash out, reveal main-menu placeholder.
+      // 4. Load finishes -> fade out -> hand off to the real main menu.
       setTimeout(function () {
         splashStage.classList.add('is-fading');
-        menuPlaceholder.classList.add('is-visible');
       }, 3100);
 
-      // 5. Hold on the placeholder, then loop back to the splash.
-      setTimeout(runSplashSequence, 5600);
+      setTimeout(function () {
+        window.location.href = 'main-menu.html';
+      }, 3700);
     }
 
     runSplashSequence();
