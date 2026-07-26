@@ -59,12 +59,14 @@
       justify-content: center;
     }
 
-    /* PLAY — the one large/bright element on the whole screen */
+    /* PLAY — the one large/bright element on the whole screen. It's an <a>
+       (links to gameplay.html) styled as .btn-primary, so strip link defaults. */
     .btn-play {
       padding: 20px 64px;
       font-size: var(--font-size-xl);
       border-radius: var(--radius-lg);
       letter-spacing: 0.04em;
+      text-decoration: none;
     }
 
     /* Bottom: row of secondary icon buttons */
@@ -132,7 +134,7 @@
             <!-- Video placeholder: drop a <video muted autoplay loop playsinline> in here once the gameplay clip is ready -->
             <div class="menu-video-slot"></div>
 
-            <button type="button" class="btn-primary btn-play">PLAY</button>
+            <a href="gameplay.html" class="btn-primary btn-play">PLAY</a>
           </div>
 
           <div class="menu-icon-row">

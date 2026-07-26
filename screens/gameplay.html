@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tetrofall — Gameplay</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="components.css" />
+  <style>
+    .game-stage {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: var(--space-md) var(--space-md) var(--space-lg);
+      box-sizing: border-box;
+      gap: var(--space-sm);
+    }
+
+    /* ---------- Top bar ---------- */
+    .game-topbar {
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+    }
+
+    .game-coin-pill {
+      justify-self: start;
+    }
+
+    .icon-coin {
+      fill: var(--color-gold);
+    }
+
+    .game-score {
+      justify-self: center;
+      text-align: center;
+      line-height: 1.1;
+    }
+
+    .game-score-current {
+      font-family: var(--font-display);
+      font-size: var(--font-size-xl);
+      font-weight: 800;
+      color: var(--color-text);
+    }
+
+    .game-score-best {
+      font-size: var(--font-size-xs);
+      font-weight: 700;
+      color: var(--color-text-muted);
+      letter-spacing: 0.04em;
+    }
+
+    .game-pause {
+      justify-self: end;
+    }
+
+    .game-pause svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* ---------- Reserved combo callout space ---------- */
+    .game-combo-zone {
+      flex: 0 0 auto;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .combo-text {
+      font-family: var(--font-display);
+      font-size: var(--font-size-xl);
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      color: var(--color-gold);
+      text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 16px rgba(242, 182, 50, 0.5);
+      opacity: 0;
+      transform: scale(0.7);
+      transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .combo-text.is-active {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* ---------- Board ---------- */
+    .game-board-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+    }
+
+    .game-board {
+      width: 100%;
+      max-height: 100%;
+      aspect-ratio: 1;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+    }
+
+    .board-cell {
+      position: relative;
+      border-radius: 6px;
+    }
+
+    .block-icon {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .block-icon svg {
+      width: 55%;
+      height: 55%;
+    }
+
+    /* Empty cell — open play space, awaiting the stack to rise into it */
+    .block--empty {
+      background: rgba(0, 0, 0, 0.18);
+      border: 1px dashed rgba(255, 255, 255, 0.08);
+    }
+
+    /* Wood — base texture, most common block */
+    .block--wood {
+      background: linear-gradient(160deg, var(--color-wood-light) 0%, var(--color-wood-mid) 55%, var(--color-wood-dark) 100%);
+      border: 1px solid rgba(0, 0, 0, 0.35);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.25), inset 0 -2px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Currently-falling piece — same wood texture, lifted with a glow ring */
+    .block--wood.is-falling {
+      transform: scale(0.92);
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), inset 0 2px 3px rgba(255, 255, 255, 0.3);
+      outline: 2px solid rgba(242, 182, 50, 0.55);
+      outline-offset: -2px;
+      animation: fallingGlow 1.6s ease-in-out infinite;
+    }
+
+    @keyframes fallingGlow {
+      0%, 100% { outline-color: rgba(242, 182, 50, 0.3); }
+      50%      { outline-color: rgba(242, 182, 50, 0.75); }
+    }
+
+    /* Stone — grey, heavier, no crack lines */
+    .block--stone {
+      background: linear-gradient(160deg, #a3a3a3 0%, #6d6d6d 55%, #444444 100%);
+      border: 1px solid rgba(0, 0, 0, 0.4);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.18), inset 0 -2px 3px rgba(0, 0, 0, 0.35);
+    }
+
+    /* Ice — semi-transparent blue overlay on wood; cracks after 1 hit */
+    .block--ice {
+      background:
+        linear-gradient(rgba(58, 160, 217, 0.38), rgba(58, 160, 217, 0.38)),
+        linear-gradient(160deg, var(--color-wood-light) 0%, var(--color-wood-mid) 55%, var(--color-wood-dark) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.35), inset 0 -2px 3px rgba(0, 0, 0, 0.25);
+    }
+
+    .block--ice.is-cracked::before,
+    .block--ice.is-cracked::after {
+      content: '';
+      position: absolute;
+      background: rgba(255, 255, 255, 0.65);
+      width: 1.5px;
+    }
+
+    .block--ice.is-cracked::before {
+      top: 12%;
+      left: 55%;
+      height: 65%;
+      transform: rotate(20deg);
+    }
+
+    .block--ice.is-cracked::after {
+      top: 40%;
+      left: 30%;
+      height: 40%;
+      transform: rotate(-28deg);
+    }
+
+    /* Bomb — red accent, fuse icon */
+    .block--bomb {
+      background: linear-gradient(160deg, #d97a68 0%, var(--color-red) 55%, #7d1f14 100%);
+      border: 1px solid rgba(0, 0, 0, 0.4);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.25), inset 0 -2px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Gold — gold accent, shine highlight */
+    .block--gold {
+      background: linear-gradient(160deg, #ffe28a 0%, var(--color-gold) 55%, #b9791a 100%);
+      border: 1px solid rgba(0, 0, 0, 0.35);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.5), inset 0 -2px 3px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .block--gold::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -20%;
+      width: 40%;
+      height: 200%;
+      background: rgba(255, 255, 255, 0.55);
+      transform: rotate(25deg);
+    }
+
+    /* Diamond — blue accent, faceted icon */
+    .block--diamond {
+      background: linear-gradient(160deg, #9adcf7 0%, var(--color-blue) 55%, #1c6e94 100%);
+      border: 1px solid rgba(0, 0, 0, 0.35);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.4), inset 0 -2px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Treasure — wood base, chest icon overlay */
+    .block--treasure {
+      background: linear-gradient(160deg, var(--color-wood-light) 0%, var(--color-wood-mid) 55%, var(--color-wood-dark) 100%);
+      border: 1px solid rgba(0, 0, 0, 0.35);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.25), inset 0 -2px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Locked — darkened, lock icon, paired key indicator */
+    .block--locked {
+      background: linear-gradient(160deg, #565656 0%, #333333 55%, #181818 100%);
+      border: 1px solid rgba(0, 0, 0, 0.5);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.12), inset 0 -2px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .key-indicator {
+      position: absolute;
+      bottom: 3px;
+      right: 3px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-gold);
+      box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Rainbow — multicolor gradient fill */
+    .block--rainbow {
+      background: conic-gradient(from 0deg, var(--color-red), var(--color-gold), var(--color-green), var(--color-blue), var(--color-purple), var(--color-red));
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.3), inset 0 -2px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    /* ---------- Booster panel ---------- */
+    .game-boosters {
+      flex: 0 0 auto;
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-sm);
+    }
+
+    .booster-slot {
+      flex: 1 1 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .booster-slot .btn-icon {
+      width: 52px;
+      height: 52px;
+    }
+
+    .booster-slot .btn-icon svg {
+      width: 22px;
+      height: 22px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .booster-slot .btn-icon .badge {
+      background: var(--color-gold);
+      color: var(--color-wood-dark);
+    }
+  </style>
+</head>
+<body>
+  <div class="device-stage">
+    <div class="device-toggle">
+      <button type="button" class="is-active" data-size="mobile">Mobile</button>
+      <button type="button" data-size="tablet">Tablet</button>
+    </div>
+    <div class="device-frame" id="frame">
+      <div class="device-frame__screen bg-wood-grain">
+        <div class="game-stage">
+
+          <div class="game-topbar">
+            <div class="pill-counter game-coin-pill">
+              <span class="pill-icon">
+                <svg viewBox="0 0 24 24" class="icon-coin"><circle cx="12" cy="12" r="10"/><path d="M12 6.5v11M8.7 9.3c0-1.1 1.2-1.9 3.3-1.9s3.3.8 3.3 1.9c0 1-.9 1.5-3.3 1.9-2.4.4-3.3.9-3.3 2 0 1.1 1.3 1.9 3.3 1.9s3.3-.8 3.3-1.9" fill="none" stroke="#4a2f1c" stroke-width="1.3" stroke-linecap="round"/></svg>
+              </span>
+              <span>640</span>
+            </div>
+
+            <div class="game-score">
+              <div class="game-score-current">12,480</div>
+              <div class="game-score-best">BEST 10,140</div>
+            </div>
+
+            <button type="button" class="btn-icon game-pause" aria-label="Pause">
+              <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            </button>
+          </div>
+
+          <div class="game-combo-zone">
+            <div class="combo-text" id="comboText">GOOD!</div>
+          </div>
+
+          <div class="game-board-wrap">
+            <div class="game-board">
+
+              <!-- row 0 -->
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+
+              <!-- row 1: top of the falling T-piece -->
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--wood is-falling"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+
+              <!-- row 2: bottom of the falling T-piece -->
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--wood is-falling"></div>
+              <div class="board-cell block--wood is-falling"></div>
+              <div class="board-cell block--wood is-falling"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+
+              <!-- row 3 -->
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+
+              <!-- row 4 -->
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+              <div class="board-cell block--empty"></div>
+
+              <!-- row 5: the rising stack begins -->
+              <div class="board-cell block--stone"></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--ice"></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--gold"></div>
+              <div class="board-cell block--wood"></div>
+
+              <!-- row 6 -->
+              <div class="board-cell block--bomb"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#2b1c12" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="14" r="6"/><path d="M12 8V5"/><path d="M12 5c.8-1.2 2-1.2 2.4-2.4"/><circle cx="15" cy="2.2" r="0.9" fill="#2b1c12" stroke="none"/></svg></span></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--locked"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#e8dcc8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="12" height="9" rx="1.5"/><path d="M8.5 10V7a3.5 3.5 0 0 1 7 0v3"/><circle cx="12" cy="14.3" r="1.1" fill="#e8dcc8" stroke="none"/></svg></span><span class="key-indicator"></span></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--diamond"><span class="block-icon"><svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.85)" stroke="none"><path d="M12 3l5.5 5.5L12 21 6.5 8.5z"/><path d="M6.5 8.5h11L12 3z" fill="rgba(255,255,255,0.5)"/></svg></span></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--ice is-cracked"></div>
+
+              <!-- row 7: bottom row -->
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--treasure"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#3a2414" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M4 10a8 6 0 0 1 16 0"/><circle cx="12" cy="14.5" r="1.3" fill="#3a2414" stroke="none"/></svg></span></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--rainbow"></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--wood"></div>
+              <div class="board-cell block--stone"></div>
+
+            </div>
+          </div>
+
+          <div class="game-boosters">
+            <div class="booster-slot">
+              <button type="button" class="btn-icon" aria-label="Hammer">
+                <svg viewBox="0 0 24 24"><path d="M15 3.5l4.5 4.5-2.7 2.7-4.5-4.5z"/><path d="M12.3 6.2L4.8 13.7a2 2 0 0 0 0 2.8l1.7 1.7a2 2 0 0 0 2.8 0l7.5-7.5"/><path d="M5 19l3-3"/></svg>
+                <span class="badge">3</span>
+              </button>
+            </div>
+            <div class="booster-slot">
+              <button type="button" class="btn-icon" aria-label="Bomb Booster">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="14" r="6.5"/><path d="M12 7.5V5"/><path d="M12 5c1-1.3 2.3-1.3 2.8-2.6"/><circle cx="15.2" cy="1.7" r="1" fill="currentColor" stroke="none"/></svg>
+                <span class="badge">50</span>
+              </button>
+            </div>
+            <div class="booster-slot">
+              <button type="button" class="btn-icon" aria-label="Drill">
+                <svg viewBox="0 0 24 24"><path d="M3 12h5"/><path d="M8 9h4v6H8z"/><path d="M12 10h3.5v4H12z"/><path d="M15.5 11.5H19"/></svg>
+                <span class="badge">2</span>
+              </button>
+            </div>
+            <div class="booster-slot">
+              <button type="button" class="btn-icon" aria-label="Lightning">
+                <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H10L9 22l9-13H12z" fill="currentColor" stroke="none"/></svg>
+                <span class="badge">80</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var frame = document.getElementById('frame');
+    var buttons = document.querySelectorAll('.device-toggle button');
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        buttons.forEach(function (b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        frame.classList.toggle('is-tablet', btn.dataset.size === 'tablet');
+      });
+    });
+
+    // Combo callout: resting state is empty; this just cycles the
+    // "triggered" tiers on a loop so both states are visible over time
+    // without a manual control.
+    var comboMessages = ['GOOD!', 'AWESOME!', 'INCREDIBLE!', 'UNBELIEVABLE!'];
+    var comboEl = document.getElementById('comboText');
+    var comboIndex = 0;
+
+    function showCombo() {
+      comboEl.textContent = comboMessages[comboIndex % comboMessages.length];
+      comboIndex++;
+      comboEl.classList.add('is-active');
+      setTimeout(function () {
+        comboEl.classList.remove('is-active');
+      }, 1100);
+    }
+
+    setTimeout(function () {
+      showCombo();
+      setInterval(showCombo, 3200);
+    }, 900);
+  </script>
+</body>
+</html>
