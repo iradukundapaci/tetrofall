@@ -12,7 +12,7 @@
       height: 100%;
       display: flex;
       flex-direction: column;
-      padding: var(--space-md) var(--space-md) var(--space-lg);
+      padding: var(--space-md);
       box-sizing: border-box;
       gap: var(--space-sm);
     }
@@ -65,7 +65,7 @@
     /* ---------- Reserved combo callout space ---------- */
     .game-combo-zone {
       flex: 0 0 auto;
-      height: 40px;
+      height: 32px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -98,18 +98,36 @@
       min-height: 0;
     }
 
+    /* Play-area boundary — the frame that visibly marks where the board
+       starts/ends, distinct from the wood-grain page behind it. Width and
+       height are set precisely in JS (sizeBoard below) rather than via a
+       CSS aspect-ratio, because 10 columns / 16 rows don't share the same
+       gap count on each axis (9 gaps vs 15) — a flat ratio leaves cells a
+       fraction of a pixel off-square. max-height/width here are just the
+       pre-JS fallback. */
+    .game-board-frame {
+      max-height: 100%;
+      max-width: 100%;
+      padding: 4px;
+      border-radius: 12px;
+      border: 3px solid rgba(245, 234, 217, 0.3);
+      background: rgba(0, 0, 0, 0.28);
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+      box-sizing: border-box;
+    }
+
     .game-board {
       width: 100%;
-      max-height: 100%;
-      aspect-ratio: 1;
+      height: 100%;
       display: grid;
-      grid-template-columns: repeat(8, 1fr);
-      gap: 4px;
+      grid-template-columns: repeat(10, 1fr);
+      grid-template-rows: repeat(16, 1fr);
+      gap: 3px;
     }
 
     .board-cell {
       position: relative;
-      border-radius: 6px;
+      border-radius: 7px;
     }
 
     .block-icon {
@@ -324,88 +342,201 @@
           </div>
 
           <div class="game-board-wrap">
-            <div class="game-board">
+            <div class="game-board-frame">
+              <div class="game-board">
 
-              <!-- row 0 -->
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
+                <!-- row 0 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
 
-              <!-- row 1: top of the falling T-piece -->
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--wood is-falling"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
+                <!-- row 1 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
 
-              <!-- row 2: bottom of the falling T-piece -->
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--wood is-falling"></div>
-              <div class="board-cell block--wood is-falling"></div>
-              <div class="board-cell block--wood is-falling"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
+                <!-- row 2 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
 
-              <!-- row 3 -->
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
+                <!-- row 3 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
 
-              <!-- row 4 -->
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
-              <div class="board-cell block--empty"></div>
+                <!-- row 4 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
 
-              <!-- row 5: the rising stack begins -->
-              <div class="board-cell block--stone"></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--ice"></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--gold"></div>
-              <div class="board-cell block--wood"></div>
+                <!-- row 5 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
 
-              <!-- row 6 -->
-              <div class="board-cell block--bomb"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#2b1c12" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="14" r="6"/><path d="M12 8V5"/><path d="M12 5c.8-1.2 2-1.2 2.4-2.4"/><circle cx="15" cy="2.2" r="0.9" fill="#2b1c12" stroke="none"/></svg></span></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--locked"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#e8dcc8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="12" height="9" rx="1.5"/><path d="M8.5 10V7a3.5 3.5 0 0 1 7 0v3"/><circle cx="12" cy="14.3" r="1.1" fill="#e8dcc8" stroke="none"/></svg></span><span class="key-indicator"></span></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--diamond"><span class="block-icon"><svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.85)" stroke="none"><path d="M12 3l5.5 5.5L12 21 6.5 8.5z"/><path d="M6.5 8.5h11L12 3z" fill="rgba(255,255,255,0.5)"/></svg></span></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--ice is-cracked"></div>
+                <!-- row 6 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
 
-              <!-- row 7: bottom row -->
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--treasure"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#3a2414" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M4 10a8 6 0 0 1 16 0"/><circle cx="12" cy="14.5" r="1.3" fill="#3a2414" stroke="none"/></svg></span></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--rainbow"></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--wood"></div>
-              <div class="board-cell block--stone"></div>
+                <!-- row 7 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
 
+                <!-- row 8 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+
+                <!-- row 9 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+
+                <!-- row 10 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--wood is-falling"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+
+                <!-- row 11 -->
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--wood is-falling"></div>
+                <div class="board-cell block--wood is-falling"></div>
+                <div class="board-cell block--wood is-falling"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--empty"></div>
+
+                <!-- row 12 -->
+                <div class="board-cell block--stone"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--ice"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--gold"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--empty"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--ice"></div>
+                <div class="board-cell block--wood"></div>
+
+                <!-- row 13 -->
+                <div class="board-cell block--bomb"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#2b1c12" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="14" r="6"/><path d="M12 8V5"/><path d="M12 5c.8-1.2 2-1.2 2.4-2.4"/><circle cx="15" cy="2.2" r="0.9" fill="#2b1c12" stroke="none"/></svg></span></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--locked"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#e8dcc8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="12" height="9" rx="1.5"/><path d="M8.5 10V7a3.5 3.5 0 0 1 7 0v3"/><circle cx="12" cy="14.3" r="1.1" fill="#e8dcc8" stroke="none"/></svg></span><span class="key-indicator"></span></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--diamond"><span class="block-icon"><svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.85)" stroke="none"><path d="M12 3l5.5 5.5L12 21 6.5 8.5z"/><path d="M6.5 8.5h11L12 3z" fill="rgba(255,255,255,0.5)"/></svg></span></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--ice is-cracked"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--gold"></div>
+                <div class="board-cell block--wood"></div>
+
+                <!-- row 14 -->
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--treasure"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#3a2414" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M4 10a8 6 0 0 1 16 0"/><circle cx="12" cy="14.5" r="1.3" fill="#3a2414" stroke="none"/></svg></span></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--rainbow"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--stone"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--ice"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--treasure"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#3a2414" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M4 10a8 6 0 0 1 16 0"/><circle cx="12" cy="14.5" r="1.3" fill="#3a2414" stroke="none"/></svg></span></div>
+
+                <!-- row 15 -->
+                <div class="board-cell block--gold"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--stone"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--ice"></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--bomb"><span class="block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#2b1c12" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="14" r="6"/><path d="M12 8V5"/><path d="M12 5c.8-1.2 2-1.2 2.4-2.4"/><circle cx="15" cy="2.2" r="0.9" fill="#2b1c12" stroke="none"/></svg></span></div>
+                <div class="board-cell block--wood"></div>
+                <div class="board-cell block--stone"></div>
+                <div class="board-cell block--wood"></div>
+            </div>
             </div>
           </div>
 
@@ -451,6 +582,37 @@
         frame.classList.toggle('is-tablet', btn.dataset.size === 'tablet');
       });
     });
+
+    // Force the board frame to a pixel-exact size so every cell is a true
+    // square. A flat CSS aspect-ratio can't do this: 10 columns share 9
+    // gaps while 16 rows share 15, so the two axes don't scale in lockstep.
+    // Instead measure the available box, solve for the largest whole-pixel
+    // cell size that fits both axes, then size the frame to exactly match.
+    (function () {
+      var COLS = 10, ROWS = 16, GAP = 3, PAD = 4;
+      var wrap = document.querySelector('.game-board-wrap');
+      var boardFrame = document.querySelector('.game-board-frame');
+
+      function sizeBoard() {
+        var availW = wrap.clientWidth;
+        var availH = wrap.clientHeight;
+        if (!availW || !availH) return;
+
+        var cellFromWidth = (availW - 2 * PAD - (COLS - 1) * GAP) / COLS;
+        var cellFromHeight = (availH - 2 * PAD - (ROWS - 1) * GAP) / ROWS;
+        var cell = Math.floor(Math.min(cellFromWidth, cellFromHeight));
+
+        boardFrame.style.width = (cell * COLS + (COLS - 1) * GAP + 2 * PAD) + 'px';
+        boardFrame.style.height = (cell * ROWS + (ROWS - 1) * GAP + 2 * PAD) + 'px';
+      }
+
+      if (window.ResizeObserver) {
+        new ResizeObserver(sizeBoard).observe(wrap);
+      } else {
+        window.addEventListener('resize', sizeBoard);
+        sizeBoard();
+      }
+    })();
 
     // Combo callout: resting state is empty; this just cycles the
     // "triggered" tiers on a loop so both states are visible over time
