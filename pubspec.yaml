@@ -35,6 +35,9 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # Renders the SVG icons extracted from the HTML mockups (see P.5 in game.md).
+  flutter_svg: ^2.0.10
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -56,6 +59,13 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    # UI icons, extracted from screens/*.html by tools/extract_icons.py (P.5).
+    # Regenerate with that script rather than hand-editing the SVGs.
+    - assets/images/icons/
+    # NOTE: assets/images/icons/blocks-reference/ is deliberately NOT listed.
+    # Those are drawing reference for the P.3 block tiles, not runtime assets.
 
   # To add assets to your application, add an assets section, like this:
   # assets:

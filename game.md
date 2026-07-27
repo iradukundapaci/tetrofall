@@ -824,24 +824,40 @@ Two things to get right: the frame thickness must scale with `cellSize` (not a f
 
 ---
 
-### P.5 — Icons (extract, don't generate)
+### P.5 — Icons ✅ DONE
 
-**No generation needed.** All 20+ icons from `screens.md` Phase 11 already exist as inline `<svg>` markup inside your HTML mockups (`shop.html` alone has 24). Extracting them guarantees the Flutter build matches the mockups exactly — regenerating would guarantee it doesn't.
+**No generation was needed** — every icon already existed as inline `<svg>` inside the mockups. Extracting rather than redrawing means the Flutter build matches the design by construction.
 
-Process: for each `.html` file, copy each `<svg>…</svg>` block into its own file in `assets/images/icons/`, add an `xmlns` attribute if missing, and render with `flutter_svg`.
-
-Checklist (from the `screens.md` Phase 11 audit):
+**Delivered:**
 
 ```text
-Gameplay:  coin, trophy, pause, play, restart, home, settings, sound, music
-Boosters:  hammer, bomb, drill, lightning, stopwatch*, star
-Rewards:   treasure-chest, gift-box, diamond, coin-stack, crown, medal
-
-* stopwatch has no mockup source yet (reserved for Time Freeze) — draw or
-  generate this one only if you add the 5th booster slot.
+tools/extract_icons.py             re-runnable extractor
+tools/ICONS.md                     full inventory, variants, deviations, gaps
+tools/icon_contact_sheet.png       all 38 files rendered for eyeballing
+assets/images/icons/*.svg          35 UI icons
+assets/images/icons/blocks-reference/   3 files, drawing reference only
+lib/ui/theme/app_icons.dart        generated const paths + multicolor set
+pubspec.yaml                       flutter_svg dep + assets/images/icons/
 ```
 
-Add `flutter_svg: ^2.0.10` to dependencies for this.
+**How it works.** The mockups let CSS supply `fill` / `stroke` / `stroke-width`, and those don't travel with an extracted file, so the script bakes them in. It groups by **path geometry rather than markup**, which collapses state variants (gold medal vs. muted outline medal) into one file — 60 raw `<svg>` blocks → 41 shapes → 35 files. `var(--color-gold)` is resolved to literal hex, since CSS custom properties don't resolve in Flutter either.
+
+Monochrome icons emit `currentColor` and tint at the call site:
+
+```dart
+SvgPicture.asset(AppIcons.hammer, width: 22,
+  colorFilter: ColorFilter.mode(Tokens.text, BlendMode.srcIn));
+```
+
+**Three are deliberately multicolor** — `medal`, `coin_detailed`, `coin_stack` — and must render *without* a `colorFilter` or they flatten to silhouettes. `AppIcons.multicolor` holds that set.
+
+**One deliberate deviation:** `trophy` is stroked, not filled. `main-menu.html` sets `fill: gold`, but its stem and base are zero-area line paths that render as nothing under fill — the mockup's trophy is a cup with no stem. The extracted file strokes it, which is what the drawing intends. Everything else is a faithful port.
+
+**Gaps** (unchanged from the `screens.md` Phase 11 audit): no standalone `play` glyph (PLAY is a text button; the only play triangle lives inside `video`), `restart` is text-only by design, and `stopwatch` doesn't exist — it's reserved for Time Freeze, which needs a 5th booster slot. See §6.
+
+**Board-block glyphs** (`blocks-reference/`) are excluded from `pubspec.yaml` on purpose. P.3 ships special blocks as complete tiles, so those three files are reference art for drawing the tiles, not runtime assets.
+
+**If the mockups change,** edit the HTML and re-run `python3 tools/extract_icons.py` — never hand-edit the SVGs, or the two will drift.
 
 ---
 
