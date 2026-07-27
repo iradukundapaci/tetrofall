@@ -456,7 +456,8 @@ lib/
       components.dart            1:1 port of screens/components.css
       device_frame.dart          portrait lock helper
     screens/
-      splash_screen.dart
+      studio_logo_screen.dart    boot screen 1 — the only branded image
+      splash_screen.dart         boot screen 2 — code-drawn game logo
       main_menu_screen.dart
       gameplay_screen.dart       hosts GameWidget + HUD overlays
       pause_overlay.dart
@@ -467,6 +468,8 @@ lib/
       settings_screen.dart
       shop_screen.dart
     widgets/
+      logo_mark.dart             code-drawn T-tetromino mark
+      logo_wordmark.dart         gradient TETROFALL text
       primary_button.dart
       icon_button.dart
       counter_pill.dart
@@ -496,7 +499,8 @@ assets/
   images/
     blocks/                      tile_<theme>.png, block_<type>.png
     textures/                    bg_wood.png  (frame is canvas-drawn, no asset)
-    ui/                          logo_full.png, logo_mark.png, badges
+    ui/                          studio_logo.png, badges
+                                 (game logo is code-drawn — no asset)
     icons/                       SVGs extracted from screens/*.html
   audio/
     sfx/                         short .wav one-shots
@@ -616,20 +620,82 @@ Source: fonts.google.com → "Get font" → extract the static `.ttf` files (not
 
 ### P.2 — Logo & brand
 
-You already have `assets/logo.svg` and `screens/assets/game-logo.png`. **One problem to fix:** `screens.md` notes the source SVG is black ink on a flat white rectangle, worked around in HTML with `mix-blend-mode: multiply`. That trick does not translate cleanly to Flutter.
+There are **two separate brand moments** at boot, in this order:
 
-**What's needed:** a version with a genuinely transparent background and light-colored ink, since it sits on a dark wood background.
+```text
+1. Studio logo screen   →  your studio's mark. IMAGE ASSET.
+2. Splash screen        →  the Tetrofall game logo. NO IMAGE — built in code.
+```
+
+---
+
+#### Screen 1 — Studio logo (the only image needed here)
+
+Maps to `logo.html`. This is where `assets/logo.svg` belongs — it's the studio mark, not the game mark.
+
+**One problem to fix:** `screens.md` notes the source SVG is dark ink on a flat white rectangle, worked around in the mockup with `mix-blend-mode: multiply`. **That trick does not exist in Flutter.** Painting it as-is puts a hard white box on the wood background.
 
 | Asset | Format | Size | Notes |
 |---|---|---|---|
-| `logo_full.png` | PNG, transparent | 1024×1024 (or wider if wordmark) | Splash + main menu |
-| `logo_mark.png` | PNG, transparent | 512×512 | Square mark only, for headers/app icon base |
+| `studio_logo.png` | PNG, **genuinely transparent** | 1024×1024 (or wider if it's a wordmark) | Or keep it SVG and render with `flutter_svg` |
 
-Fastest fix if you want to keep the current artwork: open `logo.svg`, delete the white background rect, recolor the ink to `#f5ead9` (`--color-text`), re-export. No generation needed.
+Fastest fix, no generation needed: open `logo.svg`, delete the white background `<rect>`, recolor the ink to `#f5ead9` (`--color-text`), re-export. Verify the transparency by opening it over a dark background before you ship it — a white halo is easy to miss on a white canvas.
 
-If you'd rather generate a fresh one:
+Presentation: centred, `min(60vw, 320px)` wide, on the plain wood background, no other UI. Suggested timing — fade in 400 ms, hold 1200 ms, fade out 400 ms, then hand off to the splash. Tap anywhere to skip.
 
-> **Prompt:** "A minimalist game logo mark for a puzzle game called Tetrofall. A single stacked arrangement of four square wooden blocks forming a tetromino shape, carved-wood look with soft grain texture and warm amber tones (#c89b6a, #7a5230). Clean geometric silhouette, subtle soft drop shadow, no text, no background — fully transparent PNG, centered, square canvas, flat modern mobile-game icon style."
+---
+
+#### Screen 2 — Game logo (no asset — drawn in code)
+
+`splash.html` already builds the Tetrofall mark out of CSS block cells rather than a raster, specifically so it sits flush on the wood grain with no halo to mask out. **Port that behaviour directly.** There is no `logo_full.png`, no `game-logo.png` — the mark is widgets and canvas.
+
+Two pieces:
+
+**a) The block mark** — a **T-tetromino**, in the same wood-block language as the board:
+
+```text
+  . ▓ .        3 columns × 2 rows
+  ▓ ▓ ▓        cell 40px @ 375px-wide frame (≈10.7% of screen width,
+               clamp 40–72px so it scales up on tablet), 5px gap,
+               8px corner radius
+```
+
+| Property | Value (from `splash.html`) |
+|---|---|
+| Fill | Linear gradient ≈160°: `--color-wood-light` 0% → `--color-wood-mid` 55% → `--color-wood-dark` 100% |
+| Border | 1px `rgba(0,0,0,0.35)` |
+| Outer shadow | `--shadow-soft` (0 4px 12px rgba(0,0,0,0.35)) |
+| Inner highlight | inset 0 2px 3px `rgba(255,255,255,0.28)` |
+| Inner shade | inset 0 −3px 4px `rgba(0,0,0,0.30)` |
+
+⚠️ **Flutter has no inset box-shadow.** Those last two rows are what give the block its carved look, and `BoxDecoration` can't do them. Paint them the same way as the board frame (P.4): `MaskFilter.blur(BlurStyle.inner, …)` on a clipped `RRect`, or a top-to-bottom overlay gradient. Skipping them leaves flat rectangles that look nothing like the mockup.
+
+**b) The wordmark** — the text `TETROFALL`:
+
+| Property | Value |
+|---|---|
+| Font | Baloo 2 (`--font-display`), weight 800 |
+| Size | `clamp(1.75rem, 8vw, 2.5rem)` → 28–40px, tracking `0.03em` |
+| Fill | Vertical gradient `#ffe9b0` 0% → `--color-gold` (#f2b632) 55% → `#c9821a` 100%, applied with a `ShaderMask` |
+| Shadows | Hard: offset (0, 3), blur 0, `rgba(0,0,0,0.35)`. Soft: offset (0, 4), blur 8, `rgba(0,0,0,0.45)` |
+
+**c) The splash sequence** — port the timing exactly; it's the game's first impression and it's already tuned:
+
+| t | Event |
+|---|---|
+| 0 ms | Block mark begins falling from −420px, easing **in** (accelerating — `cubic-bezier(0.55, 0, 0.85, 0.15)`), over 550 ms. Landing shadow simultaneously grows `scaleX 0.3 → 1.0` and fades in. |
+| 550 ms | **Land.** Squash keyframes over 400 ms: `scaleY` 1 → 0.7 → 1.1 → 0.96 → 1, with `scaleX` inverse. Wordmark fades in and rises 6px. Loader fades in. |
+| 850 ms | Progress bar fills over 1800 ms, `cubic-bezier(0.3, 0.6, 0.3, 1)`. |
+| 3100 ms | Whole stage fades out over 600 ms. |
+| 3700 ms | Main menu. |
+
+The falling mark uses an **ease-in** curve, not ease-out — it's a tetromino under gravity, and it must accelerate. Getting this backwards makes the whole thing feel floaty and wrong.
+
+**d) Supporting detail:** 14 dust particles, 4px gold circles, drifting upward ~820px with ±20px horizontal drift, 4–8s durations and 0–6s staggered delays, opacity ramping 0 → 0.7 → 0.4 → 0. Loader bar is `min(55vw, 220px)` with an uppercase muted "LOADING…" label in Nunito 700, tracking `0.04em`.
+
+**Real loading vs. the animation:** drive the bar from actual asset preloading, but enforce a **minimum 2.5s** so the drop-and-land sequence always completes. Never cut the animation short because the assets happened to load fast — and never leave the player staring at a full bar because they didn't.
+
+**Where this lives:** `lib/ui/widgets/logo_mark.dart` (block mark) and `logo_wordmark.dart` (gradient text), so the main menu can reuse both at a smaller scale instead of re-implementing them.
 
 ---
 
@@ -843,9 +909,13 @@ The one thing that matters here: **define the `ThemeDefinition` type properly ev
 |---|---|---|
 | App icon | PNG, no alpha, no rounded corners | 1024×1024 |
 | Android adaptive icon | Foreground PNG w/ alpha + background color | 432×432 foreground, safe zone centre 66% |
-| Native splash | PNG, transparent | 512×512 logo on `--color-bg` |
+| Native splash | PNG, transparent | 512×512 mark on `--color-bg` |
 | Feature graphic (Play Store) | PNG/JPG | 1024×500 |
 | Screenshots | PNG | 6 per platform, portrait, from real gameplay |
+
+**The app icon and native splash still need rasters** — the OS can't render a Flutter widget before the app starts. Don't redraw the mark by hand: run the app with the logo mark scaled up on a transparent background, screenshot it at high resolution, and export from that. The store icon and the in-app splash then show the same object, which is the whole point of having a mark.
+
+Note the native splash (the OS-level one, shown before Flutter boots) is a **third** thing, distinct from the two boot screens in P.2. Keep it minimal — just the mark on `--color-bg` — so the handoff into the studio logo screen isn't jarring.
 
 ---
 
@@ -854,10 +924,11 @@ The one thing that matters here: **define the `ThemeDefinition` type properly ev
 **What you check:**
 
 1. `flutter pub get` runs clean with no missing-asset warnings.
-2. Tile `tile_classic_wood.png` across a full 10×20 grid on a scratch screen. It's the only tile in the MVP, so it has to hold up repeated 200 times — check for grain that turns into noise, or a highlight that creates a visible repeating pattern across the board.
-3. Scatter the eight special tiles across that tiled board and step back an arm's length. Can you tell all eight apart? Now screenshot it and desaturate the image — if two become hard to distinguish in greyscale, they're leaning on color alone.
-4. Play each SFX once. Anything that makes you wince now will make you wince 500 times an hour later.
-5. Loop both music tracks for two minutes each and listen for the seam.
+2. Open the studio logo over a **dark** background in any image viewer. Any white box or pale halo around it means the transparency wasn't actually removed — this is invisible on the white canvas most editors default to.
+3. Tile `tile_classic_wood.png` across a full 10×20 grid on a scratch screen. It's the only tile in the MVP, so it has to hold up repeated 200 times — check for grain that turns into noise, or a highlight that creates a visible repeating pattern across the board.
+4. Scatter the eight special tiles across that tiled board and step back an arm's length. Can you tell all eight apart? Now screenshot it and desaturate the image — if two become hard to distinguish in greyscale, they're leaning on color alone.
+5. Play each SFX once. Anything that makes you wince now will make you wince 500 times an hour later.
+6. Loop both music tracks for two minutes each and listen for the seam.
 
 ---
 
@@ -1102,7 +1173,8 @@ Port `screens/components.css` → `lib/ui/widgets/` first (primary button, circu
 
 | Source | Flutter target |
 |---|---|
-| `splash.html` | `splash_screen.dart` |
+| `logo.html` | `studio_logo_screen.dart` — boot screen 1, studio mark |
+| `splash.html` | `splash_screen.dart` — boot screen 2, code-drawn logo + drop sequence |
 | `main-menu.html` | `main_menu_screen.dart` |
 | `gameplay.html` | `gameplay_screen.dart` — HUD overlays on `GameWidget` |
 | `pause.html` | `pause_overlay.dart` — dim + blur the live board |
@@ -1126,7 +1198,10 @@ Rules for this phase:
 
 1. Same spacing, same corner radii, same font weights, same colors. Look hardest at the gaps between elements; that's where ports usually drift.
 2. Repeat at 768×1024 on a tablet.
-3. Walk the full navigation: splash → main menu → gameplay → pause → resume → game over → play again → home. Then every hub screen via the bottom nav, and back.
+3. Walk the full navigation: studio logo → splash → main menu → gameplay → pause → resume → game over → play again → home. Then every hub screen via the bottom nav, and back.
+   - Cold-boot the app several times and watch the splash sequence closely: the block mark must **accelerate** as it falls, land with a visible squash, *then* the wordmark and loader appear. If the mark drifts down and eases to a stop, the curve is inverted.
+   - Confirm the studio logo has no white box around it on the wood background.
+   - Confirm the splash never cuts off early on a fast device, and never sits at 100% waiting on a slow one.
 4. On the gameplay screen specifically: coin counter left, score/best centre, pause right, four booster slots with charge badges, and the combo banner space reserved above the board so the banner never covers blocks.
 5. Pause mid-run — the board behind should dim and blur, and the game should be genuinely frozen (watch the rise, not just the piece).
 6. Beat your best score and confirm the NEW BEST! badge appears.
@@ -1249,6 +1324,7 @@ Everything else is recoverable later. These four are structural.
 | Combo thresholds | Blocks destroyed, per GDD | Preserves the GDD's four banner tiers verbatim. |
 | Particle system | Pooled, single layer | A 4-line clear is ~500 particles; per-frame allocation would cause GC hitches. |
 | Special blocks | **Complete shared tiles**, not overlays on the theme tile | Identical asset count either way, so cost doesn't decide it. Shared tiles keep gameplay-critical blocks looking the same in every theme (one vocabulary, learned once), avoid contrast-checking 8 glyphs against 9 backgrounds, and let a block break the square silhouette — translucent ice, glowing rainbow. `ThemeDefinition` keeps an optional per-type override map for the rare case a future theme wants its own. |
+| Game logo | **Code-drawn, not an image** | `splash.html` already builds it from block cells so it sits flush on the wood grain with no halo to mask. Also means it scales to any density, recolors with the theme, and can animate its own drop-and-squash. The studio logo (screen 1) stays an image. |
 | Themes at MVP | **One — `classic_wood`** | Ships the game sooner. The full `ThemeDefinition` plumbing is still built in Phase 11, so each later theme costs one PNG, one palette, and no code. The Themes screen shows the other eight as "Coming Soon" rather than hiding them. |
 
 ## Open questions for playtest (Phase 12)
@@ -1260,4 +1336,4 @@ Everything else is recoverable later. These four are structural.
 
 ---
 
-**Next step:** Phase P. Gather the assets — fonts, the single `classic_wood` tile, the nine shared special-block tiles, the wood background, the extracted icons, and the SFX list. Then Phase 0: dependencies, portrait lock, `tokens.css` → `tokens.dart`, empty 10×20 board on screen.
+**Next step:** Phase P. Gather the assets — fonts, the studio logo (transparent, no white box), the single `classic_wood` tile, the nine shared special-block tiles, the wood background, the extracted icons, and the SFX list. The game logo needs nothing gathered; it's built in Phase 10. Then Phase 0: dependencies, portrait lock, `tokens.css` → `tokens.dart`, empty 10×20 board on screen.
