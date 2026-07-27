@@ -873,7 +873,7 @@ Optional upgrade later: 4 hand-drawn splinter silhouettes (`shard_01..04.png`, 6
 
 **Formats:** SFX as `.wav`, 44.1 kHz, 16-bit, **mono** — short files with no decode latency, which matters because a lock click that arrives 80 ms late feels broken. Music as `.mp3`, 128 kbps, stereo.
 
-Keep every SFX under 1 second unless noted. Sources: freesound.org (check licenses), Kenney.nl (CC0), or a commissioned pack.
+Keep every SFX under 1 second unless noted. Either generate them (prompts below), pull from a CC0/royalty-free library, or commission a pack — but don't mix approaches per-sound, or the set won't cohere.
 
 | File | Description | Length |
 |---|---|---|
@@ -906,6 +906,92 @@ Keep every SFX under 1 second unless noted. Sources: freesound.org (check licens
 | `game_loop_intense.mp3` | *Optional.* Same key/tempo as `game_loop`, denser instrumentation — crossfade in when the stack nears the top. |
 
 Both loops must be **seam-checked**: play on repeat for two minutes and listen for the click at the loop point.
+
+---
+
+#### Generation prompts
+
+For any text-to-sound-effect generator. Three rules run through all of them:
+
+1. **Everything is wood.** The whole palette should sound like it came off one physical object — dry seasoned timber. That coherence is what makes a sound set feel designed rather than assembled. Coins and lightning are the only deliberate exceptions.
+2. **Always say "dry, close mic, no reverb, no music, no room tone."** A reverb tail baked into a sound that plays 500 times an hour turns the mix to mud, and you can't remove it later.
+3. **Generate 3–5 takes of each and pick.** These are cheap to regenerate and expensive to live with.
+
+**Piece handling** — these fire constantly, so they must be small and unobtrusive:
+
+> `lock` — "A single short dry wooden click, like a small oak block being set firmly down onto a thick wooden table. Very close mic, tight and percussive, fast decay, no reverb, no music, no room tone. 0.1 seconds."
+
+> `move` — "An extremely quiet tiny wooden tick, a fingernail tapping once on a hollow wooden box. Barely audible, dry, close mic, no reverb, no music. 0.05 seconds."
+
+> `rotate` — "A soft muted wooden pivot, a wooden peg turning once inside a snug wooden socket, a short low friction creak. Dry, close mic, no reverb, no music. 0.08 seconds."
+
+> `hard_drop` — "A heavy wooden thud, a solid oak block dropped from height onto a thick wooden board, brief low-end impact with a fast decay and a hint of air movement. Dry, close mic, no reverb tail, no music. 0.3 seconds."
+
+**The core loop** — `wood_crack` is the signature sound of the game; spend the most takes here:
+
+> `wood_crack` — "A dry timber snap: a thin piece of seasoned oak splintering and breaking cleanly in one sharp crack, with a scatter of tiny wood fragments in the tail. Crisp and satisfying, close mic, no reverb, no music. 0.4 seconds."
+
+> `wood_fall` — "Hollow wooden knocks: two or three wooden blocks tumbling a short distance and landing on a wooden surface. Warm and hollow, dry, close mic, no reverb, no music. 0.25 seconds."
+
+> `rise_groan` — "A low wooden strain: a thick timber beam slowly taking on weight, a deep slow creak with a subtle groan underneath. Ominous but soft, dry, close mic, no music. 0.5 seconds."
+
+> `rise_warning` — "A tense sustained wooden creak, old timber under steadily increasing pressure, straining slowly. Uneasy, continuous, with no obvious start or end so it loops seamlessly. Dry, no music, no percussion. 1 second."
+
+**Combo stings** — generate all four from one family so they sound related. If a generator won't hold the timbre across four calls, make `combo_1` and build the others by pitch-shifting and extending it rather than mixing unrelated takes:
+
+> `combo_1` (GOOD!) — "Two ascending notes struck on warm hardwood marimba bars, gentle and bright, light natural resonance. Dry, close mic, no drums, no synth, no music bed. 0.5 seconds."
+
+> `combo_2` (AWESOME!) — "Three ascending notes on warm hardwood marimba, brighter and more celebratory than a two-note version, with a small shimmer on the last note. Dry, no drums, no synth, no music bed. 0.7 seconds."
+
+> `combo_3` (INCREDIBLE!) — "A rapid five-note ascending run on warm hardwood marimba ending in a soft golden bell shimmer. Exciting, dry, no drums, no synth, no music bed. 1 second."
+
+> `combo_4` (UNBELIEVABLE!) — "A fast ascending marimba run resolving into a bright gold bell chime over a low wooden boom. Triumphant and full, dry, no drums, no vocals, no music bed. 1.2 seconds."
+
+**Boosters:**
+
+> `booster_hammer` — "A sharp mallet strike: a wooden mallet hitting a wooden block once, hard and dry, with a quick splintering edge. Close mic, no reverb, no music. 0.3 seconds."
+
+> `booster_bomb` — "A muffled wooden explosion: a dull low boom with splintering wood debris scattering outward. More woody thud than fiery blast, no fire crackle. Dry and punchy, no music. 0.6 seconds."
+
+> `booster_drill` — "A fast mechanical whirr boring down through wood, a short spinning drill bit throwing wood shavings, pitch falling as it cuts downward. Dry, close mic, no music. 0.5 seconds."
+
+> `booster_lightning` — "A short crackling electric zap sweeping sideways, a bright snap with a fizzing tail. No thunder rumble, no reverb, no music. 0.5 seconds."
+
+**Rewards & UI:**
+
+> `coin` — "A single bright metallic coin chime: one small gold coin struck once and ringing briefly. Clean and pleasant, dry, close mic, short ring-out, no music. 0.2 seconds."
+
+> `button` — "A soft muted wooden tap, a fingertip pressing a small wooden button once. Gentle and warm, dry, very short, no reverb, no music. 0.08 seconds."
+
+> `reward` — "A warm ascending flourish on wooden marimba and soft bells, four rising notes resolving on a bright chime. Generous and pleasant, dry, light resonance, no drums, no music bed. 1 second."
+
+> `unlock` — "A short triumphant fanfare on warm wooden marimba with a gold bell accent and a soft ascending shimmer. Celebratory but understated. No brass, no drums, no music bed. 1.5 seconds."
+
+> `treasure` — "An old wooden chest creaking open: hinges turning slowly, a heavy wooden lid lifting, ending in a soft golden shimmer. Dry, close mic, no music. 0.8 seconds."
+
+> `game_over` — "A wooden collapse: a stack of wooden blocks tumbling down and settling into stillness, ending on a low descending wooden tone. Deflating but gentle, not harsh or comedic. Dry, close mic, no music. 1.5 seconds."
+
+**Music** — worth knowing that generators are consistently weak at seamless loops. Generate ~30 seconds longer than you need, then cut the loop point yourself on a zero-crossing in an audio editor:
+
+> `menu_loop` — "Calm relaxing acoustic instrumental. Soft nylon-string guitar and warm marimba, gentle and unhurried, around 70 BPM, major key. No drums, no vocals, no build, no climax. Cozy and welcoming background music for a wooden puzzle game menu. 90 seconds."
+
+> `game_loop` — "Relaxing but forward-moving acoustic instrumental. Warm marimba with light hand percussion, steady gentle pulse around 95 BPM, major key. No vocals, no dramatic build, no attention-grabbing melody — designed to sit under gameplay for long stretches without becoming tiring. 120 seconds."
+
+> `game_loop_intense` — "Warm marimba puzzle-game instrumental at 95 BPM in a major key, same instrumentation as a calm version but denser: added low wooden percussion, faster subdivisions, subtle underlying tension. No vocals, no climax, no orchestral swell. 120 seconds."
+
+#### Post-processing
+
+Generated audio arrives at inconsistent levels, in stereo, with leading silence — all three are problems. **Leading silence matters most:** a `lock` sound with 40 ms of padding makes the whole game feel laggy no matter how tight the code is.
+
+```bash
+# one-shots: trim leading silence, mono, 44.1k, 16-bit, peak-normalize
+for f in raw/*.wav; do
+  ffmpeg -i "$f" -af "silenceremove=start_periods=1:start_threshold=-50dB,\
+loudnorm=I=-16:TP=-1.5,aformat=s16:44100" -ac 1 "assets/audio/sfx/$(basename $f)"
+done
+```
+
+Then pull `move`, `lock`, and `rotate` down another 6 dB by hand. They fire many times per second, and anything mixed to sit comfortably on a single play becomes exhausting at speed.
 
 ---
 
