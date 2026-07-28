@@ -51,12 +51,16 @@ class _BoosterHudState extends State<BoosterHud> {
   @override
   Widget build(BuildContext context) {
     final engine = widget.game.engine;
-    return Positioned(
-      left: 12,
-      right: 12,
-      bottom: 12,
-      child: SafeArea(
-        top: false,
+    // A flow widget, not a `Positioned` overlay (R4) — sized by the
+    // enclosing `Column`, which is what lets the board above it claim
+    // exactly the vertical space this panel doesn't need.
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Tokens.spaceMd,
+          vertical: Tokens.spaceSm,
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [for (final slot in _slots) _slotButton(engine, slot.$1, slot.$2)],

@@ -243,6 +243,12 @@ class GameEngine {
   void _lockAndResolve() {
     if (pieceController.piece == null) return;
     pieceController.lockPiece();
+    // Soft drop is a per-piece input state; it must never survive a lock —
+    // otherwise a hard drop that skips the soft-drop-end intent (or any
+    // other missed transition) would leave every following piece falling
+    // at the soft-drop rate forever.
+    pieceController.softDropActive = false;
+    pieceController.softDropRowsAccrued = 0;
     _emit(const PieceLockedEvent());
     _beginResolve();
     _resolvePass();

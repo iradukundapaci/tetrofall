@@ -49,22 +49,10 @@ class BoardFrame extends PositionComponent {
     final frameThickness = cellSize * 0.35;
     final wellRect = Rect.fromLTWH(0, 0, size.x, size.y);
     final outerRect = wellRect.inflate(frameThickness / 2);
-    final outerRRect = RRect.fromRectAndRadius(
-      outerRect,
-      const Radius.circular(Tokens.radiusLg),
-    );
-    final wellRadius = (Tokens.radiusLg - frameThickness / 2).clamp(
-      0.0,
-      Tokens.radiusLg,
-    );
-    final wellRRect = RRect.fromRectAndRadius(
-      wellRect,
-      Radius.circular(wellRadius),
-    );
 
     // 5. Outer drop shadow.
-    canvas.drawRRect(
-      outerRRect.shift(Tokens.shadowSoft.offset),
+    canvas.drawRect(
+      outerRect.shift(Tokens.shadowSoft.offset),
       Paint()
         ..color = Tokens.shadowSoft.color
         ..maskFilter = MaskFilter.blur(
@@ -73,7 +61,7 @@ class BoardFrame extends PositionComponent {
         ),
     );
 
-    // 1. Outer frame — rounded rect stroke, two-tone bevel.
+    // 1. Outer frame — rect stroke, two-tone bevel.
     final framePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = frameThickness
@@ -81,17 +69,17 @@ class BoardFrame extends PositionComponent {
         theme.frameLight,
         theme.frameDark,
       ]);
-    canvas.drawRRect(outerRRect.deflate(frameThickness / 2), framePaint);
+    canvas.drawRect(outerRect.deflate(frameThickness / 2), framePaint);
 
     // 2. Well interior — slightly darker than the page background so the
     // board reads as recessed.
-    canvas.drawRRect(wellRRect, Paint()..color = theme.boardBg);
+    canvas.drawRect(wellRect, Paint()..color = theme.boardBg);
 
     // 3. Inner shadow — sells the depth an image version would have baked in.
     canvas.save();
-    canvas.clipRRect(wellRRect);
-    canvas.drawRRect(
-      wellRRect,
+    canvas.clipRect(wellRect);
+    canvas.drawRect(
+      wellRect,
       Paint()
         ..color = Colors.black.withValues(alpha: 0.25)
         ..maskFilter = const MaskFilter.blur(BlurStyle.inner, 8),
@@ -102,7 +90,7 @@ class BoardFrame extends PositionComponent {
     // enough to judge column alignment while a piece is falling.
     final gridPaint = Paint()
       ..color = theme.gridLine.withValues(alpha: 0.08)
-      ..strokeWidth = 1;
+      ..strokeWidth = cellSize * 0.03;
     for (var c = 1; c < cols; c++) {
       final x = c * cellSize;
       canvas.drawLine(Offset(x, 0), Offset(x, size.y), gridPaint);
@@ -117,8 +105,8 @@ class BoardFrame extends PositionComponent {
     if (warning) {
       final pulse = (math.sin(2 * math.pi * _warnClock) + 1) / 2; // 0..1
       final alpha = 0.25 + 0.35 * pulse;
-      canvas.drawRRect(
-        outerRRect.deflate(frameThickness / 2),
+      canvas.drawRect(
+        outerRect.deflate(frameThickness / 2),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = frameThickness

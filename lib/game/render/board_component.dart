@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flame/components.dart';
 
 import '../../models/theme_definition.dart';
@@ -135,16 +137,43 @@ class BoardComponent extends PositionComponent with HasGameReference {
     _layout(size);
   }
 
+  /// R4: `gameSize` is exactly the box the Flutter `Expanded` region hands
+  /// the board — no fixed screen-fraction guesswork. `cellSize` comes from
+  /// that rect minus a small proportional side margin and the vertical
+  /// reserves the board's own overlays need: the combo banner strip above
+  /// the frame and a pending-row reveal margin below it. Those reserves
+  /// are themselves expressed in `cellSize`, so a first width-only pass
+  /// establishes an estimate before the final size is known.
   void _layout(Vector2 gameSize) {
-    final availableWidth = gameSize.x * 0.9;
-    final availableHeight = gameSize.y * 0.78;
-    final newCellSize = (availableWidth / BoardConfig.cols).clamp(
+    const sideMarginFraction = 0.04;
+    final availableWidth = gameSize.x * (1 - sideMarginFraction * 2);
+    final widthCellSize = availableWidth / BoardConfig.cols;
+
+    const topReserveFraction = 1.65; // combo banner strip + its gap
+    const bottomReserveFraction = 0.3; // pending-row reveal margin
+    final topReserve = widthCellSize * topReserveFraction;
+    final bottomReserve = widthCellSize * bottomReserveFraction;
+    final availableHeight = (gameSize.y - topReserve - bottomReserve).clamp(
       0.0,
-      availableHeight / BoardConfig.rows,
+      double.infinity,
     );
+    final heightCellSize = availableHeight / BoardConfig.rows;
+
+    final newCellSize = math.min(widthCellSize, heightCellSize);
     frame.cellSize = newCellSize;
     _clip.size = frame.size;
-    position = (gameSize - frame.size) / 2;
+
+    final finalTopReserve = newCellSize * topReserveFraction;
+    final finalBottomReserve = newCellSize * bottomReserveFraction;
+    final verticalSlack = (gameSize.y -
+            frame.size.y -
+            finalTopReserve -
+            finalBottomReserve)
+        .clamp(0.0, double.infinity);
+    position = Vector2(
+      (gameSize.x - frame.size.x) / 2,
+      finalTopReserve + verticalSlack / 2,
+    );
     pieceComponent.cellSize = newCellSize;
     fallAnimator.cellSize = newCellSize;
     pendingRowComponent.updateLayout(newCellSize);

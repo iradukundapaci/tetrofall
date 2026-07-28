@@ -20,7 +20,7 @@ class BoosterTargetOverlay extends PositionComponent {
     final fillPaint = Paint()..color = Tokens.colorGold.withValues(alpha: 0.28);
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
+      ..strokeWidth = cellSize * 0.06
       ..color = Tokens.colorGold.withValues(alpha: 0.9);
     for (final (row, col) in _cells) {
       final rect = Rect.fromLTWH(

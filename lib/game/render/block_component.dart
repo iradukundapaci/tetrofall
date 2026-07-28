@@ -134,7 +134,7 @@ class BlockComponent extends PositionComponent with HasGameReference {
         rrect,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
+          ..strokeWidth = size.x * 0.05
           ..color = theme.text.withValues(alpha: 0.5),
       );
     } else if (blockType == BlockType.key) {
@@ -146,9 +146,18 @@ class BlockComponent extends PositionComponent with HasGameReference {
       } else {
         canvas.save();
         canvas.clipRRect(rrect);
+        // Backstop against any tile asset that bakes in a background
+        // margin (R2): sample a slightly inset source rect so a stray
+        // border can't leak into the cell even if the asset isn't clean.
+        final srcInset = tile.width * 0.03;
         canvas.drawImageRect(
           tile,
-          Rect.fromLTWH(0, 0, tile.width.toDouble(), tile.height.toDouble()),
+          Rect.fromLTWH(
+            srcInset,
+            srcInset,
+            tile.width - srcInset * 2,
+            tile.height - srcInset * 2,
+          ),
           rect,
           Paint(),
         );

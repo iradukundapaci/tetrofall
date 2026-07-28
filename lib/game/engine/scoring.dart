@@ -8,7 +8,23 @@ const _lineBaseScore = {1: 100, 2: 300, 3: 500, 4: 800};
 /// Score, combo, and session-stat bookkeeping (§1.7). Pure Dart, driven
 /// entirely by [GameEngine] — never touches the grid or render layer
 /// itself.
+///
+/// Exposes a plain-Dart listener list (no `Flutter`/`ChangeNotifier`
+/// import — the engine layer stays pure Dart) so the HUD (R3) can react to
+/// score/coin changes by pushing updates instead of polling on a timer.
 class Scoring {
+  final _listeners = <void Function()>[];
+
+  void addListener(void Function() listener) => _listeners.add(listener);
+
+  void removeListener(void Function() listener) => _listeners.remove(listener);
+
+  void _notify() {
+    for (final listener in List.of(_listeners)) {
+      listener();
+    }
+  }
+
   int score = 0;
 
   /// Blocks destroyed so far in the resolve currently in progress — reset
@@ -57,19 +73,28 @@ class Scoring {
             .round();
     final chainLength = chainIndex + 1;
     if (chainLength > maxChain) maxChain = chainLength;
+    _notify();
   }
 
   /// Soft drop awards 1 pt/row, hard drop 2 pt/row (§1.3).
   void awardDrop({required int rows, required bool hard}) {
+    if (rows <= 0) return;
     score +=
         rows *
         (hard ? Motion.hardDropPointsPerRow : Motion.softDropPointsPerRow);
+    _notify();
   }
 
   /// Gold's +250 payout (§1.8), scaled by however many cleared in one pass.
-  void awardGold(int count) => score += 250 * count;
+  void awardGold(int count) {
+    score += 250 * count;
+    _notify();
+  }
 
-  void addCoins(int amount) => coins += amount;
+  void addCoins(int amount) {
+    coins += amount;
+    _notify();
+  }
 
   void addDestroyed(int count) {
     blocksDestroyedThisResolve += count;
@@ -87,5 +112,6 @@ class Scoring {
     totalBlocksDestroyed = 0;
     maxChain = 0;
     scoreMultiplierActive = false;
+    _notify();
   }
 }
