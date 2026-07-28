@@ -111,6 +111,15 @@ class ShatterLayer extends PositionComponent {
       ..color = color;
   }
 
+  /// Deactivates every pooled shard immediately, for a restart (§4) — a
+  /// clear mid-shatter shouldn't leave shards from the ended run animating
+  /// over the fresh board.
+  void reset() {
+    for (final shard in _pool) {
+      shard.active = false;
+    }
+  }
+
   static double _lerpD(double a, double b, double t) => a + (b - a) * t;
   static int _lerpInt(int a, int b, double t) => (a + (b - a) * t).round();
 

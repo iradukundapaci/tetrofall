@@ -26,6 +26,12 @@ class ComboBanner extends PositionComponent {
     _elapsed = 0;
   }
 
+  /// Hides an in-progress banner immediately, for a restart (§4).
+  void reset() {
+    _text = null;
+    _elapsed = 0;
+  }
+
   @override
   void update(double dt) {
     super.update(dt);

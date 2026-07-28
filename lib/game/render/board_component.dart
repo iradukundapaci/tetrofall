@@ -120,6 +120,20 @@ class BoardComponent extends PositionComponent with HasGameReference {
     _layout(game.size);
   }
 
+  /// Clears every render-only animation carryover from the run that just
+  /// ended — shatter shards, an in-flight cascade fall, the combo banner,
+  /// and any booster target highlight — before [GameEngine.start] spawns
+  /// the first piece of a new run (§4). The logical grid itself is already
+  /// cleared by `GameEngine.start`; this only concerns state `_onEngineEvent`
+  /// wouldn't otherwise reset, since those animations are designed to
+  /// outlive a single resolve.
+  void resetForRestart() {
+    fallAnimator.reset();
+    shatterLayer.reset();
+    comboBanner.reset();
+    boosterTargetOverlay.hide();
+  }
+
   void _onEngineEvent(GameEvent event) {
     if (event is BlocksFellEvent) {
       fallAnimator.addFalls(event.falls);

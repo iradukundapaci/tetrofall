@@ -37,7 +37,7 @@ abstract final class Motion {
   // §1.3 Falling & locking
   static const lockDelay = Duration(milliseconds: 500);
   static const lockResetLimit = 15;
-  static const softDropDivisor = 20;
+  static const softDropDivisor = 7;
   static const hardDropPointsPerRow = 2;
   static const softDropPointsPerRow = 1;
 

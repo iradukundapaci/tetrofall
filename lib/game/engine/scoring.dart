@@ -76,6 +76,17 @@ class Scoring {
     _notify();
   }
 
+  /// Small flat bonus for every piece locked, clear or not (improvement.md
+  /// §5) — without it, a short beginner run with no line clears sits at 0
+  /// the whole way through, which reads as "broken" rather than "no clears
+  /// yet".
+  static const placementBonus = 5;
+
+  void awardPlacement() {
+    score += placementBonus;
+    _notify();
+  }
+
   /// Soft drop awards 1 pt/row, hard drop 2 pt/row (§1.3).
   void awardDrop({required int rows, required bool hard}) {
     if (rows <= 0) return;

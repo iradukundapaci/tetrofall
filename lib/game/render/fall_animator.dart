@@ -51,6 +51,20 @@ class FallAnimator extends PositionComponent {
 
   bool get isAnimating => _falls.isNotEmpty;
 
+  /// Cancels every in-flight fall immediately, for a restart (§4) — a
+  /// cascade caught mid-animation shouldn't keep dropping blocks onto the
+  /// freshly cleared board.
+  void reset() {
+    activeTargets.clear();
+    _falls.clear();
+    for (final block in _pool) {
+      block
+        ..blockVisible = false
+        ..removeFromParent();
+    }
+    _pool.clear();
+  }
+
   void addFalls(List<BlockFallEvent> falls) {
     for (final f in falls) {
       final distance = (f.toRow - f.fromRow).abs();

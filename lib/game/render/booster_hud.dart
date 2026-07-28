@@ -76,8 +76,12 @@ class _BoosterHudState extends State<BoosterHud> {
       onTap: () => setState(() {
         if (armed) {
           engine.disarmBooster();
-        } else {
-          engine.armBooster(type);
+        } else if (engine.armBooster(type)) {
+          // A board swipe may still be mid-flight when this arms — booster
+          // routing in app.dart takes over its pointer events from here on,
+          // so `GestureHandler` would otherwise never see the matching
+          // pointer-up and be left thinking a finger is still down (§6.2).
+          widget.game.gestureHandler.reset();
         }
       }),
       child: Container(

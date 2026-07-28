@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../services/storage_service.dart';
 import '../../ui/theme/app_icons.dart';
 import '../../ui/theme/tokens.dart';
 import '../tetrofall_game.dart';
@@ -12,19 +13,20 @@ import '../tetrofall_game.dart';
 ///
 /// Pushes updates from [Scoring]'s listener list instead of polling on a
 /// timer (unlike the deleted debug overlay), so it only rebuilds when
-/// score or coins actually change. Best score is in-memory only until
-/// Phase 11's `StorageService`.
+/// score or coins actually change. Best score and coins are persisted via
+/// [storage] (§8) — seeded on load, saved every time either changes.
 class ScoreHud extends StatefulWidget {
-  const ScoreHud({super.key, required this.game});
+  const ScoreHud({super.key, required this.game, required this.storage});
 
   final TetrofallGame game;
+  final StorageService storage;
 
   @override
   State<ScoreHud> createState() => _ScoreHudState();
 }
 
 class _ScoreHudState extends State<ScoreHud> {
-  int _best = 0;
+  late int _best = widget.storage.bestScore;
 
   @override
   void initState() {
@@ -39,10 +41,12 @@ class _ScoreHudState extends State<ScoreHud> {
   }
 
   void _onScoringChanged() {
-    final score = widget.game.engine.scoring.score;
-    setState(() {
-      if (score > _best) _best = score;
-    });
+    final scoring = widget.game.engine.scoring;
+    widget.storage.saveCoins(scoring.coins);
+    if (scoring.score > _best) {
+      setState(() => _best = scoring.score);
+      widget.storage.saveBestScore(_best);
+    }
   }
 
   @override

@@ -145,6 +145,9 @@ class GameEngine {
           }
         }
       case GamePhase.resolving:
+        // The difficulty clock keeps advancing through long cascades
+        // (§6.4) — only the rise progress itself pauses.
+        riseController.tickElapsedOnly(dt);
         if (_resolveTimer > 0) {
           _resolveTimer -= dt;
           if (_resolveTimer <= 0) {
@@ -192,7 +195,7 @@ class GameEngine {
   /// A rise commit boundary was crossed this tick (§1.4). Top-out ends the
   /// run instead of committing; otherwise the grid shifts and the active
   /// piece is carried with it — pushed up one more row if the shift now
-  /// overlaps it, or force-locked in place if even that doesn't fit.
+  /// overlaps it.
   void _handleRiseCommit() {
     if (riseController.wouldTopOut()) {
       phase = GamePhase.gameOver;
@@ -204,24 +207,35 @@ class GameEngine {
 
     final piece = pieceController.piece;
     if (piece != null) {
-      // Only ever move the piece to a position that's actually valid —
-      // never mutate anchorRow to something colliding/out-of-bounds and
-      // rely on force-lock to paper over it, since lockPiece() would then
-      // try to write out-of-bounds cells.
       final originalRow = piece.anchorRow;
       final shiftedRow = originalRow - 1;
       final pushedRow = shiftedRow - 1;
-      if (!pieceController.collidesAt(shiftedRow, piece.anchorCol)) {
+      if (shiftedRow >= grid.minRow &&
+          !pieceController.collidesAt(shiftedRow, piece.anchorCol)) {
         piece.anchorRow = shiftedRow;
       } else if (pushedRow >= grid.minRow &&
           !pieceController.collidesAt(pushedRow, piece.anchorCol)) {
         piece.anchorRow = pushedRow;
-      } else {
-        // Can't carry it anywhere valid — force-lock at its last known
-        // legal (pre-commit) position.
+      } else if (!pieceController.collidesAt(originalRow, piece.anchorCol)) {
+        // Couldn't carry it up any further, but not because anything's
+        // actually blocking it — it's simply already at the hidden spawn
+        // buffer's ceiling (this fires almost every time a piece spawns
+        // right before a rise commit lands). Leaving it at its pre-commit
+        // row costs one frame of it lagging a row behind the rest of the
+        // scrolling board — harmless, and self-corrects as soon as it next
+        // drops. The old behavior force-locked here instead, which is the
+        // bug: `RiseController.commitRise` never shifts or clears rows
+        // below 0, so a lock at this ceiling silently plants a permanent,
+        // invisible block in the hidden buffer — jamming that column's
+        // spawn for the rest of the run until a later, seemingly random
+        // block-out (reported: "game over before I could reach the top").
         piece.anchorRow = originalRow;
-        _emit(const RiseCommittedEvent());
-        _lockAndResolve();
+      } else {
+        // Its own pre-commit position is now genuinely occupied by a
+        // settled block that just rose into it (a real wall, not the
+        // ceiling) — there's truly nowhere left for it. That's a top-out.
+        phase = GamePhase.gameOver;
+        _emit(const GameOverEvent(GameOverReason.topOut));
         return;
       }
     }
@@ -249,6 +263,7 @@ class GameEngine {
     // at the soft-drop rate forever.
     pieceController.softDropActive = false;
     pieceController.softDropRowsAccrued = 0;
+    scoring.awardPlacement();
     _emit(const PieceLockedEvent());
     _beginResolve();
     _resolvePass();
@@ -287,6 +302,9 @@ class GameEngine {
       chainIndex: chainIndex,
       elapsedSeconds: riseController.elapsed,
     );
+    // A small coin drip on every clear (§5) so the wallet isn't
+    // permanently 0 for players who never survive to a Diamond/Treasure.
+    scoring.addCoins(fullRows.length);
     if (outcome.goldCleared > 0) scoring.awardGold(outcome.goldCleared);
     if (outcome.diamondCleared > 0) scoring.addCoins(outcome.diamondCleared * 5);
     for (var i = 0; i < outcome.treasureCleared; i++) {

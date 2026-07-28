@@ -54,14 +54,27 @@ class RiseController {
   /// Advances the timer by [dt] seconds. Returns true exactly on the frame
   /// a commit boundary is crossed — the caller must then check for top-out
   /// and call [commitRise] (handling the active-piece carry around it).
+  ///
+  /// During [Difficulty.riseGracePeriod], [elapsed] still advances (so the
+  /// difficulty checkpoint clock keeps moving) but [riseProgress] doesn't —
+  /// a beginner gets a few seconds with gravity but no rising floor (§2).
   bool tick(double dt) {
     elapsed += dt;
+    if (elapsed < Difficulty.riseGracePeriod.inMicroseconds / 1e6) return false;
     riseProgress += (dt * debugSpeedMultiplier) / riseInterval;
     if (riseProgress >= 1.0) {
       riseProgress -= 1.0; // carry the remainder — never reset to 0 (§2.1)
       return true;
     }
     return false;
+  }
+
+  /// Advances only the wall-clock [elapsed] timer, without touching
+  /// [riseProgress] — used while RESOLVING so the difficulty timeline
+  /// keeps moving through long cascades (§6.4) without the rise itself
+  /// advancing mid-resolve.
+  void tickElapsedOnly(double dt) {
+    elapsed += dt;
   }
 
   /// True if committing right now would push a settled block above row 0
@@ -119,9 +132,9 @@ class RiseController {
     ];
     final types = {for (final c in filledCols) c: BlockType.wood};
 
-    if (elapsed >= Difficulty.specialBlocksStart.inSeconds) {
+    if (elapsed >= Difficulty.effectiveSpecialBlocksStartSeconds) {
       for (final c in filledCols) {
-        if (_random.nextDouble() < Difficulty.specialBlockChance) {
+        if (_random.nextDouble() < Difficulty.effectiveSpecialBlockChance) {
           types[c] = _specialPool[_random.nextInt(_specialPool.length)];
         }
       }

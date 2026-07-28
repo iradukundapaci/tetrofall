@@ -8,13 +8,6 @@
 /// covers the brief window before the board has completed its first
 /// layout pass.
 abstract final class InputTuning {
-  /// Delayed Auto Shift: time held after the first move before auto-repeat
-  /// kicks in.
-  static const dasDelay = Duration(milliseconds: 170);
-
-  /// Auto Repeat Rate: interval between repeated moves once DAS has fired.
-  static const arr = Duration(milliseconds: 50);
-
   /// Max finger travel, in px, for a gesture to still count as a tap.
   static const tapSlop = 16.0;
 
@@ -26,19 +19,21 @@ abstract final class InputTuning {
 
   /// Fraction of a cell's width that triggers a one-column horizontal
   /// move.
-  static const swipeColumnFraction = 0.6;
+  static const swipeColumnFraction = 0.85;
 
   /// Fraction of a cell's height (downward) that engages soft drop.
   static const softDropFraction = 1.25;
 
-  /// Fraction of a cell's height (downward) that instantly triggers hard
-  /// drop, regardless of speed.
+  /// Fraction of a cell's height (downward) that triggers hard drop — a
+  /// sustained swipe-down motion, not a quick flick (§1.3, §1.12: "the
+  /// piece should only hard-drop on an actual swipe-down motion").
   static const hardDropFraction = 4.7;
 
-  /// Downward velocity, in px/s, that instantly triggers hard drop
-  /// regardless of distance travelled so far — a fast flick down hard
-  /// drops even before crossing [hardDropFraction] (§1.12: "fast/long").
-  static const hardDropVelocity = 1000.0;
+  /// A downward gesture must be at least this many times its horizontal
+  /// travel to count as "predominantly vertical" for the hard-drop
+  /// trigger — mirrors the soft-drop guard, but stricter, since hard drop
+  /// is much harder to undo.
+  static const hardDropVerticalityRatio = 1.5;
 
   static double swipeColumnThreshold(double cellSize) =>
       cellSize * swipeColumnFraction;
