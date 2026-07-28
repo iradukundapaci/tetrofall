@@ -1,7 +1,9 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
+import 'debug/debug_overlay.dart';
 import 'debug/debug_screen.dart';
+import 'game/render/booster_hud.dart';
 import 'game/tetrofall_game.dart';
 import 'ui/theme/tokens.dart';
 
@@ -48,10 +50,41 @@ class _GameHomeState extends State<_GameHome> {
       body: Stack(
         children: [
           Listener(
-            onPointerDown: _game.gestureHandler.onPointerDown,
-            onPointerMove: _game.gestureHandler.onPointerMove,
-            onPointerUp: _game.gestureHandler.onPointerUp,
-            onPointerCancel: _game.gestureHandler.onPointerCancel,
+            // Three input modes share this Listener, in priority order:
+            // an armed booster (§1.9's arm -> drag-preview -> release-to-
+            // commit) beats the Phase 7 block-type stamper, which in turn
+            // hijacks taps so a stamp never also rotates the live piece
+            // underneath it. Plain gameplay gestures get whatever's left.
+            onPointerDown: (e) {
+              if (_game.engine.boosterEngine.armed != null) {
+                _game.previewBoosterAt(e.localPosition);
+              } else if (_game.debugStampType != null) {
+                _game.debugStampAt(e.localPosition);
+              } else {
+                _game.gestureHandler.onPointerDown(e);
+              }
+            },
+            onPointerMove: (e) {
+              if (_game.engine.boosterEngine.armed != null) {
+                _game.previewBoosterAt(e.localPosition);
+              } else if (_game.debugStampType == null) {
+                _game.gestureHandler.onPointerMove(e);
+              }
+            },
+            onPointerUp: (e) {
+              if (_game.engine.boosterEngine.armed != null) {
+                _game.commitBoosterAt(e.localPosition);
+              } else if (_game.debugStampType == null) {
+                _game.gestureHandler.onPointerUp(e);
+              }
+            },
+            onPointerCancel: (e) {
+              if (_game.engine.boosterEngine.armed != null) {
+                _game.engine.disarmBooster();
+              } else if (_game.debugStampType == null) {
+                _game.gestureHandler.onPointerCancel(e);
+              }
+            },
             child: GestureDetector(
               onLongPress: () {
                 Navigator.of(
@@ -80,6 +113,8 @@ class _GameHomeState extends State<_GameHome> {
               ),
             ),
           ),
+          BoosterHud(game: _game),
+          DebugOverlay(game: _game),
         ],
       ),
     );

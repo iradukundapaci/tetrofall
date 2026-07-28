@@ -42,6 +42,12 @@ class PieceController {
   Duration dropInterval = const Duration(milliseconds: 800);
   bool softDropActive = false;
 
+  /// Rows advanced by gravity while [softDropActive] was true, since the
+  /// last time [GameEngine] consumed it for scoring (§1.3: soft drop
+  /// awards 1 pt/row). Hard drop scores directly off [hardDrop]'s return
+  /// value instead, since that's a single discrete action.
+  int softDropRowsAccrued = 0;
+
   /// Places a new piece at its spawn position. Returns false if the spawn
   /// cell collides with settled blocks — the block-out game-over condition
   /// (§1.11). The caller is responsible for acting on that.
@@ -73,6 +79,15 @@ class PieceController {
       if (grid.isOccupied(row, col)) return true;
     }
     return false;
+  }
+
+  /// Whether the active piece would collide if placed at the given anchor.
+  /// Used by the rise mechanic's active-piece carry (§1.4) to test the
+  /// post-shift position without mutating state.
+  bool collidesAt(int anchorRow, int anchorCol) {
+    final p = _piece;
+    if (p == null) return false;
+    return _collides(p.cells, anchorRow, anchorCol);
   }
 
   void _updateGrounded() {
@@ -191,7 +206,8 @@ class PieceController {
     _gravityTimer += dt;
     if (_gravityTimer >= intervalSeconds) {
       _gravityTimer -= intervalSeconds;
-      _attemptShift(1, 0); // if blocked, _updateGrounded still runs below
+      final moved = _attemptShift(1, 0); // if blocked, _updateGrounded still runs below
+      if (moved && softDropActive) softDropRowsAccrued++;
     }
     _updateGrounded();
 

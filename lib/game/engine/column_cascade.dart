@@ -19,10 +19,12 @@ class ColumnCascade implements GravityResolver {
       var write = grid.maxRow;
       for (final row in survivorRows.reversed) {
         if (row != write) {
-          final cell = grid.at(row, col);
+          final cell = grid.at(row, col)!;
           grid.set(write, col, cell);
           grid.set(row, col, null);
-          falls.add(BlockFall(col: col, fromRow: row, toRow: write));
+          falls.add(
+            BlockFall(col: col, fromRow: row, toRow: write, type: cell.type),
+          );
         }
         write--;
       }

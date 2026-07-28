@@ -66,6 +66,11 @@ abstract final class Difficulty {
   /// Elapsed time after which special blocks begin appearing in rising rows.
   static const specialBlocksStart = Duration(minutes: 3);
 
+  /// Chance for each filled cell in a generated row to become a special
+  /// block once [specialBlocksStart] has passed (§1.8) — tuned to feel
+  /// "interesting rather than overwhelming" per the Phase 7 checklist.
+  static const specialBlockChance = 0.12;
+
   static double _lerp(double a, double b, double t) => a + (b - a) * t;
 
   static DifficultyCheckpoint at(Duration elapsed) {

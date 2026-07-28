@@ -1,5 +1,9 @@
-/// All nine block types (game.md §1.8). Falling tetrominoes are always
-/// [wood] — specials arrive only inside rising rows, starting Phase 7.
+/// All nine block types from game.md §1.8, plus [key] — the un-named
+/// pairing block that §1.8's Locked entry requires ("Keys spawn in the
+/// same row") but that P.3's asset list never gave its own tile, so it
+/// renders as a code-drawn glyph instead of a sprite (see
+/// `BlockComponent`). Falling tetrominoes are always [wood] — specials
+/// arrive only inside rising rows, starting Phase 7.
 enum BlockType {
   wood,
   stone,
@@ -11,6 +15,7 @@ enum BlockType {
   treasure,
   locked,
   rainbow,
+  key,
 }
 
 /// One settled block. `null` in a [Grid] cell means empty.
@@ -23,10 +28,10 @@ class Cell {
   /// starts above 1 — see §1.8: first completion cracks it, second clears.
   int hp;
 
-  /// Whether a completed line containing this cell can actually clear it.
-  /// Stone never can; Locked needs a paired Key cleared in the same
-  /// resolve (§1.8), which is engine logic added in Phase 7 — until then
-  /// this getter is the full rule.
+  /// Whether a row containing this cell can complete at all. Only Stone
+  /// blocks completion outright — Locked *can* be part of a completing
+  /// row, it just survives the clear unless a Key clears in the same
+  /// resolve; that pairing logic lives in `SpecialBlocks` (§1.8, Phase 7).
   bool get blocksLineClear => type == BlockType.stone;
 
   Cell copyWith({BlockType? type, int? hp}) =>

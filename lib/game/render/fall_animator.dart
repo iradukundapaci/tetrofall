@@ -16,12 +16,14 @@ class _FallingBlock {
     required this.fromRow,
     required this.toRow,
     required this.fallDuration,
+    required this.type,
   });
 
   final int col;
   final int fromRow;
   final int toRow;
   final double fallDuration;
+  final BlockType type;
 
   double elapsed = 0;
   bool landed = false;
@@ -60,6 +62,7 @@ class FallAnimator extends PositionComponent {
           fromRow: f.fromRow,
           toRow: f.toRow,
           fallDuration: duration,
+          type: f.type,
         ),
       );
       activeTargets.add((f.toRow, f.col));
@@ -81,7 +84,7 @@ class FallAnimator extends PositionComponent {
       final block = _pool[i];
       block
         ..blockVisible = true
-        ..blockType = BlockType.wood
+        ..blockType = f.type
         ..size = Vector2.all(cellSize);
 
       if (!f.landed) {

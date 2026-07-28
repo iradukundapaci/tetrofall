@@ -1,12 +1,17 @@
 import 'dart:math';
 
 import '../config/motion.dart';
+import 'booster_engine.dart';
 import 'clear_detector.dart';
 import 'column_cascade.dart';
+import 'combo_tier.dart';
 import 'events.dart';
 import 'gravity_resolver.dart';
 import 'grid.dart';
 import 'piece_controller.dart';
+import 'rise_controller.dart';
+import 'scoring.dart';
+import 'special_blocks.dart';
 import 'tetromino.dart';
 
 /// See game.md §3.3. PAUSED/BOOSTER_ARMED and the rise-driven transition
@@ -23,6 +28,12 @@ enum GameIntentType {
   hardDrop,
 }
 
+/// Which sub-step of RESOLVING is waiting on its timer (Phase 5): the
+/// shatter sequence plays first (§2.3), then the cascade fall (§2.2), then
+/// the chain rescans. Particles themselves are not gated by either stage —
+/// they outlive RESOLVING entirely.
+enum _ResolveStage { shatter, cascade }
+
 /// Pure-Dart state machine + tick order (§3.4, trimmed to what Phase 1-3
 /// need). UI/render reads state and sends intents; the engine emits
 /// [GameEvent]s. Zero Flame or Flutter imports.
@@ -31,6 +42,7 @@ class GameEngine {
     : grid = grid ?? Grid(),
       _random = random ?? Random() {
     pieceController = PieceController(this.grid);
+    riseController = RiseController(this.grid, random: _random);
     bag = SevenBag(_random);
   }
 
@@ -38,7 +50,11 @@ class GameEngine {
   final Random _random;
 
   late final PieceController pieceController;
+  late final RiseController riseController;
   late final SevenBag bag;
+
+  final Scoring scoring = Scoring();
+  final BoosterEngine boosterEngine = BoosterEngine();
 
   GamePhase phase = GamePhase.ready;
 
@@ -51,11 +67,17 @@ class GameEngine {
   /// within the same resolve increments it (§1.6, §1.7).
   int chainIndex = 0;
 
-  /// Time remaining before RESOLVING re-scans for a chained clear. Mirrors
-  /// how long the render layer's fall animation will take (§2.2's formula,
-  /// computed here in pure Dart) so gameplay doesn't resume mid-cascade —
+  /// Time remaining before RESOLVING advances to its next stage — first
+  /// the shatter sequence (§2.3), then the cascade fall (§2.2's formula,
+  /// computed here in pure Dart) — so gameplay doesn't resume mid-animation
   /// even though the grid data itself is already final (§3.1).
   double _resolveTimer = 0;
+  _ResolveStage _resolveStage = _ResolveStage.shatter;
+
+  /// Which banner tiers have already fired within the resolve currently in
+  /// progress — each tier fires at most once per resolve, the moment
+  /// [Scoring.blocksDestroyedThisResolve] first crosses its threshold.
+  final Set<ComboTier> _bannerTiersEmitted = {};
 
   final _intentQueue = <GameIntentType>[];
   final _eventListeners = <void Function(GameEvent)>[];
@@ -79,6 +101,8 @@ class GameEngine {
   void start() {
     grid.clearAll();
     _intentQueue.clear();
+    riseController.reset();
+    scoring.reset();
     phase = GamePhase.spawning;
     _trySpawn();
   }
@@ -94,14 +118,43 @@ class GameEngine {
       case GamePhase.spawning:
         _trySpawn();
       case GamePhase.playing:
-        final result = pieceController.tick(dt);
-        if (result == PieceTickResult.locked) {
-          _lockAndResolve();
+        boosterEngine.tickTimedEffects(dt);
+        scoring.scoreMultiplierActive = boosterEngine.scoreMultiplierActive;
+        // Rise ticks before gravity and is never frozen while a piece is
+        // merely falling — the two pressures must overlap (§1.4) — except
+        // for the Time Freeze booster, which exists specifically to halt
+        // the rise timer for its duration (§1.9).
+        if (!boosterEngine.timeFreezeActive && riseController.tick(dt)) {
+          _handleRiseCommit();
+        }
+        if (phase == GamePhase.playing) {
+          // §1.10: gravity's own difficulty checkpoint, read from the same
+          // clock the rise timeline uses (Phase 6).
+          pieceController.dropInterval = riseController.difficultyNow.dropInterval;
+          // Arming a booster pauses gravity but not the rise (§1.9) — the
+          // two pressures above only ever pause together during RESOLVING.
+          if (boosterEngine.armed == null) {
+            final result = pieceController.tick(dt);
+            if (pieceController.softDropRowsAccrued > 0) {
+              scoring.awardDrop(rows: pieceController.softDropRowsAccrued, hard: false);
+              pieceController.softDropRowsAccrued = 0;
+            }
+            if (result == PieceTickResult.locked) {
+              _lockAndResolve();
+            }
+          }
         }
       case GamePhase.resolving:
         if (_resolveTimer > 0) {
           _resolveTimer -= dt;
-          if (_resolveTimer <= 0) _resolvePass();
+          if (_resolveTimer <= 0) {
+            switch (_resolveStage) {
+              case _ResolveStage.shatter:
+                _runCascade();
+              case _ResolveStage.cascade:
+                _resolvePass();
+            }
+          }
         }
       case GamePhase.gameOver:
         return;
@@ -128,11 +181,51 @@ class GameEngine {
         case GameIntentType.softDropEnd:
           pieceController.softDropActive = false;
         case GameIntentType.hardDrop:
-          pieceController.hardDrop();
+          final rows = pieceController.hardDrop();
+          scoring.awardDrop(rows: rows, hard: true);
           _lockAndResolve();
       }
     }
     _intentQueue.clear();
+  }
+
+  /// A rise commit boundary was crossed this tick (§1.4). Top-out ends the
+  /// run instead of committing; otherwise the grid shifts and the active
+  /// piece is carried with it — pushed up one more row if the shift now
+  /// overlaps it, or force-locked in place if even that doesn't fit.
+  void _handleRiseCommit() {
+    if (riseController.wouldTopOut()) {
+      phase = GamePhase.gameOver;
+      _emit(const GameOverEvent(GameOverReason.topOut));
+      return;
+    }
+
+    riseController.commitRise();
+
+    final piece = pieceController.piece;
+    if (piece != null) {
+      // Only ever move the piece to a position that's actually valid —
+      // never mutate anchorRow to something colliding/out-of-bounds and
+      // rely on force-lock to paper over it, since lockPiece() would then
+      // try to write out-of-bounds cells.
+      final originalRow = piece.anchorRow;
+      final shiftedRow = originalRow - 1;
+      final pushedRow = shiftedRow - 1;
+      if (!pieceController.collidesAt(shiftedRow, piece.anchorCol)) {
+        piece.anchorRow = shiftedRow;
+      } else if (pushedRow >= grid.minRow &&
+          !pieceController.collidesAt(pushedRow, piece.anchorCol)) {
+        piece.anchorRow = pushedRow;
+      } else {
+        // Can't carry it anywhere valid — force-lock at its last known
+        // legal (pre-commit) position.
+        piece.anchorRow = originalRow;
+        _emit(const RiseCommittedEvent());
+        _lockAndResolve();
+        return;
+      }
+    }
+    _emit(const RiseCommittedEvent());
   }
 
   void _trySpawn() {
@@ -151,15 +244,28 @@ class GameEngine {
     if (pieceController.piece == null) return;
     pieceController.lockPiece();
     _emit(const PieceLockedEvent());
-    phase = GamePhase.resolving;
-    chainIndex = 0;
+    _beginResolve();
     _resolvePass();
   }
 
-  /// One clear + cascade pass. Runs immediately after a lock, then again
-  /// each time [_resolveTimer] (mirroring the render layer's fall
-  /// animation duration) expires — that's the chain-rescan loop (§1.6):
-  /// clear, drop, rescan, repeat until a pass finds nothing to clear.
+  /// Enters RESOLVING fresh: phase, chain counter, and per-resolve scoring
+  /// all reset. Shared by both entry points that can start a chain: a
+  /// normal lock (which then runs [_resolvePass] to find what cleared),
+  /// and a booster destruction (§1.9's "every booster removal triggers a
+  /// normal cascade + clear check", which already knows what it destroyed
+  /// and skips straight to the shatter).
+  void _beginResolve() {
+    phase = GamePhase.resolving;
+    chainIndex = 0;
+    scoring.startResolve();
+    _bannerTiersEmitted.clear();
+  }
+
+  /// One clear + shatter + cascade pass. Runs immediately after
+  /// [_beginResolve], then again each time the chain rescan (end of
+  /// [_runCascade]) finds another full row — that's the chain-rescan loop
+  /// (§1.6): clear, shatter, drop, rescan, repeat until a pass finds
+  /// nothing to clear.
   void _resolvePass() {
     final fullRows = ClearDetector.findFullRows(grid);
     if (fullRows.isEmpty) {
@@ -168,30 +274,119 @@ class GameEngine {
       return;
     }
 
-    for (final row in fullRows) {
-      for (var col = 0; col < grid.cols; col++) {
-        grid.set(row, col, null);
+    final outcome = SpecialBlocks.resolve(grid, fullRows);
+    scoring.addDestroyed(outcome.removedCells.length);
+    scoring.awardLineClear(
+      lines: fullRows.length,
+      chainIndex: chainIndex,
+      elapsedSeconds: riseController.elapsed,
+    );
+    if (outcome.goldCleared > 0) scoring.awardGold(outcome.goldCleared);
+    if (outcome.diamondCleared > 0) scoring.addCoins(outcome.diamondCleared * 5);
+    for (var i = 0; i < outcome.treasureCleared; i++) {
+      _rollTreasureReward();
+    }
+    _checkComboBanners();
+    _startShatterThenCascade(fullRows, outcome.removedCells);
+  }
+
+  void _checkComboBanners() {
+    for (final tier in ComboTier.values) {
+      if (scoring.blocksDestroyedThisResolve >= tier.threshold &&
+          _bannerTiersEmitted.add(tier)) {
+        _emit(ComboBannerEvent(tier));
       }
     }
-    _emit(RowsClearedEvent(fullRows));
+  }
 
+  /// The shatter sequence (§2.3) is a blocking phase for game logic — the
+  /// cascade doesn't start until it's done propagating outward from the
+  /// row's center — but the shard particles themselves are not: they
+  /// outlive RESOLVING entirely (§3.1, game.md Phase 5).
+  void _startShatterThenCascade(List<int> rows, List<ClearedCell> removedCells) {
+    _emit(RowsClearedEvent(rows, removedCells));
+    _resolveStage = _ResolveStage.shatter;
+    _resolveTimer = Motion.shatterSequenceSeconds(grid.cols);
+  }
+
+  /// Arms [type] if it's a valid HUD booster with a charge available and
+  /// the game is actually being played right now. Returns whether arming
+  /// succeeded, so the UI can show feedback either way.
+  bool armBooster(BoosterType type) {
+    if (phase != GamePhase.playing) return false;
+    return boosterEngine.arm(type);
+  }
+
+  void disarmBooster() => boosterEngine.disarm();
+
+  void useTimeFreeze() {
+    if (phase == GamePhase.playing) boosterEngine.useTimeFreeze();
+  }
+
+  void useScoreMultiplier() {
+    if (phase == GamePhase.playing) boosterEngine.useScoreMultiplier();
+  }
+
+  /// The player tapped board cell ([row], [col]) while a booster is armed
+  /// (§1.9). Commits it if something was actually destroyed — which,
+  /// like a line clear, can start a chain — or just disarms cleanly
+  /// without spending a charge if the tap hit nothing.
+  void tapBoosterTarget(int row, int col) {
+    if (boosterEngine.armed == null || phase != GamePhase.playing) return;
+    final removed = boosterEngine.commit(row, col, grid);
+    if (removed.isEmpty) return;
+
+    _beginResolve();
+    scoring.addDestroyed(removed.length);
+    _checkComboBanners();
+    _startShatterThenCascade(const [], removed);
+  }
+
+  /// Runs the gravity resolver once the shatter sequence has finished
+  /// propagating, then waits for the longest resulting fall (§2.2) before
+  /// the next chain rescan.
+  void _runCascade() {
     final falls = resolver.resolve(grid);
     if (falls.isNotEmpty) {
       _emit(
         BlocksFellEvent([
           for (final f in falls)
-            BlockFallEvent(fromRow: f.fromRow, toRow: f.toRow, col: f.col),
+            BlockFallEvent(
+              fromRow: f.fromRow,
+              toRow: f.toRow,
+              col: f.col,
+              type: f.type,
+            ),
         ]),
       );
     }
     _emit(ChainAdvancedEvent(chainIndex));
     chainIndex++;
+    _resolveStage = _ResolveStage.cascade;
     _resolveTimer = _settleDuration(falls);
     if (_resolveTimer <= 0) {
       // Nothing fell (e.g. the cleared row(s) had nothing above them) —
       // rescan immediately rather than waiting for an animation that
       // isn't happening.
       _resolvePass();
+    }
+  }
+
+  static const _treasureBoosterPool = [
+    BoosterType.hammer,
+    BoosterType.bomb,
+    BoosterType.drill,
+    BoosterType.lightning,
+  ];
+
+  /// Treasure's reward-table roll (§1.8): coins or a booster charge.
+  void _rollTreasureReward() {
+    if (_random.nextBool()) {
+      scoring.addCoins(10 + _random.nextInt(21)); // 10-30
+    } else {
+      boosterEngine.addCharge(
+        _treasureBoosterPool[_random.nextInt(_treasureBoosterPool.length)],
+      );
     }
   }
 

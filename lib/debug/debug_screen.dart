@@ -95,6 +95,20 @@ class _DebugScreenState extends State<DebugScreen> {
     });
   }
 
+  static String _cellGlyph(BlockType type) => switch (type) {
+    BlockType.wood => 'X',
+    BlockType.stone => '#',
+    BlockType.ice => 'i',
+    BlockType.iceCracked => 'c',
+    BlockType.bomb => 'B',
+    BlockType.gold => 'G',
+    BlockType.diamond => 'D',
+    BlockType.treasure => 'T',
+    BlockType.locked => 'L',
+    BlockType.rainbow => 'R',
+    BlockType.key => 'K',
+  };
+
   String _renderGrid() {
     final grid = _engine.grid;
     final piece = _engine.pieceController.piece;
@@ -108,13 +122,7 @@ class _DebugScreenState extends State<DebugScreen> {
           buf.write(piece!.type.name[0]);
         } else {
           final cell = grid.at(r, c);
-          if (cell == null) {
-            buf.write('.');
-          } else if (cell.type == BlockType.stone) {
-            buf.write('#');
-          } else {
-            buf.write('X');
-          }
+          buf.write(cell == null ? '.' : _cellGlyph(cell.type));
         }
         buf.write(' ');
       }
@@ -150,7 +158,13 @@ class _DebugScreenState extends State<DebugScreen> {
                 'resolver: ${engine.resolver.runtimeType}\n'
                 'piece: ${piece == null ? '-' : '${piece.type.name} '
                     '${piece.rotation.name} '
-                    '(${piece.anchorRow},${piece.anchorCol})'}',
+                    '(${piece.anchorRow},${piece.anchorCol})'}\n'
+                'elapsed: ${engine.riseController.elapsed.toStringAsFixed(1)}s   '
+                'drop: ${engine.pieceController.dropInterval.inMilliseconds}ms   '
+                'rise: ${engine.riseController.riseInterval.toStringAsFixed(1)}s   '
+                'fill: ${(engine.riseController.fillRatio * 100).toStringAsFixed(0)}%\n'
+                'score: ${engine.scoring.score}   coins: ${engine.scoring.coins}   '
+                'destroyed(resolve): ${engine.scoring.blocksDestroyedThisResolve}',
                 style: const TextStyle(color: Tokens.colorText),
               ),
               const SizedBox(height: Tokens.spaceXs),

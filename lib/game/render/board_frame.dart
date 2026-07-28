@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
@@ -30,6 +31,17 @@ class BoardFrame extends PositionComponent {
   set cellSize(double value) {
     _cellSize = value;
     size = Vector2(cols * value, rows * value);
+  }
+
+  /// Set by [BoardComponent] when the stack top has reached the warning
+  /// row (§2.1). Pulses the top edge red at 1Hz while true.
+  bool warning = false;
+  double _warnClock = 0;
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _warnClock = warning ? _warnClock + dt : 0;
   }
 
   @override
@@ -98,6 +110,20 @@ class BoardFrame extends PositionComponent {
     for (var r = 1; r < rows; r++) {
       final y = r * cellSize;
       canvas.drawLine(Offset(0, y), Offset(size.x, y), gridPaint);
+    }
+
+    // Warning pulse: the top edge glows red at 1Hz once the stack reaches
+    // the warning row (§2.1).
+    if (warning) {
+      final pulse = (math.sin(2 * math.pi * _warnClock) + 1) / 2; // 0..1
+      final alpha = 0.25 + 0.35 * pulse;
+      canvas.drawRRect(
+        outerRRect.deflate(frameThickness / 2),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = frameThickness
+          ..color = Tokens.colorRed.withValues(alpha: alpha),
+      );
     }
   }
 }

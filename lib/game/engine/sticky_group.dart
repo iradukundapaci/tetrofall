@@ -60,10 +60,17 @@ class StickyGroup implements GravityResolver {
 
         component.sort((a, b) => b.$1.compareTo(a.$1)); // bottom cells first
         for (final (cr, cc) in component) {
-          final cell = grid.at(cr, cc);
+          final cell = grid.at(cr, cc)!;
           grid.set(cr, cc, null);
           grid.set(cr + dropDistance, cc, cell);
-          falls.add(BlockFall(col: cc, fromRow: cr, toRow: cr + dropDistance));
+          falls.add(
+            BlockFall(
+              col: cc,
+              fromRow: cr,
+              toRow: cr + dropDistance,
+              type: cell.type,
+            ),
+          );
         }
       }
     }
