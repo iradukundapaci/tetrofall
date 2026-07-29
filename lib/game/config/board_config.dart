@@ -1,11 +1,12 @@
 /// Board geometry constants. See game.md §1.1.
 ///
-/// 21×37 matches the reference footage 1:1 — measured from the source
-/// screenshots: 21 columns across the full screen width (cell ≈ 60.5px at
-/// 1272px wide) and ≈37 visible rows filling the height edge-to-edge.
+/// 18×32 keeps the reference footage's near-square cells but at a larger
+/// size: 18 columns across the play-area width (rows scaled down
+/// proportionally from the original 21×37) so the board still fills a
+/// phone-shaped play area edge-to-edge inside its frame.
 abstract final class BoardConfig {
-  static const cols = 21;
-  static const rows = 37;
+  static const cols = 18;
+  static const rows = 32;
 
   /// Hidden buffer above row 0, used only for piece spawn.
   static const spawnRows = 2;

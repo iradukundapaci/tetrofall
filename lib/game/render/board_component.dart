@@ -15,7 +15,7 @@ import 'pending_row_component.dart';
 import 'piece_component.dart';
 import 'shatter_layer.dart';
 
-/// Owns board layout: derives [cellSize] from the available viewport rect
+/// Owns board layout: derives [cellSize] from the available play-area rect
 /// at layout time (never hardcoded, see game.md §1.1) and keeps the frame
 /// centered as the game resizes. Also owns the settled-block render pool
 /// (synced from [GameEngine.grid] every frame), the active piece, the
@@ -144,10 +144,10 @@ class BoardComponent extends PositionComponent with HasGameReference {
     _layout(size);
   }
 
-  /// Full-bleed layout, matching the reference footage: the board fills
-  /// the entire box the Flutter `Expanded` region hands it — no side
-  /// margins, no reserved strips. `cellSize` is whichever of width/21 or
-  /// height/37 fits; on typical phones that's edge-to-edge. The combo
+  /// Full-bleed layout within the framed play area: app.dart hands the
+  /// `GameWidget` a box already fixed to the board's aspect ratio, so the
+  /// board fills it edge-to-edge — no side margins, no reserved strips.
+  /// `cellSize` is whichever of width/cols or height/rows fits. The combo
   /// banner overlays the top of the board instead of reserving space.
   void _layout(Vector2 gameSize) {
     final widthCellSize = gameSize.x / BoardConfig.cols;

@@ -2,16 +2,17 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
+import 'package:flame/flame.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/theme_definition.dart';
 import '../../ui/theme/tokens.dart';
 
-/// Full-bleed light-pine backdrop, 1:1 with the reference footage: no
-/// frame, no bevel, no recessed well — just pale planked wood with a dark
-/// vertical groove at every column boundary (the planks are exactly one
-/// cell wide) and faint horizontal grain streaks. Blocks sit directly on
-/// top of this. Canvas-drawn — resolution-independent, no asset.
+/// The play-area backdrop: the `bg_wood` pine texture (cover-cropped so its
+/// vertical grain never stretches) with a dark vertical groove at every
+/// column boundary — the planks are exactly one cell wide. Blocks sit
+/// directly on top of this. The border and margin around the play area are
+/// Flutter-side (see app.dart); this component only fills its own rect.
 ///
 /// Keeps the name `BoardFrame` so the board plumbing (`cellSize` drives
 /// `size`) stays untouched.
@@ -40,11 +41,18 @@ class BoardFrame extends PositionComponent {
   bool warning = false;
   double _warnClock = 0;
 
-  // Reference palette, sampled from the source footage's empty area:
-  // pale pine planks with slightly darker grooves between them.
-  static const _pineLight = Color(0xFFEBD5A8);
-  static const _pineMid = Color(0xFFE0C494);
+  ui.Image? _woodTexture;
+
   static const _grooveColor = Color(0xFF8A6844);
+
+  /// Fallback fill for the single frame before the texture finishes
+  /// decoding, matching the texture's average tone so there's no flash.
+  static const _pineFallback = Color(0xFFEBC078);
+
+  @override
+  Future<void> onLoad() async {
+    _woodTexture = await Flame.images.load('textures/bg_wood.png');
+  }
 
   @override
   void update(double dt) {
@@ -56,37 +64,34 @@ class BoardFrame extends PositionComponent {
   void render(Canvas canvas) {
     final rect = Rect.fromLTWH(0, 0, size.x, size.y);
 
-    // Pale pine base with a soft vertical light falloff.
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = ui.Gradient.linear(rect.topCenter, rect.bottomCenter, [
-          _pineLight,
-          _pineMid,
-        ]),
-    );
-
-    // Faint horizontal grain streaks, deterministic per layout so they
-    // don't shimmer frame to frame.
-    final grainPaint = Paint()
-      ..color = _grooveColor.withValues(alpha: 0.06)
-      ..strokeWidth = math.max(1, cellSize * 0.03);
-    final rng = math.Random(7);
-    final streaks = (rows * 1.5).round();
-    for (var i = 0; i < streaks; i++) {
-      final y = rng.nextDouble() * size.y;
-      final xStart = rng.nextDouble() * size.x * 0.6;
-      final length = size.x * (0.15 + rng.nextDouble() * 0.35);
-      canvas.drawLine(
-        Offset(xStart, y),
-        Offset(math.min(xStart + length, size.x), y),
-        grainPaint,
+    final texture = _woodTexture;
+    if (texture == null) {
+      canvas.drawRect(rect, Paint()..color = _pineFallback);
+    } else {
+      // Cover-crop: scale uniformly to fill, cropping the overflow, so the
+      // vertical grain keeps its natural proportions on the tall board.
+      final imgW = texture.width.toDouble();
+      final imgH = texture.height.toDouble();
+      final scale = math.max(size.x / imgW, size.y / imgH);
+      final srcW = size.x / scale;
+      final srcH = size.y / scale;
+      final src = Rect.fromLTWH(
+        (imgW - srcW) / 2,
+        (imgH - srcH) / 2,
+        srcW,
+        srcH,
+      );
+      canvas.drawImageRect(
+        texture,
+        src,
+        rect,
+        Paint()..filterQuality = FilterQuality.medium,
       );
     }
 
     // The signature vertical plank grooves — one per column boundary,
-    // spanning the full height (the reference background is striped at
-    // exactly the cell pitch).
+    // spanning the full height (the background is striped at exactly the
+    // cell pitch).
     final groovePaint = Paint()
       ..color = _grooveColor.withValues(alpha: 0.55)
       ..strokeWidth = math.max(1, cellSize * 0.035);

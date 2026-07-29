@@ -11,7 +11,7 @@ abstract final class Motion {
 
   // Shard kinematics are expressed in *cells* (multiplied by cellSize at
   // spawn) so the effect scales identically on any screen — essential now
-  // that a cell is only ~1/21 of the screen width.
+  // that a cell is only ~1/18 of the play-area width.
   static const shardGravityCellsPerS2 = 42.0;
   static const shardMinUpSpeedCells = 9.0; // cells/s, upward
   static const shardMaxUpSpeedCells = 20.0;

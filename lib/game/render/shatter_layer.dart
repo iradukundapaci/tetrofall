@@ -30,7 +30,7 @@ const _shardEdgeColor = Color(0xFF6E4225);
 const _crackColor = Color(0xFF4A2C16);
 
 /// One pooled shard slot. Reused via a ring-buffer cursor rather than
-/// allocated per-particle (game.md §2.3 — a full 21-column clear is
+/// allocated per-particle (game.md §2.3 — a full 18-column clear is
 /// hundreds of particles, and per-frame allocation would GC-hitch).
 /// Each shard is a chunky irregular polygon with a lighter "cut" facet,
 /// so it reads as a 3D wooden fragment tumbling through the air — 1:1

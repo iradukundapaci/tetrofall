@@ -1,6 +1,7 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
+import 'game/config/board_config.dart';
 import 'game/engine/events.dart';
 import 'game/render/score_hud.dart';
 import 'game/tetrofall_game.dart';
@@ -85,36 +86,80 @@ class _GameHomeState extends State<_GameHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Tokens.colorBg,
-      body: Column(
-        children: [
-          ScoreHud(game: _game, storage: widget.storage),
-          Expanded(
-            child: Stack(
-              children: [
-                Listener(
-                  // While paused, every pointer event is dropped outright
-                  // (§6.1) — otherwise moves/rotates queue up in the
-                  // engine's intent list (which only drains on `playing`
-                  // ticks, and those stop while paused) and all fire at
-                  // once the instant the game resumes.
-                  onPointerDown: (e) {
-                    if (_game.paused) return;
-                    _game.gestureHandler.onPointerDown(e);
-                  },
-                  onPointerMove: (e) {
-                    if (_game.paused) return;
-                    _game.gestureHandler.onPointerMove(e);
-                  },
-                  onPointerUp: (e) {
-                    if (_game.paused) return;
-                    _game.gestureHandler.onPointerUp(e);
-                  },
-                  onPointerCancel: (e) {
-                    if (_game.paused) return;
-                    _game.gestureHandler.onPointerCancel(e);
-                  },
-                  child: GameWidget(game: _game),
-                ),
+      // Full-screen bg_wood backdrop, darkened a touch so the lighter
+      // play area (which uses the same texture) reads as its own surface.
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/textures/bg_wood.png'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Color(0x59000000), BlendMode.darken),
+          ),
+        ),
+        child: Column(
+          children: [
+            ScoreHud(game: _game, storage: widget.storage),
+            Expanded(
+              child: Stack(
+                children: [
+                  // The play area: fixed to the board's aspect ratio so the
+                  // full-bleed Flame board exactly fills the framed box —
+                  // the wood-dark border hugs the grid with no slack.
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      Tokens.spaceMd,
+                      Tokens.spaceSm,
+                      Tokens.spaceMd,
+                      Tokens.spaceMd,
+                    ),
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: BoardConfig.cols / BoardConfig.rows,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Tokens.colorWoodDark,
+                              width: 4,
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              Tokens.radiusMd,
+                            ),
+                            boxShadow: const [Tokens.shadowSoft],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              Tokens.radiusMd - 4,
+                            ),
+                            child: Listener(
+                              // While paused, every pointer event is dropped
+                              // outright (§6.1) — otherwise moves/rotates
+                              // queue up in the engine's intent list (which
+                              // only drains on `playing` ticks, and those
+                              // stop while paused) and all fire at once the
+                              // instant the game resumes.
+                              onPointerDown: (e) {
+                                if (_game.paused) return;
+                                _game.gestureHandler.onPointerDown(e);
+                              },
+                              onPointerMove: (e) {
+                                if (_game.paused) return;
+                                _game.gestureHandler.onPointerMove(e);
+                              },
+                              onPointerUp: (e) {
+                                if (_game.paused) return;
+                                _game.gestureHandler.onPointerUp(e);
+                              },
+                              onPointerCancel: (e) {
+                                if (_game.paused) return;
+                                _game.gestureHandler.onPointerCancel(e);
+                              },
+                              child: GameWidget(game: _game),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   top: Tokens.spaceSm,
                   right: Tokens.spaceSm,
@@ -161,10 +206,51 @@ class _GameHomeState extends State<_GameHome> {
                     best: widget.storage.bestScore,
                     onRestart: _restart,
                   ),
-              ],
+                ],
+              ),
             ),
+            const _AdSlot(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Reserved banner-ad strip under the play area (standard banner height
+/// plus breathing room). Holds the space with a subtle placeholder until a
+/// real ad SDK is wired in, so the board layout won't jump when it lands.
+class _AdSlot extends StatelessWidget {
+  const _AdSlot();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 64,
+        margin: const EdgeInsets.fromLTRB(
+          Tokens.spaceMd,
+          0,
+          Tokens.spaceMd,
+          Tokens.spaceSm,
+        ),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.25),
+          borderRadius: BorderRadius.circular(Tokens.radiusSm),
+          border: Border.all(color: Tokens.colorPanelBorder),
+        ),
+        child: const Text(
+          'AD',
+          style: TextStyle(
+            fontFamily: Tokens.fontDisplay,
+            fontSize: Tokens.fontSizeSm,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 3,
+            color: Tokens.colorTextMuted,
           ),
-        ],
+        ),
       ),
     );
   }

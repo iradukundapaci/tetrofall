@@ -7,7 +7,6 @@ import 'engine/events.dart';
 import 'engine/game_engine.dart';
 import 'input/gesture_handler.dart';
 import 'render/board_component.dart';
-import 'render/wood_background.dart';
 
 /// FlameGame root. Owns the pure-Dart [GameEngine] and ticks it every
 /// frame; the render tree only reads engine state (§3.1).
@@ -87,12 +86,13 @@ class TetrofallGame extends FlameGame {
     }
   }
 
+  // Transparent so the Flutter-side bg_wood backdrop (app.dart) shows
+  // through any sub-pixel slack around the board inside its frame.
   @override
-  Color backgroundColor() => theme.background;
+  Color backgroundColor() => const Color(0x00000000);
 
   @override
   Future<void> onLoad() async {
-    await add(WoodBackground());
     final board = BoardComponent(engine: engine, theme: theme);
     _board = board;
     await add(board);
