@@ -3,7 +3,6 @@ import 'package:flutter/animation.dart' show Curves;
 
 import '../../models/theme_definition.dart';
 import '../config/motion.dart';
-import '../engine/cell.dart';
 import '../engine/game_engine.dart';
 import '../tetrofall_game.dart';
 import 'block_component.dart';
@@ -81,7 +80,6 @@ class PieceComponent extends PositionComponent with HasGameReference<TetrofallGa
       final visualCol = _visualCol + offset.col;
       _blocks[i]
         ..blockVisible = true
-        ..blockType = BlockType.wood
         ..size = Vector2.all(cellSize)
         ..position = Vector2(visualCol * cellSize, localRow * cellSize);
     }

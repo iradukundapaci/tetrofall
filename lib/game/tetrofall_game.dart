@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../models/theme_definition.dart';
-import 'engine/booster_engine.dart';
 import 'engine/events.dart';
 import 'engine/game_engine.dart';
 import 'input/gesture_handler.dart';
@@ -63,33 +62,6 @@ class TetrofallGame extends FlameGame {
   void resumeEngine() {
     super.resumeEngine();
     pausedNotifier.value = false;
-  }
-
-  /// Phase 8: updates the pre-commit highlight for the armed booster as
-  /// the player's finger moves, without destroying anything yet (§1.9).
-  void previewBoosterAt(Offset screenPos) {
-    final type = engine.boosterEngine.armed;
-    if (type == null) return;
-    final cell = board.cellFromScreen(Vector2(screenPos.dx, screenPos.dy));
-    if (cell == null) {
-      board.boosterTargetOverlay.hide();
-      return;
-    }
-    board.boosterTargetOverlay.show(
-      BoosterEngine.targetCells(type, cell.$1, cell.$2, engine.grid),
-    );
-  }
-
-  /// Phase 8: commits the armed booster at the released position, or
-  /// disarms cleanly (no charge spent) if the release misses the board.
-  void commitBoosterAt(Offset screenPos) {
-    board.boosterTargetOverlay.hide();
-    final cell = board.cellFromScreen(Vector2(screenPos.dx, screenPos.dy));
-    if (cell == null) {
-      engine.disarmBooster();
-      return;
-    }
-    engine.tapBoosterTarget(cell.$1, cell.$2);
   }
 
   /// Starts a fresh run after game-over or a mid-run restart (§4, §6.1):

@@ -1,23 +1,15 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
-import '../../ui/theme/tokens.dart';
-
-final _identityMatrix4 = Float64List.fromList([
-  1, 0, 0, 0, //
-  0, 1, 0, 0,
-  0, 0, 1, 0,
-  0, 0, 0, 1,
-]);
-
-/// Full-bleed seamless wood texture (`bg_wood.png`, P.4). Falls back to a
-/// vertical gradient approximation of `--bg-wood-texture` while the image
-/// is still loading.
+/// Full-bleed pale-pine backing behind the board, matching the reference
+/// footage's light wooden background — so any letterboxed sliver around
+/// the full-bleed board blends into the same material instead of showing
+/// a dark surface.
 class WoodBackground extends PositionComponent with HasGameReference {
-  ui.Image? _texture;
+  static const _pineLight = Color(0xFFEBD5A8);
+  static const _pineMid = Color(0xFFDDC08E);
 
   @override
   int get priority => -1;
@@ -25,7 +17,6 @@ class WoodBackground extends PositionComponent with HasGameReference {
   @override
   Future<void> onLoad() async {
     size = game.size;
-    _texture = await game.images.load('textures/bg_wood.png');
   }
 
   @override
@@ -37,27 +28,13 @@ class WoodBackground extends PositionComponent with HasGameReference {
   @override
   void render(Canvas canvas) {
     final rect = Rect.fromLTWH(0, 0, size.x, size.y);
-    final texture = _texture;
-    if (texture == null) {
-      canvas.drawRect(
-        rect,
-        Paint()
-          ..shader = ui.Gradient.linear(rect.topCenter, rect.bottomCenter, [
-            Tokens.colorWoodDark,
-            Tokens.colorBg,
-          ]),
-      );
-      return;
-    }
     canvas.drawRect(
       rect,
       Paint()
-        ..shader = ImageShader(
-          texture,
-          TileMode.repeated,
-          TileMode.repeated,
-          _identityMatrix4,
-        ),
+        ..shader = ui.Gradient.linear(rect.topCenter, rect.bottomCenter, [
+          _pineLight,
+          _pineMid,
+        ]),
     );
   }
 }

@@ -38,12 +38,10 @@ class Grid {
 
   bool isOccupied(int row, int col) => at(row, col) != null;
 
-  /// A row is full when every column is occupied **and** clearable — a row
-  /// containing Stone can never complete (§1.5).
+  /// A row is full when every column is occupied.
   bool isRowFull(int row) {
     for (var c = 0; c < cols; c++) {
-      final cell = at(row, c);
-      if (cell == null || cell.blocksLineClear) return false;
+      if (at(row, c) == null) return false;
     }
     return true;
   }

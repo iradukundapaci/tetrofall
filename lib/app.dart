@@ -1,10 +1,7 @@
 import 'package:flame/game.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
-import 'game/config/difficulty.dart';
 import 'game/engine/events.dart';
-import 'game/render/booster_hud.dart';
 import 'game/render/score_hud.dart';
 import 'game/tetrofall_game.dart';
 import 'services/storage_service.dart';
@@ -38,9 +35,9 @@ class TetrofallApp extends StatelessWidget {
 /// the real Settings row lands in Phase 10.
 ///
 /// Layout budget (R4): a single `Column` — top HUD, then the board's
-/// `Expanded` share of whatever's left, then the booster panel — so each
-/// section is sized by real Flutter layout (via `MediaQuery`/intrinsic
-/// widget size), never a fixed offset or a guessed fraction of the screen.
+/// `Expanded` share of whatever's left — so each section is sized by real
+/// Flutter layout (via `MediaQuery`/intrinsic widget size), never a fixed
+/// offset or a guessed fraction of the screen.
 /// `BoardComponent` derives `cellSize` from exactly the box the `Expanded`
 /// hands it, so nothing here needs to know the board's internal geometry
 /// (combo banner strip, pending-row reveal margin) — that budget lives in
@@ -59,7 +56,6 @@ class _GameHomeState extends State<_GameHome> {
     initialCoins: widget.storage.coins,
   );
   bool _showGhost = true;
-  bool _debugForceSpecials = Difficulty.debugForceSpecials;
   GameOverReason? _gameOverReason;
 
   @override
@@ -96,45 +92,26 @@ class _GameHomeState extends State<_GameHome> {
             child: Stack(
               children: [
                 Listener(
-                  // Two input modes share this Listener: an armed booster
-                  // (§1.9's arm -> drag-preview -> release-to-commit)
-                  // beats plain gameplay gestures, which get whatever's
-                  // left. While paused, every pointer event is dropped
-                  // outright (§6.1) — otherwise moves/rotates queue up in
-                  // the engine's intent list (which only drains on
-                  // `playing` ticks, and those stop while paused) and all
-                  // fire at once the instant the game resumes.
+                  // While paused, every pointer event is dropped outright
+                  // (§6.1) — otherwise moves/rotates queue up in the
+                  // engine's intent list (which only drains on `playing`
+                  // ticks, and those stop while paused) and all fire at
+                  // once the instant the game resumes.
                   onPointerDown: (e) {
                     if (_game.paused) return;
-                    if (_game.engine.boosterEngine.armed != null) {
-                      _game.previewBoosterAt(e.localPosition);
-                    } else {
-                      _game.gestureHandler.onPointerDown(e);
-                    }
+                    _game.gestureHandler.onPointerDown(e);
                   },
                   onPointerMove: (e) {
                     if (_game.paused) return;
-                    if (_game.engine.boosterEngine.armed != null) {
-                      _game.previewBoosterAt(e.localPosition);
-                    } else {
-                      _game.gestureHandler.onPointerMove(e);
-                    }
+                    _game.gestureHandler.onPointerMove(e);
                   },
                   onPointerUp: (e) {
                     if (_game.paused) return;
-                    if (_game.engine.boosterEngine.armed != null) {
-                      _game.commitBoosterAt(e.localPosition);
-                    } else {
-                      _game.gestureHandler.onPointerUp(e);
-                    }
+                    _game.gestureHandler.onPointerUp(e);
                   },
                   onPointerCancel: (e) {
                     if (_game.paused) return;
-                    if (_game.engine.boosterEngine.armed != null) {
-                      _game.engine.disarmBooster();
-                    } else {
-                      _game.gestureHandler.onPointerCancel(e);
-                    }
+                    _game.gestureHandler.onPointerCancel(e);
                   },
                   child: GameWidget(game: _game),
                 ),
@@ -147,23 +124,6 @@ class _GameHomeState extends State<_GameHome> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (kDebugMode)
-                          IconButton(
-                            tooltip: 'Debug: force special blocks (§3)',
-                            icon: Icon(
-                              Icons.auto_awesome,
-                              color: _debugForceSpecials
-                                  ? Tokens.colorGold
-                                  : Tokens.colorText,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _debugForceSpecials = !_debugForceSpecials;
-                                Difficulty.debugForceSpecials =
-                                    _debugForceSpecials;
-                              });
-                            },
-                          ),
                         IconButton(
                           tooltip: 'Toggle ghost piece',
                           icon: Icon(
@@ -204,7 +164,6 @@ class _GameHomeState extends State<_GameHome> {
               ],
             ),
           ),
-          BoosterHud(game: _game),
         ],
       ),
     );

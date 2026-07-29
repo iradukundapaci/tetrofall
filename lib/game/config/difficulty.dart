@@ -73,31 +73,6 @@ abstract final class Difficulty {
   /// beginner has had a moment to get their bearings (§2).
   static const riseGracePeriod = Duration(seconds: 12);
 
-  /// Elapsed time after which special blocks begin appearing in rising
-  /// rows. Lowered from 3 minutes (§3) — most runs previously ended
-  /// before players ever met the mechanic.
-  static const specialBlocksStart = Duration(seconds: 90);
-
-  /// Chance for each filled cell in a generated row to become a special
-  /// block once [specialBlocksStart] has passed (§1.8) — tuned to feel
-  /// "interesting rather than overwhelming" per the Phase 7 checklist.
-  static const specialBlockChance = 0.12;
-
-  /// Debug-only override (§3): when true, special blocks are eligible from
-  /// the very first generated row at a much higher chance, so the mechanic
-  /// can be exercised without surviving a real run. Never toggled by
-  /// shipping gameplay code — only from a `kDebugMode`-gated UI control.
-  static bool debugForceSpecials = false;
-
-  /// Effective [specialBlocksStart], in seconds, honoring
-  /// [debugForceSpecials].
-  static int get effectiveSpecialBlocksStartSeconds =>
-      debugForceSpecials ? 0 : specialBlocksStart.inSeconds;
-
-  /// Effective [specialBlockChance], honoring [debugForceSpecials].
-  static double get effectiveSpecialBlockChance =>
-      debugForceSpecials ? 0.5 : specialBlockChance;
-
   static double _lerp(double a, double b, double t) => a + (b - a) * t;
 
   static DifficultyCheckpoint at(Duration elapsed) {

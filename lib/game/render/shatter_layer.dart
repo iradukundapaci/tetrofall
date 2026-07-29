@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
@@ -7,12 +9,32 @@ import 'package:flutter/material.dart';
 import '../../models/theme_definition.dart';
 import '../config/motion.dart';
 import '../engine/events.dart';
-import 'shard_palette.dart';
+
+/// Wood-fragment palette for the shatter debris, sampled from the
+/// reference footage: medium browns for uncut faces, pale creams for the
+/// freshly split "cut" faces, plus a dark edge tone.
+const _shardBaseColors = <Color>[
+  Color(0xFFB97F4E),
+  Color(0xFFA96F42),
+  Color(0xFF8F5730),
+  Color(0xFFC98F5C),
+  Color(0xFF9C6238),
+];
+const _shardFacetColors = <Color>[
+  Color(0xFFE8D3B0),
+  Color(0xFFF2E7D2),
+  Color(0xFFF7F1E4),
+  Color(0xFFDDBE93),
+];
+const _shardEdgeColor = Color(0xFF6E4225);
+const _crackColor = Color(0xFF4A2C16);
 
 /// One pooled shard slot. Reused via a ring-buffer cursor rather than
-/// allocated per-particle (game.md §2.3: a 4-line clear is ~500 particles,
-/// and per-frame allocation would GC-hitch). `active` marks a slot that's
-/// currently a live shard; inactive slots simply aren't drawn or updated.
+/// allocated per-particle (game.md §2.3 — a full 21-column clear is
+/// hundreds of particles, and per-frame allocation would GC-hitch).
+/// Each shard is a chunky irregular polygon with a lighter "cut" facet,
+/// so it reads as a 3D wooden fragment tumbling through the air — 1:1
+/// with the reference footage — not a flat square.
 class _Shard {
   bool active = false;
   double delay = 0;
@@ -25,18 +47,74 @@ class _Shard {
   double size = 0;
   double angle = 0;
   double rotationSpeed = 0;
-  Color color = const Color(0x00000000);
+  Color baseColor = const Color(0x00000000);
+  Color facetColor = const Color(0x00000000);
+
+  /// Unit-space polygon vertices (scaled by [size] at render time). Fixed
+  /// max of 5 vertices; [vertexCount] says how many are live this cycle.
+  final Float32List verts = Float32List(10);
+  int vertexCount = 0;
+
+  final Path path = Path();
+  final Path facetPath = Path();
+
+  /// Rebuilds the polygon + facet paths for this shard's current shape.
+  void rebuildPaths() {
+    path.reset();
+    facetPath.reset();
+    if (vertexCount < 3) return;
+    path.moveTo(verts[0] * size, verts[1] * size);
+    for (var i = 1; i < vertexCount; i++) {
+      path.lineTo(verts[i * 2] * size, verts[i * 2 + 1] * size);
+    }
+    path.close();
+    // Facet: a triangle over the first three vertices, pulled toward the
+    // centroid — the pale "freshly split" face that sells the 3D look.
+    var cx = 0.0;
+    var cy = 0.0;
+    for (var i = 0; i < vertexCount; i++) {
+      cx += verts[i * 2];
+      cy += verts[i * 2 + 1];
+    }
+    cx /= vertexCount;
+    cy /= vertexCount;
+    facetPath.moveTo(verts[0] * size, verts[1] * size);
+    facetPath.lineTo(verts[2] * size, verts[3] * size);
+    facetPath.lineTo(cx * size, cy * size);
+    facetPath.close();
+  }
 }
 
-/// The signature center-out shatter animation (§2.3). Cells destined to
-/// clear are handed to [addClear] the instant the engine emits
-/// [RowsClearedEvent] — each cell schedules its own delay
-/// (`(col - center).abs() * shatterStep`) so the burst visibly propagates
-/// outward from the row's middle, then fires 10-14 wooden-shard particles.
-/// Purely decorative: particles never block game logic and outlive
-/// `RESOLVING` entirely, which is why this component's lifetime tracking
-/// is fully independent of [GameEngine]'s resolve timer.
-class ShatterLayer extends PositionComponent {
+/// A cleared cell during the crack stage: the block is already gone from
+/// the logical grid (§3.1's golden rule), but on screen it still looks
+/// intact — with crack fractures spreading across it — until its burst
+/// delay elapses and it explodes into shards. 1:1 with the reference
+/// footage's crack-then-burst sequence.
+class _CrackedCell {
+  _CrackedCell({
+    required this.row,
+    required this.col,
+    required this.remaining,
+    required this.seed,
+  });
+
+  final int row;
+  final int col;
+  double remaining;
+  final int seed;
+}
+
+/// The signature crack-then-burst shatter (§2.3). Cells destined to clear
+/// are handed to [addClear] the instant the engine emits
+/// [RowsClearedEvent]. Every cell first renders as a cracked block for
+/// [Motion.crackHold]; then the burst wave sweeps outward from the row's
+/// center (`crackHold + (col - center).abs() * shatterStep`), each cell
+/// exploding into chunky two-tone wooden fragments that spray upward in a
+/// V — outer columns thrown outward and higher — tumble, and fall under
+/// gravity. Purely decorative: particles never block game logic and
+/// outlive `RESOLVING` entirely, which is why this component's lifetime
+/// tracking is fully independent of [GameEngine]'s resolve timer.
+class ShatterLayer extends PositionComponent with HasGameReference {
   ShatterLayer({required this.theme});
 
   final ThemeDefinition theme;
@@ -49,23 +127,53 @@ class ShatterLayer extends PositionComponent {
   int _cursor = 0;
   final _random = math.Random();
 
-  /// Schedules a burst for every cell in [cells] (already removed from the
-  /// logical grid by the time this is called — §3.1's golden rule: logic
-  /// commits instantly, render catches up). [cols] is the board width,
-  /// needed to find the row's center column for the delay formula.
+  final List<_CrackedCell> _crackedCells = [];
+
+  ui.Image? _tile;
+
+  static String _stripImagesPrefix(String path) {
+    const prefix = 'assets/images/';
+    return path.startsWith(prefix) ? path.substring(prefix.length) : path;
+  }
+
+  @override
+  Future<void> onLoad() async {
+    // The cracked-block stage draws the same wood tile the settled blocks
+    // use, so the crack overlay appears on a visually identical block.
+    final path = theme.spriteOverrides['wood'] ?? theme.baseTileAsset;
+    unawaited(
+      game.images.load(_stripImagesPrefix(path)).then((img) => _tile = img),
+    );
+  }
+
+  /// Schedules the crack-then-burst for every cell in [cells] (already
+  /// removed from the logical grid by the time this is called). [cols] is
+  /// the board width, needed to find the row's center column for the
+  /// delay formula and the V-spray direction.
   void addClear(List<ClearedCell> cells, int cols) {
     final center = (cols - 1) / 2.0;
     final stepSeconds = Motion.shatterStep.inMilliseconds / 1000;
+    final crackSeconds = Motion.crackHold.inMilliseconds / 1000;
     for (final cell in cells) {
-      final delay = (cell.col - center).abs() * stepSeconds;
-      final color = ShardPalette.colorFor(cell.type, theme);
+      final delay = crackSeconds + (cell.col - center).abs() * stepSeconds;
+      _crackedCells.add(
+        _CrackedCell(
+          row: cell.row,
+          col: cell.col,
+          remaining: delay,
+          seed: _random.nextInt(1 << 31),
+        ),
+      );
+      // How far off-center this cell is, -1 (left edge) .. +1 (right
+      // edge): drives the outward component of the V spray.
+      final t = center == 0 ? 0.0 : (cell.col - center) / center;
       final count =
           Motion.particlesPerCellMin +
           _random.nextInt(
             Motion.particlesPerCellMax - Motion.particlesPerCellMin + 1,
           );
       for (var i = 0; i < count; i++) {
-        _spawn(row: cell.row, col: cell.col, delay: delay, color: color);
+        _spawn(row: cell.row, col: cell.col, delay: delay, offCenter: t);
       }
     }
   }
@@ -74,7 +182,7 @@ class ShatterLayer extends PositionComponent {
     required int row,
     required int col,
     required double delay,
-    required Color color,
+    required double offCenter,
   }) {
     final shard = _pool[_cursor];
     _cursor = (_cursor + 1) % _pool.length;
@@ -86,6 +194,18 @@ class ShatterLayer extends PositionComponent {
     );
     final spin = _random.nextBool() ? 1.0 : -1.0;
 
+    // V-spray: everything goes up hard; the outward component scales with
+    // how far off-center the cell sits, plus jitter — outer columns throw
+    // debris outward and slightly higher, forming the reference V plume.
+    final up = _lerpD(
+      Motion.shardMinUpSpeedCells,
+      Motion.shardMaxUpSpeedCells,
+      _random.nextDouble(),
+    ) *
+        (1.0 + 0.5 * offCenter.abs());
+    final outward = offCenter * Motion.shardMaxOutwardSpeedCells +
+        (_random.nextDouble() * 2 - 1) * Motion.shardOutwardJitterCells;
+
     shard
       ..active = true
       ..delay = delay
@@ -93,13 +213,14 @@ class ShatterLayer extends PositionComponent {
       ..lifetime = lifetimeMs / 1000
       ..x = (col + 0.5) * cellSize
       ..y = (row + 0.5) * cellSize
-      ..vx = _lerpD(Motion.shardMinVx, Motion.shardMaxVx, _random.nextDouble())
-      ..vy = _lerpD(Motion.shardMinVy, Motion.shardMaxVy, _random.nextDouble())
+      ..vx = outward * cellSize
+      ..vy = -up * cellSize
       ..size = _lerpD(
-        Motion.shardMinSize,
-        Motion.shardMaxSize,
+        Motion.shardMinSizeCells,
+        Motion.shardMaxSizeCells,
         _random.nextDouble(),
-      )
+      ) *
+          cellSize
       ..angle = _random.nextDouble() * 2 * math.pi
       ..rotationSpeed =
           spin *
@@ -108,16 +229,32 @@ class ShatterLayer extends PositionComponent {
             Motion.shardMaxRotationSpeed,
             _random.nextDouble(),
           )
-      ..color = color;
+      ..baseColor = _shardBaseColors[_random.nextInt(_shardBaseColors.length)]
+      ..facetColor =
+          _shardFacetColors[_random.nextInt(_shardFacetColors.length)];
+
+    // Irregular convex-ish polygon: 4-5 vertices at jittered angles and
+    // radii around the center, in unit space (scaled by size at render).
+    final vertexCount = 4 + _random.nextInt(2);
+    shard.vertexCount = vertexCount;
+    final angleStep = 2 * math.pi / vertexCount;
+    for (var i = 0; i < vertexCount; i++) {
+      final a = i * angleStep + (_random.nextDouble() - 0.5) * angleStep * 0.7;
+      final r = 0.3 + _random.nextDouble() * 0.35;
+      shard.verts[i * 2] = math.cos(a) * r;
+      shard.verts[i * 2 + 1] = math.sin(a) * r;
+    }
+    shard.rebuildPaths();
   }
 
-  /// Deactivates every pooled shard immediately, for a restart (§4) — a
-  /// clear mid-shatter shouldn't leave shards from the ended run animating
-  /// over the fresh board.
+  /// Deactivates every pooled shard and cracked cell immediately, for a
+  /// restart (§4) — a clear mid-shatter shouldn't leave debris from the
+  /// ended run animating over the fresh board.
   void reset() {
     for (final shard in _pool) {
       shard.active = false;
     }
+    _crackedCells.clear();
   }
 
   static double _lerpD(double a, double b, double t) => a + (b - a) * t;
@@ -126,6 +263,14 @@ class ShatterLayer extends PositionComponent {
   @override
   void update(double dt) {
     super.update(dt);
+    for (var i = _crackedCells.length - 1; i >= 0; i--) {
+      final cell = _crackedCells[i];
+      cell.remaining -= dt;
+      if (cell.remaining <= 0) {
+        _crackedCells.removeAt(i);
+      }
+    }
+    final gravity = Motion.shardGravityCellsPerS2 * cellSize;
     for (final shard in _pool) {
       if (!shard.active) continue;
       if (shard.delay > 0) {
@@ -137,7 +282,7 @@ class ShatterLayer extends PositionComponent {
         shard.active = false;
         continue;
       }
-      shard.vy += Motion.particleGravity * dt;
+      shard.vy += gravity * dt;
       shard.x += shard.vx * dt;
       shard.y += shard.vy * dt;
       shard.angle += shard.rotationSpeed * dt;
@@ -146,7 +291,13 @@ class ShatterLayer extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
-    final paint = Paint();
+    _renderCrackedCells(canvas);
+
+    final basePaint = Paint();
+    final facetPaint = Paint();
+    final edgePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(0.5, cellSize * 0.03);
     for (final shard in _pool) {
       if (!shard.active || shard.delay > 0) continue;
       final t = shard.elapsed / shard.lifetime;
@@ -160,16 +311,78 @@ class ShatterLayer extends PositionComponent {
       canvas.save();
       canvas.translate(shard.x, shard.y);
       canvas.rotate(shard.angle);
-      paint.color = shard.color.withValues(alpha: opacity);
-      final half = shard.size / 2;
-      canvas.drawRRect(
-        ui.RRect.fromRectAndRadius(
-          Rect.fromLTWH(-half, -half, shard.size, shard.size),
-          Radius.circular(half * 0.4),
-        ),
-        paint,
-      );
+      basePaint.color = shard.baseColor.withValues(alpha: opacity);
+      facetPaint.color = shard.facetColor.withValues(alpha: opacity);
+      edgePaint.color = _shardEdgeColor.withValues(alpha: opacity * 0.7);
+      canvas.drawPath(shard.path, basePaint);
+      canvas.drawPath(shard.facetPath, facetPaint);
+      canvas.drawPath(shard.path, edgePaint);
       canvas.restore();
+    }
+  }
+
+  /// The crack stage: the cell still looks like an intact block (same wood
+  /// tile as the settled pool) with dark fracture lines spreading across
+  /// it — exactly the reference footage's beat before the burst.
+  void _renderCrackedCells(Canvas canvas) {
+    if (_crackedCells.isEmpty) return;
+    final tile = _tile;
+    for (final cell in _crackedCells) {
+      final rect = Rect.fromLTWH(
+        cell.col * cellSize + cellSize * 0.015,
+        cell.row * cellSize + cellSize * 0.015,
+        cellSize * 0.97,
+        cellSize * 0.97,
+      );
+      final rrect = RRect.fromRectAndRadius(
+        rect,
+        Radius.circular(cellSize * 0.06),
+      );
+      if (tile == null) {
+        canvas.drawRRect(rrect, Paint()..color = theme.blockTint);
+      } else {
+        canvas.save();
+        canvas.clipRRect(rrect);
+        final srcInset = tile.width * 0.03;
+        canvas.drawImageRect(
+          tile,
+          Rect.fromLTWH(
+            srcInset,
+            srcInset,
+            tile.width - srcInset * 2,
+            tile.height - srcInset * 2,
+          ),
+          rect,
+          Paint(),
+        );
+        canvas.restore();
+      }
+
+      // Deterministic per-cell crack web: jagged polylines radiating from
+      // a point near the center toward the edges.
+      final rng = math.Random(cell.seed);
+      final crackPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(0.7, cellSize * 0.045)
+        ..color = _crackColor.withValues(alpha: 0.75);
+      final cx = rect.left + rect.width * (0.35 + rng.nextDouble() * 0.3);
+      final cy = rect.top + rect.height * (0.35 + rng.nextDouble() * 0.3);
+      final crackCount = 3 + rng.nextInt(3);
+      for (var i = 0; i < crackCount; i++) {
+        final path = Path()..moveTo(cx, cy);
+        var a = rng.nextDouble() * 2 * math.pi;
+        var px = cx;
+        var py = cy;
+        final segments = 2 + rng.nextInt(3);
+        for (var s = 0; s < segments; s++) {
+          final len = cellSize * (0.15 + rng.nextDouble() * 0.25);
+          a += (rng.nextDouble() - 0.5) * 1.2;
+          px = (px + math.cos(a) * len).clamp(rect.left, rect.right);
+          py = (py + math.sin(a) * len).clamp(rect.top, rect.bottom);
+          path.lineTo(px, py);
+        }
+        canvas.drawPath(path, crackPaint);
+      }
     }
   }
 }

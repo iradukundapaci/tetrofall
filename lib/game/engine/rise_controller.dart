@@ -96,66 +96,22 @@ class RiseController {
     pendingRow = _generateRow();
   }
 
-  /// Special types eligible to spawn in a filled cell (§1.8). Wood is the
-  /// "nothing special happened" case and Key never spawns on its own — it
-  /// only appears as Locked's forced pairing below.
-  static const _specialPool = [
-    BlockType.stone,
-    BlockType.ice,
-    BlockType.bomb,
-    BlockType.gold,
-    BlockType.diamond,
-    BlockType.treasure,
-    BlockType.locked,
-    BlockType.rainbow,
-  ];
-
-  /// Difficulty-scaled row generation (§1.4). Gaps never leave a full row
-  /// (which would auto-clear): `cols * (1 - fillRatio)`, clamped to
-  /// `[1, 4]`. Early on, gaps cluster into one easy well; later they
-  /// scatter and avoid repeating the previous row's gap columns.
-  ///
-  /// After `Difficulty.specialBlocksStart`, each filled cell independently
-  /// rolls a chance to become a special block (§1.8, Phase 7). A Locked
-  /// roll additionally forces a paired Key onto another filled column of
-  /// the same row — "keys spawn in the same row" — or backs off to plain
-  /// wood if the row has no other filled column to hold one.
+  /// Difficulty-scaled row generation (§1.4). Every filled cell is plain
+  /// wood — no special blocks. Gaps never leave a full row (which would
+  /// auto-clear): `cols * (1 - fillRatio)`, clamped proportionally to the
+  /// board width (2/5 of the columns at most, at least 1). Early on, gaps
+  /// cluster into one easy well; later they scatter and avoid repeating
+  /// the previous row's gap columns.
   List<Cell?> _generateRow() {
-    final gapCount = (grid.cols * (1 - fillRatio)).round().clamp(1, 4);
+    final maxGaps = (grid.cols * 0.4).round().clamp(1, grid.cols - 1);
+    final gapCount = (grid.cols * (1 - fillRatio)).round().clamp(1, maxGaps);
     final gapCols = elapsed < 60
         ? _adjacentGaps(gapCount)
         : _scatteredGaps(gapCount);
 
-    final filledCols = [
-      for (var c = 0; c < grid.cols; c++)
-        if (!gapCols.contains(c)) c,
-    ];
-    final types = {for (final c in filledCols) c: BlockType.wood};
-
-    if (elapsed >= Difficulty.effectiveSpecialBlocksStartSeconds) {
-      for (final c in filledCols) {
-        if (_random.nextDouble() < Difficulty.effectiveSpecialBlockChance) {
-          types[c] = _specialPool[_random.nextInt(_specialPool.length)];
-        }
-      }
-      for (final lockedCol in filledCols.where(
-        (c) => types[c] == BlockType.locked,
-      )) {
-        final candidates = filledCols
-            .where((c) => c != lockedCol && types[c] != BlockType.key)
-            .toList();
-        if (candidates.isEmpty) {
-          types[lockedCol] = BlockType.wood; // no room for its Key — skip it
-        } else {
-          types[candidates[_random.nextInt(candidates.length)]] =
-              BlockType.key;
-        }
-      }
-    }
-
     final row = List<Cell?>.generate(
       grid.cols,
-      (c) => gapCols.contains(c) ? null : Cell(types[c]!),
+      (c) => gapCols.contains(c) ? null : Cell(BlockType.wood),
     );
     _previousGapCols = gapCols;
     return row;

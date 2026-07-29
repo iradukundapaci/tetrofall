@@ -36,14 +36,10 @@ class Scoring {
   int totalBlocksDestroyed = 0;
   int maxChain = 0;
 
-  /// Currency earned from Diamond/Treasure specials (§1.8). A wallet, not
-  /// a per-run stat — real persistence lands in Phase 11, so this simply
-  /// isn't touched by [reset].
+  /// Currency earned from line clears. A wallet, not a per-run stat —
+  /// real persistence lands in Phase 11, so this simply isn't touched by
+  /// [reset].
   int coins = 0;
-
-  /// Set by the Score Multiplier booster while it's active (Phase 8);
-  /// applies the ×2 [boosterMultiplier] from §1.7 until it wears off.
-  bool scoreMultiplierActive = false;
 
   int _lineScoreFor(int lines) {
     if (lines <= 0) return 0;
@@ -56,9 +52,9 @@ class Scoring {
   }
 
   /// Awards one clear-group's score (§1.7's multipliers, applied in
-  /// order): base line score × chain × level × booster. [chainIndex] is
-  /// this clear's link number within the current resolve (0 = the first,
-  /// pre-cascade clear).
+  /// order): base line score × chain × level. [chainIndex] is this clear's
+  /// link number within the current resolve (0 = the first, pre-cascade
+  /// clear).
   void awardLineClear({
     required int lines,
     required int chainIndex,
@@ -67,10 +63,7 @@ class Scoring {
     final base = _lineScoreFor(lines);
     final chainMultiplier = 1.0 + 0.5 * chainIndex;
     final levelMultiplier = 1.0 + (elapsedSeconds / 60) * 0.1;
-    final boosterMultiplier = scoreMultiplierActive ? 2.0 : 1.0;
-    score +=
-        (base * chainMultiplier * levelMultiplier * boosterMultiplier)
-            .round();
+    score += (base * chainMultiplier * levelMultiplier).round();
     final chainLength = chainIndex + 1;
     if (chainLength > maxChain) maxChain = chainLength;
     _notify();
@@ -96,12 +89,6 @@ class Scoring {
     _notify();
   }
 
-  /// Gold's +250 payout (§1.8), scaled by however many cleared in one pass.
-  void awardGold(int count) {
-    score += 250 * count;
-    _notify();
-  }
-
   void addCoins(int amount) {
     coins += amount;
     _notify();
@@ -122,7 +109,6 @@ class Scoring {
     blocksDestroyedThisResolve = 0;
     totalBlocksDestroyed = 0;
     maxChain = 0;
-    scoreMultiplierActive = false;
     _notify();
   }
 }

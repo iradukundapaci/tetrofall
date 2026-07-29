@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import '../config/board_config.dart';
+
 /// An integer (row, col) offset. Row grows downward, matching [Grid].
 class GridOffset {
   const GridOffset(this.row, this.col);
@@ -77,15 +79,16 @@ abstract final class Tetromino {
   };
 
   /// Column of the bounding box's top-left corner at spawn, centering the
-  /// piece on a `BoardConfig.cols == 10` board.
-  static const Map<TetrominoType, int> spawnColumn = {
-    TetrominoType.I: 3,
-    TetrominoType.O: 4,
-    TetrominoType.T: 3,
-    TetrominoType.S: 3,
-    TetrominoType.Z: 3,
-    TetrominoType.J: 3,
-    TetrominoType.L: 3,
+  /// piece for whatever [BoardConfig.cols] currently is (computed, not
+  /// hardcoded, since the board widened to match the reference footage).
+  static final Map<TetrominoType, int> spawnColumn = {
+    TetrominoType.I: (BoardConfig.cols - 4) ~/ 2,
+    TetrominoType.O: (BoardConfig.cols - 2) ~/ 2,
+    TetrominoType.T: (BoardConfig.cols - 3) ~/ 2,
+    TetrominoType.S: (BoardConfig.cols - 3) ~/ 2,
+    TetrominoType.Z: (BoardConfig.cols - 3) ~/ 2,
+    TetrominoType.J: (BoardConfig.cols - 3) ~/ 2,
+    TetrominoType.L: (BoardConfig.cols - 3) ~/ 2,
   };
 
   static List<GridOffset> cellsFor(TetrominoType type, RotationState state) =>

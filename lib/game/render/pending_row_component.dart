@@ -51,11 +51,9 @@ class PendingRowComponent extends PositionComponent {
     );
     final opacity = 0.5 + 0.5 * fadeT;
     for (var c = 0; c < BoardConfig.cols; c++) {
-      final cell = row[c];
       final block = _blocks[c];
-      block.blockVisible = cell != null;
+      block.blockVisible = row[c] != null;
       block.opacity = opacity;
-      if (cell != null) block.blockType = cell.type;
     }
   }
 }

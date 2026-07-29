@@ -7,12 +7,14 @@ import 'package:flutter/material.dart';
 import '../../models/theme_definition.dart';
 import '../../ui/theme/tokens.dart';
 
-/// Canvas-drawn board frame: outer bevel, recessed well, inner shadow, grid
-/// lines, outer drop shadow. No image asset — resolution-independent,
-/// recolors from [ThemeDefinition] for free. See game.md P.4.
+/// Full-bleed light-pine backdrop, 1:1 with the reference footage: no
+/// frame, no bevel, no recessed well — just pale planked wood with a dark
+/// vertical groove at every column boundary (the planks are exactly one
+/// cell wide) and faint horizontal grain streaks. Blocks sit directly on
+/// top of this. Canvas-drawn — resolution-independent, no asset.
 ///
-/// Frame thickness and radius are derived from [cellSize], never a fixed
-/// pixel value, so the frame reads the same on phone and tablet.
+/// Keeps the name `BoardFrame` so the board plumbing (`cellSize` drives
+/// `size`) stays untouched.
 class BoardFrame extends PositionComponent {
   BoardFrame({
     required this.cols,
@@ -38,6 +40,12 @@ class BoardFrame extends PositionComponent {
   bool warning = false;
   double _warnClock = 0;
 
+  // Reference palette, sampled from the source footage's empty area:
+  // pale pine planks with slightly darker grooves between them.
+  static const _pineLight = Color(0xFFEBD5A8);
+  static const _pineMid = Color(0xFFE0C494);
+  static const _grooveColor = Color(0xFF8A6844);
+
   @override
   void update(double dt) {
     super.update(dt);
@@ -46,71 +54,63 @@ class BoardFrame extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
-    final frameThickness = cellSize * 0.35;
-    final wellRect = Rect.fromLTWH(0, 0, size.x, size.y);
-    final outerRect = wellRect.inflate(frameThickness / 2);
+    final rect = Rect.fromLTWH(0, 0, size.x, size.y);
 
-    // 5. Outer drop shadow.
+    // Pale pine base with a soft vertical light falloff.
     canvas.drawRect(
-      outerRect.shift(Tokens.shadowSoft.offset),
+      rect,
       Paint()
-        ..color = Tokens.shadowSoft.color
-        ..maskFilter = MaskFilter.blur(
-          BlurStyle.normal,
-          Tokens.shadowSoft.blurRadius,
-        ),
+        ..shader = ui.Gradient.linear(rect.topCenter, rect.bottomCenter, [
+          _pineLight,
+          _pineMid,
+        ]),
     );
 
-    // 1. Outer frame — rect stroke, two-tone bevel.
-    final framePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = frameThickness
-      ..shader = ui.Gradient.linear(outerRect.topLeft, outerRect.bottomRight, [
-        theme.frameLight,
-        theme.frameDark,
-      ]);
-    canvas.drawRect(outerRect.deflate(frameThickness / 2), framePaint);
+    // Faint horizontal grain streaks, deterministic per layout so they
+    // don't shimmer frame to frame.
+    final grainPaint = Paint()
+      ..color = _grooveColor.withValues(alpha: 0.06)
+      ..strokeWidth = math.max(1, cellSize * 0.03);
+    final rng = math.Random(7);
+    final streaks = (rows * 1.5).round();
+    for (var i = 0; i < streaks; i++) {
+      final y = rng.nextDouble() * size.y;
+      final xStart = rng.nextDouble() * size.x * 0.6;
+      final length = size.x * (0.15 + rng.nextDouble() * 0.35);
+      canvas.drawLine(
+        Offset(xStart, y),
+        Offset(math.min(xStart + length, size.x), y),
+        grainPaint,
+      );
+    }
 
-    // 2. Well interior — slightly darker than the page background so the
-    // board reads as recessed.
-    canvas.drawRect(wellRect, Paint()..color = theme.boardBg);
-
-    // 3. Inner shadow — sells the depth an image version would have baked in.
-    canvas.save();
-    canvas.clipRect(wellRect);
-    canvas.drawRect(
-      wellRect,
-      Paint()
-        ..color = Colors.black.withValues(alpha: 0.25)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.inner, 8),
-    );
-    canvas.restore();
-
-    // 4. Grid lines — subtle enough that an empty board looks calm, present
-    // enough to judge column alignment while a piece is falling.
-    final gridPaint = Paint()
-      ..color = theme.gridLine.withValues(alpha: 0.08)
-      ..strokeWidth = cellSize * 0.03;
+    // The signature vertical plank grooves — one per column boundary,
+    // spanning the full height (the reference background is striped at
+    // exactly the cell pitch).
+    final groovePaint = Paint()
+      ..color = _grooveColor.withValues(alpha: 0.55)
+      ..strokeWidth = math.max(1, cellSize * 0.035);
     for (var c = 1; c < cols; c++) {
       final x = c * cellSize;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.y), gridPaint);
-    }
-    for (var r = 1; r < rows; r++) {
-      final y = r * cellSize;
-      canvas.drawLine(Offset(0, y), Offset(size.x, y), gridPaint);
+      canvas.drawLine(Offset(x, 0), Offset(x, size.y), groovePaint);
     }
 
     // Warning pulse: the top edge glows red at 1Hz once the stack reaches
     // the warning row (§2.1).
     if (warning) {
       final pulse = (math.sin(2 * math.pi * _warnClock) + 1) / 2; // 0..1
-      final alpha = 0.25 + 0.35 * pulse;
+      final alpha = 0.12 + 0.22 * pulse;
       canvas.drawRect(
-        outerRect.deflate(frameThickness / 2),
+        Rect.fromLTWH(0, 0, size.x, cellSize * 2),
         Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = frameThickness
-          ..color = Tokens.colorRed.withValues(alpha: alpha),
+          ..shader = ui.Gradient.linear(
+            rect.topCenter,
+            Offset(rect.center.dx, cellSize * 2),
+            [
+              Tokens.colorRed.withValues(alpha: alpha),
+              Tokens.colorRed.withValues(alpha: 0),
+            ],
+          ),
       );
     }
   }

@@ -4,11 +4,13 @@
 enum ComboTier { good, awesome, incredible, unbelievable }
 
 extension ComboTierInfo on ComboTier {
+  // Scaled for the 21-column board (roughly ½ / 2 / 5 / 10 rows' worth of
+  // blocks, same proportions the 10-column thresholds had).
   int get threshold => switch (this) {
-    ComboTier.good => 5,
-    ComboTier.awesome => 20,
-    ComboTier.incredible => 50,
-    ComboTier.unbelievable => 100,
+    ComboTier.good => 11,
+    ComboTier.awesome => 42,
+    ComboTier.incredible => 105,
+    ComboTier.unbelievable => 210,
   };
 
   String get label => switch (this) {
