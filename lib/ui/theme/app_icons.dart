@@ -8,15 +8,11 @@ abstract final class AppIcons {
   static const trophy = '$_base/trophy.svg';
   static const star = '$_base/star.svg';
 
-  static const treasureChest = '$_base/treasure_chest.svg';
-  static const gift = '$_base/gift.svg';
-  static const giftSimple = '$_base/gift_simple.svg';
   static const medal = '$_base/medal.svg';
   static const medalOutline = '$_base/medal_outline.svg';
   static const checkCircle = '$_base/check_circle.svg';
   static const checkCircleLight = '$_base/check_circle_light.svg';
   static const lock = '$_base/lock.svg';
-  static const video = '$_base/video.svg';
 
   static const music = '$_base/music.svg';
   static const sound = '$_base/sound.svg';
@@ -25,11 +21,9 @@ abstract final class AppIcons {
   static const vibrate = '$_base/vibrate.svg';
   static const message = '$_base/message.svg';
   static const bell = '$_base/bell.svg';
-  static const restore = '$_base/restore.svg';
   static const shield = '$_base/shield.svg';
   static const document = '$_base/document.svg';
   static const palette = '$_base/palette.svg';
-  static const shop = '$_base/shop.svg';
 
   static const all = <String, String>{
     'bell': bell,
@@ -37,8 +31,6 @@ abstract final class AppIcons {
     'check_circle_light': checkCircleLight,
     'chevron_right': chevronRight,
     'document': document,
-    'gift': gift,
-    'gift_simple': giftSimple,
     'home': home,
     'lock': lock,
     'medal': medal,
@@ -47,18 +39,14 @@ abstract final class AppIcons {
     'music': music,
     'palette': palette,
     'pause': pause,
-    'restore': restore,
     'settings': settings,
     'shield': shield,
-    'shop': shop,
     'sound': sound,
     'sound_low': soundLow,
     'sound_off': soundOff,
     'star': star,
-    'treasure_chest': treasureChest,
     'trophy': trophy,
     'vibrate': vibrate,
-    'video': video,
   };
 
   static const multicolor = <String>{medal};
