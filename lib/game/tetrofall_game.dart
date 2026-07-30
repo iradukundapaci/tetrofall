@@ -54,6 +54,13 @@ class TetrofallGame extends FlameGame {
     engine.start(initialElapsed: _adaptiveStartElapsed);
   }
 
+  /// Watch-Ad-To-Continue from the game-over overlay (game.md §1.9).
+  void continueAfterAd() {
+    board.resetForRestart();
+    gestureHandler.reset();
+    engine.continueAfterAd();
+  }
+
   Duration get _adaptiveStartElapsed => storage.adaptiveStartSpeedEnabled
       ? Difficulty.adaptiveStartElapsed(storage.bestScore)
       : Duration.zero;

@@ -52,15 +52,11 @@ class _ScoreHudState extends State<ScoreHud> {
           vertical: Tokens.spaceSm,
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Expanded(child: SizedBox()),
             _ScoreBlock(score: scoring.score, best: _best),
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: _PauseButton(game: widget.game),
-              ),
-            ),
+            _PauseButton(game: widget.game),
           ],
         ),
       ),
@@ -103,50 +99,56 @@ class _ScoreBlock extends StatelessWidget {
   }
 }
 
-class _PauseButton extends StatefulWidget {
+class _PauseButton extends StatelessWidget {
   const _PauseButton({required this.game});
 
   final TetrofallGame game;
 
   @override
-  State<_PauseButton> createState() => _PauseButtonState();
-}
-
-class _PauseButtonState extends State<_PauseButton> {
-  @override
   Widget build(BuildContext context) {
-    final paused = widget.game.paused;
-    return GestureDetector(
-      onTap: () => setState(() {
-        if (paused) {
-          widget.game.resumeEngine();
-        } else {
-          widget.game.pauseEngine();
-        }
-      }),
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: Tokens.colorPanel,
-          shape: BoxShape.circle,
-          border: Border.all(color: Tokens.colorPanelBorder),
-          boxShadow: const [Tokens.shadowSoft],
-        ),
-        child: Center(
-          child: paused
-              ? const Icon(Icons.play_arrow, color: Tokens.colorText, size: 20)
-              : SvgPicture.asset(
-                  AppIcons.pause,
-                  width: 18,
-                  height: 18,
-                  colorFilter: const ColorFilter.mode(
-                    Tokens.colorText,
-                    BlendMode.srcIn,
-                  ),
-                ),
-        ),
-      ),
+    // Listens to the same notifier the pause overlay uses, so the icon
+    // stays correct whether pause/resume is triggered from here or from
+    // Resume in the overlay — not just from this button's own tap.
+    return ValueListenableBuilder<bool>(
+      valueListenable: game.pausedNotifier,
+      builder: (context, paused, _) {
+        return GestureDetector(
+          onTap: () {
+            if (paused) {
+              game.resumeEngine();
+            } else {
+              game.pauseEngine();
+            }
+          },
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Tokens.colorPanel,
+              shape: BoxShape.circle,
+              border: Border.all(color: Tokens.colorPanelBorder),
+              boxShadow: const [Tokens.shadowSoft],
+            ),
+            child: Center(
+              child: paused
+                  ? const Icon(
+                      Icons.play_arrow,
+                      color: Tokens.colorText,
+                      size: 20,
+                    )
+                  : SvgPicture.asset(
+                      AppIcons.pause,
+                      width: 18,
+                      height: 18,
+                      colorFilter: const ColorFilter.mode(
+                        Tokens.colorText,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -56,4 +56,16 @@ class Grid {
       }
     }
   }
+
+  /// Empties the bottom [count] visible rows in place — used by the
+  /// Watch-Ad-To-Continue flow (game.md §1.9). No shifting: the stack
+  /// above stays exactly where it is, it just gains breathing room below.
+  void clearBottomRows(int count) {
+    final firstRow = (maxRow - count + 1).clamp(0, maxRow);
+    for (var r = firstRow; r <= maxRow; r++) {
+      for (var c = 0; c < cols; c++) {
+        set(r, c, null);
+      }
+    }
+  }
 }

@@ -69,6 +69,19 @@ class GameEngine {
 
   void enqueueIntent(GameIntentType intent) => _intentQueue.add(intent);
 
+  /// Watch-Ad-To-Continue (game.md §1.9): clears the bottom 6 rows and
+  /// resumes at the current difficulty — `riseController.elapsed` is left
+  /// untouched so the rise/drop pacing doesn't reset to the tutorial-easy
+  /// checkpoint. Only valid from `gameOver`.
+  static const continueRowsCleared = 6;
+
+  void continueAfterAd() {
+    if (phase != GamePhase.gameOver) return;
+    grid.clearBottomRows(continueRowsCleared);
+    _intentQueue.clear();
+    phase = GamePhase.spawning;
+  }
+
   void start({Duration initialElapsed = Duration.zero}) {
     grid.clearAll();
     _intentQueue.clear();
