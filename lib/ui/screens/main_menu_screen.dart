@@ -1,14 +1,7 @@
-import 'dart:async';
-import 'dart:math' as math;
-import 'dart:ui' as ui;
-
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:video_player/video_player.dart';
 
-import '../../game/engine/events.dart';
-import '../../game/engine/game_engine.dart';
-import '../../game/tetrofall_game.dart';
 import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
@@ -18,12 +11,10 @@ import '../widgets/primary_button.dart';
 import 'gameplay_screen.dart';
 import 'settings_screen.dart';
 
-/// 1:1 port of main-menu.html — plus a live, self-playing game running
-/// full-bleed behind the menu in place of main-menu.html's empty
-/// `.menu-video-slot` (there's no gameplay clip to drop in, so the real
-/// engine stands in for one). It's purely decorative: a separate
-/// throwaway `TetrofallGame` that never touches saved best score or
-/// settings, autoplaying itself and restarting whenever it tops out.
+/// 1:1 port of main-menu.html — main-menu.html's empty `.menu-video-slot`
+/// becomes a full-bleed, muted, looping gameplay clip behind the whole
+/// menu (not just the small reserved slot above PLAY), scrimmed for
+/// readability.
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key, required this.storage});
 
@@ -40,77 +31,27 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   // to remove.
   bool _adsRemoved = false;
 
-  late final TetrofallGame _demoGame = TetrofallGame(storage: widget.storage);
-  final _random = math.Random();
-  Timer? _autoplayTimer;
-  Timer? _restartTimer;
-  int _targetCol = 0;
+  late final VideoPlayerController _videoController;
 
   @override
   void initState() {
     super.initState();
-    _demoGame.engine.addEventListener(_onDemoEvent);
-    _autoplayTimer = Timer.periodic(
-      const Duration(milliseconds: 220),
-      (_) => _tickAutoplay(),
-    );
+    _videoController = VideoPlayerController.asset(
+      'assets/video/background.mp4',
+    )
+      ..setLooping(true)
+      ..setVolume(0)
+      ..initialize().then((_) {
+        if (!mounted) return;
+        setState(() {});
+        _videoController.play();
+      });
   }
 
   @override
   void dispose() {
-    _autoplayTimer?.cancel();
-    _restartTimer?.cancel();
-    _demoGame.engine.removeEventListener(_onDemoEvent);
+    _videoController.dispose();
     super.dispose();
-  }
-
-  void _onDemoEvent(GameEvent event) {
-    if (event is PieceSpawnedEvent) {
-      _targetCol = _pickTargetColumn();
-    } else if (event is GameOverEvent) {
-      _restartTimer = Timer(const Duration(seconds: 2), () {
-        if (mounted) _demoGame.restart();
-      });
-    }
-  }
-
-  /// No line-clearing lookahead — just aims each piece at whichever
-  /// column is currently shortest. That alone keeps the stack roughly
-  /// level instead of the jagged, fast-topping-out mess a fully random
-  /// column choice produces, and it's enough to clear rows now and then.
-  int _pickTargetColumn() {
-    final grid = _demoGame.engine.grid;
-    final heights = List<int>.generate(grid.cols, (col) {
-      for (var row = 0; row <= grid.maxRow; row++) {
-        if (grid.at(row, col) != null) return grid.maxRow - row + 1;
-      }
-      return 0;
-    });
-    final minHeight = heights.reduce(math.min);
-    final shortest = [
-      for (var c = 0; c < heights.length; c++)
-        if (heights[c] == minHeight) c,
-    ];
-    return shortest[_random.nextInt(shortest.length)];
-  }
-
-  /// Simple decorative autoplay: steer toward the target column, then
-  /// hard-drop — no rotation-aware placement, just enough motion to read
-  /// as "a game is being played" behind the menu.
-  void _tickAutoplay() {
-    final engine = _demoGame.engine;
-    if (engine.phase != GamePhase.playing) return;
-    final piece = engine.pieceController.piece;
-    if (piece == null) return;
-    if (piece.anchorCol < _targetCol) {
-      engine.enqueueIntent(GameIntentType.moveRight);
-    } else if (piece.anchorCol > _targetCol) {
-      engine.enqueueIntent(GameIntentType.moveLeft);
-    } else if (_random.nextDouble() < 0.15) {
-      engine.enqueueIntent(GameIntentType.rotateCW);
-    } else {
-      engine.enqueueIntent(GameIntentType.hardDrop);
-    }
   }
 
   @override
@@ -120,12 +61,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: IgnorePointer(
-              child: ImageFiltered(
-                imageFilter: ui.ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
-                child: GameWidget(game: _demoGame),
-              ),
-            ),
+            child: IgnorePointer(child: _BackgroundVideo(_videoController)),
           ),
           const Positioned.fill(child: _MenuScrim()),
           SafeArea(
@@ -230,8 +166,35 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 }
 
-/// Darkens the live demo board so the topbar and buttons on top of it
-/// stay readable, lighter in the middle so the board is still visible.
+/// Fills the available space with the video, cropping instead of
+/// letterboxing (`BoxFit.cover`'s equivalent, since `VideoPlayer` itself
+/// has no `fit` option). Falls back to the plain wood gradient until the
+/// clip has decoded its first frame.
+class _BackgroundVideo extends StatelessWidget {
+  const _BackgroundVideo(this.controller);
+
+  final VideoPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!controller.value.isInitialized) {
+      return const DecoratedBox(
+        decoration: BoxDecoration(gradient: Tokens.bgWoodGradient),
+      );
+    }
+    return FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: controller.value.size.width,
+        height: controller.value.size.height,
+        child: VideoPlayer(controller),
+      ),
+    );
+  }
+}
+
+/// Darkens the background video so the topbar and buttons on top of it
+/// stay readable, lighter in the middle so the footage is still visible.
 class _MenuScrim extends StatelessWidget {
   const _MenuScrim();
 
