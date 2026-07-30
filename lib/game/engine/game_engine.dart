@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../config/difficulty.dart';
 import '../config/motion.dart';
 import 'clear_detector.dart';
 import 'column_cascade.dart';
@@ -94,11 +95,14 @@ class GameEngine {
   void enqueueIntent(GameIntentType intent) => _intentQueue.add(intent);
 
   /// Starts (or restarts) a run: clears the grid and spawns the first
-  /// piece.
-  void start() {
+  /// piece. [initialElapsed] seeds the difficulty clock past zero — the
+  /// adaptive start-speed setting uses this to begin an experienced
+  /// player's run further into the timeline (see
+  /// [RiseController.reset]/[Difficulty.adaptiveStartElapsed]).
+  void start({Duration initialElapsed = Duration.zero}) {
     grid.clearAll();
     _intentQueue.clear();
-    riseController.reset();
+    riseController.reset(initialElapsed: initialElapsed);
     scoring.reset();
     phase = GamePhase.spawning;
     _trySpawn();

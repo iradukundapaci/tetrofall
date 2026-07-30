@@ -34,9 +34,16 @@ class RiseController {
   List<int> _previousGapCols = const [];
 
   /// Resets to a fresh run's starting state, regenerating the pending row.
-  void reset() {
+  /// [initialElapsed] seeds the difficulty clock past its default zero —
+  /// used by the adaptive start-speed setting to drop an experienced player
+  /// further into the timeline. Since [difficultyNow], the grace-period
+  /// check in [tick], and the easy-well cutoff in [_generateRow] all key off
+  /// [elapsed], seeding it here naturally skips the grace period and eases
+  /// straight into scattered gaps for a run that starts past those
+  /// thresholds — no other logic needs to know about the adaptive start.
+  void reset({Duration initialElapsed = Duration.zero}) {
     riseProgress = 0.0;
-    elapsed = 0.0;
+    elapsed = initialElapsed.inMicroseconds / 1e6;
     _previousGapCols = const [];
     pendingRow = _generateRow();
   }

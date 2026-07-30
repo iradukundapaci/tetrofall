@@ -1,11 +1,14 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'game/config/board_config.dart';
 import 'game/engine/events.dart';
 import 'game/render/score_hud.dart';
 import 'game/tetrofall_game.dart';
 import 'services/storage_service.dart';
+import 'ui/screens/settings_screen.dart';
+import 'ui/theme/app_icons.dart';
 import 'ui/theme/tokens.dart';
 
 class TetrofallApp extends StatelessWidget {
@@ -32,8 +35,9 @@ class TetrofallApp extends StatelessWidget {
 }
 
 /// Hosts the Flame board. Forwards raw pointer events to the game's
-/// [GestureHandler] (§1.12). The ghost-piece toggle here is temporary;
-/// the real Settings row lands in Phase 10.
+/// [GestureHandler] (§1.12). The ghost-piece toggle here is a quick,
+/// in-place icon rather than a Settings row — it's per-session UI state,
+/// not something that needs to persist or survive a restart.
 ///
 /// Layout budget (R4): a single `Column` — top HUD, then the board's
 /// `Expanded` share of whatever's left — so each section is sized by real
@@ -53,9 +57,7 @@ class _GameHome extends StatefulWidget {
 }
 
 class _GameHomeState extends State<_GameHome> {
-  late final TetrofallGame _game = TetrofallGame(
-    initialCoins: widget.storage.coins,
-  );
+  late final TetrofallGame _game = TetrofallGame(storage: widget.storage);
   bool _showGhost = true;
   GameOverReason? _gameOverReason;
 
@@ -182,6 +184,26 @@ class _GameHomeState extends State<_GameHome> {
                               _showGhost = !_showGhost;
                               _game.showGhost = _showGhost;
                             });
+                          },
+                        ),
+                        IconButton(
+                          tooltip: 'Settings',
+                          icon: SvgPicture.asset(
+                            AppIcons.settings,
+                            width: 22,
+                            height: 22,
+                            colorFilter: const ColorFilter.mode(
+                              Tokens.colorText,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    SettingsScreen(storage: widget.storage),
+                              ),
+                            );
                           },
                         ),
                       ],

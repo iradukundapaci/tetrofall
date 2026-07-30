@@ -1,3 +1,5 @@
+import 'dart:math';
+
 /// The §1.10 difficulty timeline. Values are interpolated linearly between
 /// checkpoints — never stepped.
 class DifficultyCheckpoint {
@@ -72,6 +74,23 @@ abstract final class Difficulty {
   /// still runs, but the rising floor doesn't start climbing until a
   /// beginner has had a moment to get their bearings (§2).
   static const riseGracePeriod = Duration(seconds: 12);
+
+  /// How far into the timeline an adaptive-start run begins, based on the
+  /// player's best score (adaptive start speed setting). Capped at the
+  /// 3-minute checkpoint by design — a high best score never starts a run
+  /// faster than that, so the late-game pace stays something reached only
+  /// by playing, not by starting position. Sqrt scaling front-loads the
+  /// ramp (a first real score already moves the needle) and flattens near
+  /// the cap; the score denominator has no playtest data behind it yet —
+  /// tune freely.
+  static const _adaptiveStartCeiling = Duration(minutes: 3);
+  static const _adaptiveStartFullScore = 8000;
+
+  static Duration adaptiveStartElapsed(int bestScore) {
+    if (bestScore <= 0) return Duration.zero;
+    final t = sqrt((bestScore / _adaptiveStartFullScore).clamp(0.0, 1.0));
+    return _adaptiveStartCeiling * t;
+  }
 
   static double _lerp(double a, double b, double t) => a + (b - a) * t;
 

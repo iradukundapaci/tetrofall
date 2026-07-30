@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../models/theme_definition.dart';
+import '../services/storage_service.dart';
+import 'config/difficulty.dart';
 import 'engine/events.dart';
 import 'engine/game_engine.dart';
 import 'input/gesture_handler.dart';
@@ -11,17 +13,22 @@ import 'render/board_component.dart';
 /// FlameGame root. Owns the pure-Dart [GameEngine] and ticks it every
 /// frame; the render tree only reads engine state (§3.1).
 class TetrofallGame extends FlameGame {
-  TetrofallGame({this.theme = ThemeDefinition.classicWood, int initialCoins = 0})
+  TetrofallGame({this.theme = ThemeDefinition.classicWood, required this.storage})
     : engine = GameEngine() {
     gestureHandler = GestureHandler(engine, () => _board?.cellSize ?? 0);
     // Coins are a persistent wallet, not a per-run stat (§8) — seeded here
     // rather than in `GameEngine` itself, which stays pure Dart with no
     // knowledge of `StorageService`.
-    engine.scoring.coins = initialCoins;
+    engine.scoring.coins = storage.coins;
     engine.addEventListener(_onHapticEvent);
   }
 
   final ThemeDefinition theme;
+
+  /// Read live (not just seeded at construction) since best score and the
+  /// adaptive-start toggle can both change mid-session — a run started via
+  /// [restart] must reflect a best score a prior run just posted.
+  final StorageService storage;
 
   // Created in the constructor, not onLoad: app.dart wires the Flutter
   // `Listener` to `gestureHandler` synchronously at build time, before
@@ -72,8 +79,15 @@ class TetrofallGame extends FlameGame {
     board.resetForRestart();
     gestureHandler.reset();
     if (paused) resumeEngine();
-    engine.start();
+    engine.start(initialElapsed: _adaptiveStartElapsed);
   }
+
+  /// How far into the difficulty timeline a fresh run should begin — zero
+  /// unless the adaptive start-speed setting is on, in which case it scales
+  /// with the player's best score (§ adaptive start speed).
+  Duration get _adaptiveStartElapsed => storage.adaptiveStartSpeedEnabled
+      ? Difficulty.adaptiveStartElapsed(storage.bestScore)
+      : Duration.zero;
 
   /// Tactile confirmation for the two silent, non-gesture-driven moments
   /// (§6.6) — a piece locking (gravity can trigger this with no touch at
@@ -97,7 +111,7 @@ class TetrofallGame extends FlameGame {
     _board = board;
     await add(board);
 
-    engine.start();
+    engine.start(initialElapsed: _adaptiveStartElapsed);
   }
 
   @override

@@ -11,6 +11,7 @@ class StorageService {
 
   static const _bestScoreKey = 'best_score';
   static const _coinsKey = 'coins';
+  static const _adaptiveStartSpeedKey = 'adaptive_start_speed_enabled';
 
   final SharedPreferences _prefs;
 
@@ -21,6 +22,14 @@ class StorageService {
   int get bestScore => _prefs.getInt(_bestScoreKey) ?? 0;
   int get coins => _prefs.getInt(_coinsKey) ?? 0;
 
+  /// Off by default — a run's start speed matches best score only once a
+  /// player opts in, so nothing changes for anyone until they choose it.
+  bool get adaptiveStartSpeedEnabled =>
+      _prefs.getBool(_adaptiveStartSpeedKey) ?? false;
+
   Future<void> saveBestScore(int value) => _prefs.setInt(_bestScoreKey, value);
   Future<void> saveCoins(int value) => _prefs.setInt(_coinsKey, value);
+
+  Future<void> saveAdaptiveStartSpeedEnabled(bool value) =>
+      _prefs.setBool(_adaptiveStartSpeedKey, value);
 }
