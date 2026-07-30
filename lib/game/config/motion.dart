@@ -1,29 +1,41 @@
 /// Every animation constant in the game lives here. Tuning happens here,
 /// nowhere else. See game.md §2.4.
 abstract final class Motion {
-  // §2.3 Shatter clear — crack-then-burst, 1:1 with the reference footage:
-  // the whole cleared row first shows crack fractures for [crackHold],
-  // then bursts center-out into chunky 3D wooden shards that spray upward
-  // in a V and tumble under gravity.
-  static const crackHold = Duration(milliseconds: 220);
-  static const shatterStep = Duration(milliseconds: 28);
-  static const shatterBeat = Duration(milliseconds: 120);
+  static const crackHold = Duration(milliseconds: 380);
+  static const shatterStep = Duration(milliseconds: 42);
+  static const shatterBeat = Duration(milliseconds: 180);
 
   // Shard kinematics are expressed in *cells* (multiplied by cellSize at
   // spawn) so the effect scales identically on any screen — essential now
-  // that a cell is only ~1/18 of the play-area width.
-  static const shardGravityCellsPerS2 = 42.0;
-  static const shardMinUpSpeedCells = 9.0; // cells/s, upward
-  static const shardMaxUpSpeedCells = 20.0;
-  static const shardMaxOutwardSpeedCells = 11.0; // cells/s at the row's edge
-  static const shardOutwardJitterCells = 2.5;
+  // that a cell is only ~1/18 of the play-area width. Deliberately weighted
+  // toward gravity rather than an outward "fly in every direction" spray:
+  // a modest pop upward, a small amount of sideways drift that decays via
+  // [shardHorizontalDragPerS], then a strong, fast-acting downward pull so
+  // the debris visibly rains toward the bottom of the board.
+  static const shardGravityCellsPerS2 = 60.0;
+  static const shardMinUpSpeedCells = 6.0; // cells/s, upward
+  static const shardMaxUpSpeedCells = 12.0;
+  static const shardMaxOutwardSpeedCells = 4.0; // cells/s at the row's edge
+  static const shardOutwardJitterCells = 1.0;
+  static const shardHorizontalDragPerS = 1.8; // decays sideways drift so gravity dominates the fall
   static const shardMinSizeCells = 0.18; // chunky fragments, not specks
   static const shardMaxSizeCells = 0.52;
+
+  // Particle count scales up with how many lines clear at once — a bigger,
+  // more dramatic burst for multi-line clears — but two caps keep a huge
+  // simultaneous clear from spawning more shards than the device can
+  // comfortably animate: `particlesPerCellCap` bounds any single cell, and
+  // `maxParticlesPerClear` bounds the whole clear event's total spawn,
+  // scaling every cell's count down proportionally if the estimate would
+  // exceed it.
   static const particlesPerCellMin = 7;
   static const particlesPerCellMax = 10;
+  static const particlesLineBonusPerExtraLine = 3;
+  static const particlesPerCellCap = 18;
+  static const maxParticlesPerClear = 800;
   static const particlePoolSize = 1600;
-  static const shardMinLifetime = Duration(milliseconds: 1100);
-  static const shardMaxLifetime = Duration(milliseconds: 1900);
+  static const shardMinLifetime = Duration(milliseconds: 1300);
+  static const shardMaxLifetime = Duration(milliseconds: 2200);
   static const shardFadeStartFraction = 0.75; // fade over the last 25%
   static const shardMinRotationSpeed = 2.0; // rad/s — visible tumble
   static const shardMaxRotationSpeed = 7.0;

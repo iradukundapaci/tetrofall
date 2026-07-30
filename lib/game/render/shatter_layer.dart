@@ -148,12 +148,31 @@ class ShatterLayer extends PositionComponent with HasGameReference {
 
   /// Schedules the crack-then-burst for every cell in [cells] (already
   /// removed from the logical grid by the time this is called). [cols] is
-  /// the board width, needed to find the row's center column for the
-  /// delay formula and the V-spray direction.
-  void addClear(List<ClearedCell> cells, int cols) {
+  /// the board width, needed to find the row's center column for the delay
+  /// formula and the burst's small sideways component. [linesCleared] — how
+  /// many rows this single clear event covers — scales up the per-cell
+  /// particle count for a bigger burst on multi-line clears, bounded by
+  /// [Motion.particlesPerCellCap] and, across the whole call, by
+  /// [Motion.maxParticlesPerClear] so a huge simultaneous clear can't spawn
+  /// more shards than the device can comfortably animate.
+  void addClear(List<ClearedCell> cells, int cols, {int linesCleared = 1}) {
     final center = (cols - 1) / 2.0;
     final stepSeconds = Motion.shatterStep.inMilliseconds / 1000;
     final crackSeconds = Motion.crackHold.inMilliseconds / 1000;
+
+    final lineBonus =
+        (linesCleared - 1).clamp(0, 20) * Motion.particlesLineBonusPerExtraLine;
+    final perCellMax = math.min(
+      Motion.particlesPerCellMax + lineBonus,
+      Motion.particlesPerCellCap,
+    );
+    final perCellMin = math.min(Motion.particlesPerCellMin, perCellMax);
+
+    final estimatedTotal = cells.length * (perCellMin + perCellMax) / 2;
+    final budgetScale = estimatedTotal > Motion.maxParticlesPerClear
+        ? Motion.maxParticlesPerClear / estimatedTotal
+        : 1.0;
+
     for (final cell in cells) {
       final delay = crackSeconds + (cell.col - center).abs() * stepSeconds;
       _crackedCells.add(
@@ -165,13 +184,11 @@ class ShatterLayer extends PositionComponent with HasGameReference {
         ),
       );
       // How far off-center this cell is, -1 (left edge) .. +1 (right
-      // edge): drives the outward component of the V spray.
+      // edge): drives the small sideways component of the burst — gravity
+      // does the rest of the work, see `Motion.shardHorizontalDragPerS`.
       final t = center == 0 ? 0.0 : (cell.col - center) / center;
-      final count =
-          Motion.particlesPerCellMin +
-          _random.nextInt(
-            Motion.particlesPerCellMax - Motion.particlesPerCellMin + 1,
-          );
+      final rawCount = perCellMin + _random.nextInt(perCellMax - perCellMin + 1);
+      final count = math.max(1, (rawCount * budgetScale).round());
       for (var i = 0; i < count; i++) {
         _spawn(row: cell.row, col: cell.col, delay: delay, offCenter: t);
       }
@@ -194,15 +211,18 @@ class ShatterLayer extends PositionComponent with HasGameReference {
     );
     final spin = _random.nextBool() ? 1.0 : -1.0;
 
-    // V-spray: everything goes up hard; the outward component scales with
-    // how far off-center the cell sits, plus jitter — outer columns throw
-    // debris outward and slightly higher, forming the reference V plume.
+    // A modest pop upward — outer columns throw debris very slightly
+    // higher, keeping a hint of the reference V shape — with a small,
+    // decaying sideways component (see `update`'s drag). Gravity, not this
+    // outward push, is what drives the shard's motion after the pop, so it
+    // reads as debris falling toward the bottom of the board rather than
+    // an explosion flying out in every direction.
     final up = _lerpD(
       Motion.shardMinUpSpeedCells,
       Motion.shardMaxUpSpeedCells,
       _random.nextDouble(),
     ) *
-        (1.0 + 0.5 * offCenter.abs());
+        (1.0 + 0.2 * offCenter.abs());
     final outward = offCenter * Motion.shardMaxOutwardSpeedCells +
         (_random.nextDouble() * 2 - 1) * Motion.shardOutwardJitterCells;
 
@@ -283,6 +303,10 @@ class ShatterLayer extends PositionComponent with HasGameReference {
         continue;
       }
       shard.vy += gravity * dt;
+      // Sideways drift decays so gravity quickly takes over the shard's
+      // trajectory — it pops, drifts a little, then falls toward the
+      // bottom of the board instead of coasting outward indefinitely.
+      shard.vx *= math.max(0, 1 - Motion.shardHorizontalDragPerS * dt);
       shard.x += shard.vx * dt;
       shard.y += shard.vy * dt;
       shard.angle += shard.rotationSpeed * dt;
