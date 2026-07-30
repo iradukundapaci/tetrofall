@@ -15,16 +15,11 @@ import 'pending_row_component.dart';
 import 'piece_component.dart';
 import 'shatter_layer.dart';
 
-/// Owns board layout: derives [cellSize] from the available play-area rect
-/// at layout time (never hardcoded, see game.md §1.1) and keeps the frame
-/// centered as the game resizes. Also owns the settled-block render pool
-/// (synced from [GameEngine.grid] every frame), the active piece, the
-/// cascade fall animation, and the rise mechanic's continuous scroll
-/// (§2.1) — everything that scrolls with the rise lives in [_contentLayer],
-/// clipped to the frame's bounds so the emerging pending row is hidden
-/// until it slides into view. The frame itself stays fixed.
 class BoardComponent extends PositionComponent with HasGameReference {
-  BoardComponent({required this.engine, this.theme = ThemeDefinition.classicWood});
+  BoardComponent({
+    required this.engine,
+    this.theme = ThemeDefinition.classicWood,
+  });
 
   final GameEngine engine;
   final ThemeDefinition theme;
@@ -38,20 +33,10 @@ class BoardComponent extends PositionComponent with HasGameReference {
   late final ShatterLayer shatterLayer;
   late final ComboBanner comboBanner;
 
-  /// One [BlockComponent] per visible cell, indexed `[row][col]`. Rebuilt
-  /// from `engine.grid` every frame — Phase 1's placeholder clear (instant
-  /// row removal) and Phase 3's cascade both just become "the grid changed
-  /// since last frame" from this pool's point of view. Cells currently
-  /// mid-flight in [fallAnimator] are hidden here so the block doesn't
-  /// appear twice — once teleported, once animating.
   final List<List<BlockComponent>> _blocks = [];
 
   double get cellSize => frame.cellSize;
 
-  /// Converts a screen-space position to a visible grid cell, accounting
-  /// for the board's centering offset and the rise's continuous scroll
-  /// (§2.1) so the tapped cell matches what's on screen. Returns null
-  /// outside the visible board.
   (int, int)? cellFromScreen(Vector2 screenPos) {
     if (cellSize <= 0) return null;
     final rise = engine.riseController;
@@ -104,8 +89,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
     shatterLayer = ShatterLayer(theme: theme);
     await _contentLayer.add(shatterLayer);
 
-    // Outside the clip/content layer on purpose: the banner overlays the
-    // top of the full-bleed board and must not scroll with the rise.
     comboBanner = ComboBanner();
     await add(comboBanner);
 
@@ -114,13 +97,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
     _layout(game.size);
   }
 
-  /// Clears every render-only animation carryover from the run that just
-  /// ended — shatter shards, an in-flight cascade fall, and the combo
-  /// banner — before [GameEngine.start] spawns the first piece of a new
-  /// run (§4). The logical grid itself is already cleared by
-  /// `GameEngine.start`; this only concerns state `_onEngineEvent`
-  /// wouldn't otherwise reset, since those animations are designed to
-  /// outlive a single resolve.
   void resetForRestart() {
     fallAnimator.reset();
     shatterLayer.reset();
@@ -144,11 +120,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
     _layout(size);
   }
 
-  /// Full-bleed layout within the framed play area: app.dart hands the
-  /// `GameWidget` a box already fixed to the board's aspect ratio, so the
-  /// board fills it edge-to-edge — no side margins, no reserved strips.
-  /// `cellSize` is whichever of width/cols or height/rows fits. The combo
-  /// banner overlays the top of the board instead of reserving space.
   void _layout(Vector2 gameSize) {
     final widthCellSize = gameSize.x / BoardConfig.cols;
     final heightCellSize = gameSize.y / BoardConfig.rows;
@@ -183,8 +154,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
     final grid = engine.grid;
     final rise = engine.riseController;
 
-    // The whole content layer drifts up continuously with the rise —
-    // nothing snaps (§2.1).
     _contentLayer.position = Vector2(0, -rise.riseProgress * cellSize);
 
     pendingRowComponent.row = rise.pendingRow;

@@ -6,11 +6,6 @@ import 'package:flutter/material.dart';
 
 import '../../models/theme_definition.dart';
 
-/// One wooden block, theme-aware — the only block type in the game.
-/// Renders the active theme's base tile edge-to-edge with just a hairline
-/// seam and near-square corners, matching the reference footage's tight
-/// wooden grid. A [ghost] instance draws a translucent outline instead
-/// (§1.2).
 class BlockComponent extends PositionComponent with HasGameReference {
   BlockComponent({required this.theme, this.ghost = false});
 
@@ -19,11 +14,8 @@ class BlockComponent extends PositionComponent with HasGameReference {
 
   bool blockVisible = false;
 
-  /// Impact squash-and-stretch (§2.2): 1.0 = normal, <1.0 = squashed
-  /// vertically (and stretched horizontally to preserve volume).
   double squashY = 1.0;
 
-  /// 0..1 — used by the emerging pending row's fade-in (§2.1).
   double opacity = 1.0;
 
   ui.Image? _tile;
@@ -43,12 +35,16 @@ class BlockComponent extends PositionComponent with HasGameReference {
   Future<void> _ensureTileLoaded() async {
     if (ghost || _tile != null || _loading) return;
     _loading = true;
-    final path = theme.spriteOverrides['wood'] ?? theme.baseTileAsset;
+    final path = theme.baseTileAsset;
     _tile = await game.images.load(_stripImagesPrefix(path));
     _loading = false;
   }
 
-  void setLayout({required double cellSize, required int row, required int col}) {
+  void setLayout({
+    required double cellSize,
+    required int row,
+    required int col,
+  }) {
     size = Vector2.all(cellSize);
     position = Vector2(col * cellSize, row * cellSize);
   }
@@ -76,8 +72,6 @@ class BlockComponent extends PositionComponent with HasGameReference {
       canvas.translate(-cx, -cy);
     }
 
-    // Reference look: blocks nearly touch — only a hairline dark seam and
-    // a tiny corner round separate neighbours.
     final inset = size.x * 0.015;
     final rect = Rect.fromLTWH(
       inset,
@@ -102,9 +96,6 @@ class BlockComponent extends PositionComponent with HasGameReference {
       } else {
         canvas.save();
         canvas.clipRRect(rrect);
-        // Backstop against any tile asset that bakes in a background
-        // margin (R2): sample a slightly inset source rect so a stray
-        // border can't leak into the cell even if the asset isn't clean.
         final srcInset = tile.width * 0.03;
         canvas.drawImageRect(
           tile,

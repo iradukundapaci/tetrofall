@@ -7,17 +7,14 @@ import '../../ui/theme/tokens.dart';
 import '../config/motion.dart';
 import '../engine/combo_tier.dart';
 
-/// The blocks-destroyed combo banner (§1.7): "GOOD!" through
-/// "UNBELIEVABLE!", purple accent, scale-pop + fade, in the reserved space
-/// above the board. Renders in board-local coordinates but outside the
-/// rise-scrolled content layer — the banner must stay fixed while the
-/// stack drifts up behind it.
 class ComboBanner extends PositionComponent {
   String? _text;
   double _elapsed = 0;
 
   static double get _totalSeconds =>
-      (Motion.comboBannerPopIn + Motion.comboBannerHold + Motion.comboBannerFadeOut)
+      (Motion.comboBannerPopIn +
+              Motion.comboBannerHold +
+              Motion.comboBannerFadeOut)
           .inMilliseconds /
       1000;
 
@@ -26,7 +23,6 @@ class ComboBanner extends PositionComponent {
     _elapsed = 0;
   }
 
-  /// Hides an in-progress banner immediately, for a restart (§4).
   void reset() {
     _text = null;
     _elapsed = 0;
@@ -52,7 +48,6 @@ class ComboBanner extends PositionComponent {
     double opacity;
     if (_elapsed < popInSeconds) {
       final t = (_elapsed / popInSeconds).clamp(0.0, 1.0);
-      // Overshoot pop: 0.6 -> 1.15 -> settles by the time hold begins.
       scale = ui.lerpDouble(0.6, 1.15, Curves.easeOut.transform(t))!;
       opacity = t;
     } else if (_elapsed < holdEnd) {

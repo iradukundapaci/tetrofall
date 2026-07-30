@@ -1,9 +1,6 @@
 import '../config/board_config.dart';
 import 'cell.dart';
 
-/// The settled-block playfield. Rows run `-spawnRows .. visibleRows - 1`:
-/// negative rows are the hidden spawn buffer (§1.1), never occupied by a
-/// settled block — only by the active piece while it's still above row 0.
 class Grid {
   Grid({
     this.cols = BoardConfig.cols,
@@ -38,7 +35,6 @@ class Grid {
 
   bool isOccupied(int row, int col) => at(row, col) != null;
 
-  /// A row is full when every column is occupied.
   bool isRowFull(int row) {
     for (var c = 0; c < cols; c++) {
       if (at(row, c) == null) return false;
@@ -46,7 +42,6 @@ class Grid {
     return true;
   }
 
-  /// True if any settled block occupies the given row.
   bool rowHasAnyBlock(int row) {
     for (var c = 0; c < cols; c++) {
       if (at(row, c) != null) return true;
@@ -54,7 +49,6 @@ class Grid {
     return false;
   }
 
-  /// Clears every cell. Used by the debug screen's fixture loader.
   void clearAll() {
     for (var r = minRow; r <= maxRow; r++) {
       for (var c = 0; c < cols; c++) {

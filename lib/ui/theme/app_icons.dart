@@ -1,7 +1,6 @@
 abstract final class AppIcons {
   static const _base = 'assets/images/icons';
 
-  // Gameplay & navigation
   static const pause = '$_base/pause.svg';
   static const home = '$_base/home.svg';
   static const chevronRight = '$_base/chevron_right.svg';
@@ -9,19 +8,6 @@ abstract final class AppIcons {
   static const trophy = '$_base/trophy.svg';
   static const star = '$_base/star.svg';
 
-  // Currency
-  static const coin = '$_base/coin.svg';
-  static const coinDetailed = '$_base/coin_detailed.svg';
-  static const coinSimple = '$_base/coin_simple.svg';
-  static const coinStack = '$_base/coin_stack.svg';
-
-  // Boosters
-  static const hammer = '$_base/hammer.svg';
-  static const bomb = '$_base/bomb.svg';
-  static const drill = '$_base/drill.svg';
-  static const lightning = '$_base/lightning.svg';
-
-  // Rewards & progress
   static const treasureChest = '$_base/treasure_chest.svg';
   static const gift = '$_base/gift.svg';
   static const giftSimple = '$_base/gift_simple.svg';
@@ -32,7 +18,6 @@ abstract final class AppIcons {
   static const lock = '$_base/lock.svg';
   static const video = '$_base/video.svg';
 
-  // Settings
   static const music = '$_base/music.svg';
   static const sound = '$_base/sound.svg';
   static const soundLow = '$_base/sound_low.svg';
@@ -46,24 +31,15 @@ abstract final class AppIcons {
   static const palette = '$_base/palette.svg';
   static const shop = '$_base/shop.svg';
 
-  /// Every icon, for the debug contact sheet.
   static const all = <String, String>{
     'bell': bell,
-    'bomb': bomb,
     'check_circle': checkCircle,
     'check_circle_light': checkCircleLight,
     'chevron_right': chevronRight,
-    'coin': coin,
-    'coin_detailed': coinDetailed,
-    'coin_simple': coinSimple,
-    'coin_stack': coinStack,
     'document': document,
-    'drill': drill,
     'gift': gift,
     'gift_simple': giftSimple,
-    'hammer': hammer,
     'home': home,
-    'lightning': lightning,
     'lock': lock,
     'medal': medal,
     'medal_outline': medalOutline,
@@ -85,6 +61,5 @@ abstract final class AppIcons {
     'video': video,
   };
 
-  /// Render these without a colorFilter — they are deliberately multicolor.
-  static const multicolor = <String>{medal, coinDetailed, coinStack};
+  static const multicolor = <String>{medal};
 }

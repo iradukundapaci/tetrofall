@@ -1,7 +1,5 @@
 import 'dart:math';
 
-/// The §1.10 difficulty timeline. Values are interpolated linearly between
-/// checkpoints — never stepped.
 class DifficultyCheckpoint {
   const DifficultyCheckpoint({
     required this.elapsed,
@@ -10,27 +8,16 @@ class DifficultyCheckpoint {
     required this.fillRatio,
   });
 
-  /// Time since run start.
   final Duration elapsed;
 
-  /// Gravity: piece descends 1 row every [dropInterval].
   final Duration dropInterval;
 
-  /// Seconds for one full pending row to arrive.
   final double riseInterval;
 
-  /// Fraction of a generated row's cells that are filled.
   final double fillRatio;
 }
 
-/// The §1.10 timeline and the interpolation over it. Pure Dart, no Flame —
-/// lives in the engine layer conceptually even though it's a config file.
 abstract final class Difficulty {
-  /// Beginner-friendly ramp (see improvement.md §2): the original table
-  /// hit 700ms/11s by the 1-minute mark, which read as brutal to new
-  /// players. This starts noticeably slower and stretches the early
-  /// checkpoints out further before catching back up to the same late-game
-  /// pace.
   static const checkpoints = <DifficultyCheckpoint>[
     DifficultyCheckpoint(
       elapsed: Duration.zero,
@@ -70,19 +57,8 @@ abstract final class Difficulty {
     ),
   ];
 
-  /// No rise pressure at all for the first stretch of a run — gravity
-  /// still runs, but the rising floor doesn't start climbing until a
-  /// beginner has had a moment to get their bearings (§2).
   static const riseGracePeriod = Duration(seconds: 12);
 
-  /// How far into the timeline an adaptive-start run begins, based on the
-  /// player's best score (adaptive start speed setting). Capped at the
-  /// 3-minute checkpoint by design — a high best score never starts a run
-  /// faster than that, so the late-game pace stays something reached only
-  /// by playing, not by starting position. Sqrt scaling front-loads the
-  /// ramp (a first real score already moves the needle) and flattens near
-  /// the cap; the score denominator has no playtest data behind it yet —
-  /// tune freely.
   static const _adaptiveStartCeiling = Duration(minutes: 3);
   static const _adaptiveStartFullScore = 8000;
 
@@ -103,9 +79,7 @@ abstract final class Difficulty {
       final b = checkpoints[i + 1];
       if (elapsed >= a.elapsed && elapsed <= b.elapsed) {
         final span = (b.elapsed - a.elapsed).inMicroseconds;
-        final t = span == 0
-            ? 0.0
-            : (elapsed - a.elapsed).inMicroseconds / span;
+        final t = span == 0 ? 0.0 : (elapsed - a.elapsed).inMicroseconds / span;
         return DifficultyCheckpoint(
           elapsed: elapsed,
           dropInterval: Duration(

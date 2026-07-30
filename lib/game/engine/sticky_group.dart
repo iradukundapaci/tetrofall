@@ -1,11 +1,6 @@
 import 'grid.dart';
 import 'gravity_resolver.dart';
 
-/// Alternate resolver (§1.6): flood-fill 4-connected components and drop
-/// each as a rigid body, rather than [ColumnCascade]'s per-column repack.
-/// Debug-only, swappable at runtime via `GameEngine.resolver` for
-/// play-testing — not the shipping default (it produces fewer clears and
-/// reads less clearly in motion).
 class StickyGroup implements GravityResolver {
   @override
   List<BlockFall> resolve(Grid grid) {
@@ -36,10 +31,6 @@ class StickyGroup implements GravityResolver {
           }
         }
 
-        // Drop distance = the tightest clearance below the component,
-        // measured per column from that column's *bottom-most* member —
-        // anything below that can't be another member of the same column
-        // in this component, so no exclusion check is needed here.
         final bottomMostRowByCol = <int, int>{};
         for (final (cr, cc) in component) {
           final current = bottomMostRowByCol[cc];
@@ -58,7 +49,7 @@ class StickyGroup implements GravityResolver {
         }
         if (dropDistance <= 0) continue;
 
-        component.sort((a, b) => b.$1.compareTo(a.$1)); // bottom cells first
+        component.sort((a, b) => b.$1.compareTo(a.$1));
         for (final (cr, cc) in component) {
           final cell = grid.at(cr, cc)!;
           grid.set(cr, cc, null);

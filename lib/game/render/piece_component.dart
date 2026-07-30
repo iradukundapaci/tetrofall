@@ -7,12 +7,8 @@ import '../engine/game_engine.dart';
 import '../tetrofall_game.dart';
 import 'block_component.dart';
 
-/// The active piece plus its ghost outline. Horizontal moves ease over
-/// [Motion.horizontalMoveEase] — §2 requires no block ever teleport.
-/// Vertical position snaps directly to the logical row: only horizontal
-/// motion is smoothed (§2 doesn't ask for eased gravity, and snapping
-/// vertically keeps the drop feeling crisp).
-class PieceComponent extends PositionComponent with HasGameReference<TetrofallGame> {
+class PieceComponent extends PositionComponent
+    with HasGameReference<TetrofallGame> {
   PieceComponent({required this.engine, required this.theme});
 
   final GameEngine engine;
@@ -68,7 +64,8 @@ class PieceComponent extends PositionComponent with HasGameReference<TetrofallGa
         1.0,
       );
       _visualCol =
-          _easeFrom + (_easeTarget - _easeFrom) * Curves.easeOut.transform(_easeT);
+          _easeFrom +
+          (_easeTarget - _easeFrom) * Curves.easeOut.transform(_easeT);
     } else {
       _visualCol = _easeTarget;
     }

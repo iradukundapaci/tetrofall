@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../../../ui/theme/tokens.dart';
 
-/// A brief puff of dust at a block's landing point (§2.2). Purely
-/// decorative and self-removing — never blocks game logic.
 class DustPuff extends PositionComponent {
   DustPuff({required Vector2 at, required double cellSize})
     : _cellSize = cellSize,
@@ -18,7 +16,7 @@ class DustPuff extends PositionComponent {
   double _elapsed = 0;
 
   late final List<_Speck> _specks = List.generate(6, (_) {
-    final angle = _random.nextDouble() * pi - pi; // upward-biased spread
+    final angle = _random.nextDouble() * pi - pi;
     final speed = (0.4 + _random.nextDouble() * 0.6) * _cellSize;
     return _Speck(
       vx: cos(angle) * speed,
@@ -38,7 +36,7 @@ class DustPuff extends PositionComponent {
     for (final s in _specks) {
       s.x += s.vx * dt;
       s.y += s.vy * dt;
-      s.vy += _cellSize * 3 * dt; // gentle gravity
+      s.vy += _cellSize * 3 * dt;
     }
   }
 

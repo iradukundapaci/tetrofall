@@ -27,13 +27,6 @@ class _FallingBlock {
   double impactElapsed = 0;
 }
 
-/// Drives §2.2's cascade-fall tweens from [BlocksFellEvent]: real free-fall
-/// timing (`sqrt(2*distance/gravityCellsPerS2)`), `easeInQuad` on the way
-/// down, a squash-and-stretch on impact, a dust puff. The logical grid
-/// already holds the final state the instant the event fires (§3.1's
-/// golden rule) — this only animates the render layer catching up, and
-/// tells [BoardComponent] which cells to hide from its static pool while
-/// a block is still mid-flight to them.
 class FallAnimator extends PositionComponent {
   FallAnimator({required this.theme});
 
@@ -43,14 +36,10 @@ class FallAnimator extends PositionComponent {
   final List<_FallingBlock> _falls = [];
   final List<BlockComponent> _pool = [];
 
-  /// (toRow, col) pairs currently mid-flight or mid-impact-squash.
   final Set<(int, int)> activeTargets = {};
 
   bool get isAnimating => _falls.isNotEmpty;
 
-  /// Cancels every in-flight fall immediately, for a restart (§4) — a
-  /// cascade caught mid-animation shouldn't keep dropping blocks onto the
-  /// freshly cleared board.
   void reset() {
     activeTargets.clear();
     _falls.clear();

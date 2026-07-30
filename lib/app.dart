@@ -34,19 +34,6 @@ class TetrofallApp extends StatelessWidget {
   }
 }
 
-/// Hosts the Flame board. Forwards raw pointer events to the game's
-/// [GestureHandler] (§1.12). The ghost-piece toggle here is a quick,
-/// in-place icon rather than a Settings row — it's per-session UI state,
-/// not something that needs to persist or survive a restart.
-///
-/// Layout budget (R4): a single `Column` — top HUD, then the board's
-/// `Expanded` share of whatever's left — so each section is sized by real
-/// Flutter layout (via `MediaQuery`/intrinsic widget size), never a fixed
-/// offset or a guessed fraction of the screen.
-/// `BoardComponent` derives `cellSize` from exactly the box the `Expanded`
-/// hands it, so nothing here needs to know the board's internal geometry
-/// (combo banner strip, pending-row reveal margin) — that budget lives in
-/// `BoardComponent._layout`.
 class _GameHome extends StatefulWidget {
   const _GameHome({required this.storage});
 
@@ -88,8 +75,6 @@ class _GameHomeState extends State<_GameHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Tokens.colorBg,
-      // Full-screen bg_wood backdrop, darkened a touch so the lighter
-      // play area (which uses the same texture) reads as its own surface.
       body: Container(
         decoration: const BoxDecoration(
           image: DecorationImage(
@@ -104,9 +89,6 @@ class _GameHomeState extends State<_GameHome> {
             Expanded(
               child: Stack(
                 children: [
-                  // The play area: fixed to the board's aspect ratio so the
-                  // full-bleed Flame board exactly fills the framed box —
-                  // the wood-dark border hugs the grid with no slack.
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                       Tokens.spaceMd,
@@ -133,12 +115,6 @@ class _GameHomeState extends State<_GameHome> {
                               Tokens.radiusMd - 4,
                             ),
                             child: Listener(
-                              // While paused, every pointer event is dropped
-                              // outright (§6.1) — otherwise moves/rotates
-                              // queue up in the engine's intent list (which
-                              // only drains on `playing` ticks, and those
-                              // stop while paused) and all fire at once the
-                              // instant the game resumes.
                               onPointerDown: (e) {
                                 if (_game.paused) return;
                                 _game.gestureHandler.onPointerDown(e);
@@ -162,72 +138,72 @@ class _GameHomeState extends State<_GameHome> {
                       ),
                     ),
                   ),
-                Positioned(
-                  top: Tokens.spaceSm,
-                  right: Tokens.spaceSm,
-                  child: SafeArea(
-                    top: false,
-                    bottom: false,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          tooltip: 'Toggle ghost piece',
-                          icon: Icon(
-                            _showGhost
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                            color: Tokens.colorText,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _showGhost = !_showGhost;
-                              _game.showGhost = _showGhost;
-                            });
-                          },
-                        ),
-                        IconButton(
-                          tooltip: 'Settings',
-                          icon: SvgPicture.asset(
-                            AppIcons.settings,
-                            width: 22,
-                            height: 22,
-                            colorFilter: const ColorFilter.mode(
-                              Tokens.colorText,
-                              BlendMode.srcIn,
+                  Positioned(
+                    top: Tokens.spaceSm,
+                    right: Tokens.spaceSm,
+                    child: SafeArea(
+                      top: false,
+                      bottom: false,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'Toggle ghost piece',
+                            icon: Icon(
+                              _showGhost
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: Tokens.colorText,
                             ),
+                            onPressed: () {
+                              setState(() {
+                                _showGhost = !_showGhost;
+                                _game.showGhost = _showGhost;
+                              });
+                            },
                           ),
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    SettingsScreen(storage: widget.storage),
+                          IconButton(
+                            tooltip: 'Settings',
+                            icon: SvgPicture.asset(
+                              AppIcons.settings,
+                              width: 22,
+                              height: 22,
+                              colorFilter: const ColorFilter.mode(
+                                Tokens.colorText,
+                                BlendMode.srcIn,
                               ),
-                            );
-                          },
-                        ),
-                      ],
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      SettingsScreen(storage: widget.storage),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                if (_gameOverReason == null)
-                  ValueListenableBuilder<bool>(
-                    valueListenable: _game.pausedNotifier,
-                    builder: (context, paused, _) {
-                      if (!paused) return const SizedBox.shrink();
-                      return _PauseOverlay(
-                        onResume: _game.resumeEngine,
-                        onRestart: _restart,
-                      );
-                    },
-                  ),
-                if (_gameOverReason != null)
-                  _GameOverOverlay(
-                    reason: _gameOverReason!,
-                    score: _game.engine.scoring.score,
-                    best: widget.storage.bestScore,
-                    onRestart: _restart,
-                  ),
+                  if (_gameOverReason == null)
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _game.pausedNotifier,
+                      builder: (context, paused, _) {
+                        if (!paused) return const SizedBox.shrink();
+                        return _PauseOverlay(
+                          onResume: _game.resumeEngine,
+                          onRestart: _restart,
+                        );
+                      },
+                    ),
+                  if (_gameOverReason != null)
+                    _GameOverOverlay(
+                      reason: _gameOverReason!,
+                      score: _game.engine.scoring.score,
+                      best: widget.storage.bestScore,
+                      onRestart: _restart,
+                    ),
                 ],
               ),
             ),
@@ -239,9 +215,6 @@ class _GameHomeState extends State<_GameHome> {
   }
 }
 
-/// Reserved banner-ad strip under the play area (standard banner height
-/// plus breathing room). Holds the space with a subtle placeholder until a
-/// real ad SDK is wired in, so the board layout won't jump when it lands.
 class _AdSlot extends StatelessWidget {
   const _AdSlot();
 
@@ -278,8 +251,6 @@ class _AdSlot extends StatelessWidget {
   }
 }
 
-/// Dim scrim + Resume/Restart, shown while [TetrofallGame.paused] (§6.1) —
-/// the board previously just looked frozen with no indication why.
 class _PauseOverlay extends StatelessWidget {
   const _PauseOverlay({required this.onResume, required this.onRestart});
 
@@ -310,8 +281,6 @@ class _PauseOverlay extends StatelessWidget {
   }
 }
 
-/// Full-screen game-over overlay (§4): score, best, why the run ended, and
-/// a "Play Again" button wired to [TetrofallGame.restart].
 class _GameOverOverlay extends StatelessWidget {
   const _GameOverOverlay({
     required this.reason,
@@ -374,7 +343,11 @@ class _GameOverOverlay extends StatelessWidget {
 }
 
 class _OverlayPanel extends StatelessWidget {
-  const _OverlayPanel({required this.title, this.subtitle, required this.children});
+  const _OverlayPanel({
+    required this.title,
+    this.subtitle,
+    required this.children,
+  });
 
   final String title;
   final String? subtitle;
@@ -446,7 +419,9 @@ class _OverlayButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: filled ? Tokens.colorGold : Tokens.colorPanel,
           foregroundColor: filled ? Tokens.colorWoodDark : Tokens.colorText,
-          side: filled ? null : const BorderSide(color: Tokens.colorPanelBorder),
+          side: filled
+              ? null
+              : const BorderSide(color: Tokens.colorPanelBorder),
           padding: const EdgeInsets.symmetric(vertical: Tokens.spaceMd),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(Tokens.radiusMd),

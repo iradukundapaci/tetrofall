@@ -10,9 +10,6 @@ import '../../models/theme_definition.dart';
 import '../config/motion.dart';
 import '../engine/events.dart';
 
-/// Wood-fragment palette for the shatter debris, sampled from the
-/// reference footage: medium browns for uncut faces, pale creams for the
-/// freshly split "cut" faces, plus a dark edge tone.
 const _shardBaseColors = <Color>[
   Color(0xFFB97F4E),
   Color(0xFFA96F42),
@@ -29,12 +26,6 @@ const _shardFacetColors = <Color>[
 const _shardEdgeColor = Color(0xFF6E4225);
 const _crackColor = Color(0xFF4A2C16);
 
-/// One pooled shard slot. Reused via a ring-buffer cursor rather than
-/// allocated per-particle (game.md §2.3 — a full 18-column clear is
-/// hundreds of particles, and per-frame allocation would GC-hitch).
-/// Each shard is a chunky irregular polygon with a lighter "cut" facet,
-/// so it reads as a 3D wooden fragment tumbling through the air — 1:1
-/// with the reference footage — not a flat square.
 class _Shard {
   bool active = false;
   double delay = 0;
@@ -50,15 +41,12 @@ class _Shard {
   Color baseColor = const Color(0x00000000);
   Color facetColor = const Color(0x00000000);
 
-  /// Unit-space polygon vertices (scaled by [size] at render time). Fixed
-  /// max of 5 vertices; [vertexCount] says how many are live this cycle.
   final Float32List verts = Float32List(10);
   int vertexCount = 0;
 
   final Path path = Path();
   final Path facetPath = Path();
 
-  /// Rebuilds the polygon + facet paths for this shard's current shape.
   void rebuildPaths() {
     path.reset();
     facetPath.reset();
@@ -68,8 +56,6 @@ class _Shard {
       path.lineTo(verts[i * 2] * size, verts[i * 2 + 1] * size);
     }
     path.close();
-    // Facet: a triangle over the first three vertices, pulled toward the
-    // centroid — the pale "freshly split" face that sells the 3D look.
     var cx = 0.0;
     var cy = 0.0;
     for (var i = 0; i < vertexCount; i++) {
@@ -85,11 +71,6 @@ class _Shard {
   }
 }
 
-/// A cleared cell during the crack stage: the block is already gone from
-/// the logical grid (§3.1's golden rule), but on screen it still looks
-/// intact — with crack fractures spreading across it — until its burst
-/// delay elapses and it explodes into shards. 1:1 with the reference
-/// footage's crack-then-burst sequence.
 class _CrackedCell {
   _CrackedCell({
     required this.row,
@@ -104,16 +85,6 @@ class _CrackedCell {
   final int seed;
 }
 
-/// The signature crack-then-burst shatter (§2.3). Cells destined to clear
-/// are handed to [addClear] the instant the engine emits
-/// [RowsClearedEvent]. Every cell first renders as a cracked block for
-/// [Motion.crackHold]; then the burst wave sweeps outward from the row's
-/// center (`crackHold + (col - center).abs() * shatterStep`), each cell
-/// exploding into chunky two-tone wooden fragments that spray upward in a
-/// V — outer columns thrown outward and higher — tumble, and fall under
-/// gravity. Purely decorative: particles never block game logic and
-/// outlive `RESOLVING` entirely, which is why this component's lifetime
-/// tracking is fully independent of [GameEngine]'s resolve timer.
 class ShatterLayer extends PositionComponent with HasGameReference {
   ShatterLayer({required this.theme});
 
@@ -138,23 +109,12 @@ class ShatterLayer extends PositionComponent with HasGameReference {
 
   @override
   Future<void> onLoad() async {
-    // The cracked-block stage draws the same wood tile the settled blocks
-    // use, so the crack overlay appears on a visually identical block.
-    final path = theme.spriteOverrides['wood'] ?? theme.baseTileAsset;
+    final path = theme.baseTileAsset;
     unawaited(
       game.images.load(_stripImagesPrefix(path)).then((img) => _tile = img),
     );
   }
 
-  /// Schedules the crack-then-burst for every cell in [cells] (already
-  /// removed from the logical grid by the time this is called). [cols] is
-  /// the board width, needed to find the row's center column for the delay
-  /// formula and the burst's small sideways component. [linesCleared] — how
-  /// many rows this single clear event covers — scales up the per-cell
-  /// particle count for a bigger burst on multi-line clears, bounded by
-  /// [Motion.particlesPerCellCap] and, across the whole call, by
-  /// [Motion.maxParticlesPerClear] so a huge simultaneous clear can't spawn
-  /// more shards than the device can comfortably animate.
   void addClear(List<ClearedCell> cells, int cols, {int linesCleared = 1}) {
     final center = (cols - 1) / 2.0;
     final stepSeconds = Motion.shatterStep.inMilliseconds / 1000;
@@ -183,11 +143,9 @@ class ShatterLayer extends PositionComponent with HasGameReference {
           seed: _random.nextInt(1 << 31),
         ),
       );
-      // How far off-center this cell is, -1 (left edge) .. +1 (right
-      // edge): drives the small sideways component of the burst — gravity
-      // does the rest of the work, see `Motion.shardHorizontalDragPerS`.
       final t = center == 0 ? 0.0 : (cell.col - center) / center;
-      final rawCount = perCellMin + _random.nextInt(perCellMax - perCellMin + 1);
+      final rawCount =
+          perCellMin + _random.nextInt(perCellMax - perCellMin + 1);
       final count = math.max(1, (rawCount * budgetScale).round());
       for (var i = 0; i < count; i++) {
         _spawn(row: cell.row, col: cell.col, delay: delay, offCenter: t);
@@ -211,19 +169,15 @@ class ShatterLayer extends PositionComponent with HasGameReference {
     );
     final spin = _random.nextBool() ? 1.0 : -1.0;
 
-    // A modest pop upward — outer columns throw debris very slightly
-    // higher, keeping a hint of the reference V shape — with a small,
-    // decaying sideways component (see `update`'s drag). Gravity, not this
-    // outward push, is what drives the shard's motion after the pop, so it
-    // reads as debris falling toward the bottom of the board rather than
-    // an explosion flying out in every direction.
-    final up = _lerpD(
-      Motion.shardMinUpSpeedCells,
-      Motion.shardMaxUpSpeedCells,
-      _random.nextDouble(),
-    ) *
+    final up =
+        _lerpD(
+          Motion.shardMinUpSpeedCells,
+          Motion.shardMaxUpSpeedCells,
+          _random.nextDouble(),
+        ) *
         (1.0 + 0.2 * offCenter.abs());
-    final outward = offCenter * Motion.shardMaxOutwardSpeedCells +
+    final outward =
+        offCenter * Motion.shardMaxOutwardSpeedCells +
         (_random.nextDouble() * 2 - 1) * Motion.shardOutwardJitterCells;
 
     shard
@@ -235,11 +189,12 @@ class ShatterLayer extends PositionComponent with HasGameReference {
       ..y = (row + 0.5) * cellSize
       ..vx = outward * cellSize
       ..vy = -up * cellSize
-      ..size = _lerpD(
-        Motion.shardMinSizeCells,
-        Motion.shardMaxSizeCells,
-        _random.nextDouble(),
-      ) *
+      ..size =
+          _lerpD(
+            Motion.shardMinSizeCells,
+            Motion.shardMaxSizeCells,
+            _random.nextDouble(),
+          ) *
           cellSize
       ..angle = _random.nextDouble() * 2 * math.pi
       ..rotationSpeed =
@@ -253,8 +208,6 @@ class ShatterLayer extends PositionComponent with HasGameReference {
       ..facetColor =
           _shardFacetColors[_random.nextInt(_shardFacetColors.length)];
 
-    // Irregular convex-ish polygon: 4-5 vertices at jittered angles and
-    // radii around the center, in unit space (scaled by size at render).
     final vertexCount = 4 + _random.nextInt(2);
     shard.vertexCount = vertexCount;
     final angleStep = 2 * math.pi / vertexCount;
@@ -267,9 +220,6 @@ class ShatterLayer extends PositionComponent with HasGameReference {
     shard.rebuildPaths();
   }
 
-  /// Deactivates every pooled shard and cracked cell immediately, for a
-  /// restart (§4) — a clear mid-shatter shouldn't leave debris from the
-  /// ended run animating over the fresh board.
   void reset() {
     for (final shard in _pool) {
       shard.active = false;
@@ -303,9 +253,6 @@ class ShatterLayer extends PositionComponent with HasGameReference {
         continue;
       }
       shard.vy += gravity * dt;
-      // Sideways drift decays so gravity quickly takes over the shard's
-      // trajectory — it pops, drifts a little, then falls toward the
-      // bottom of the board instead of coasting outward indefinitely.
       shard.vx *= math.max(0, 1 - Motion.shardHorizontalDragPerS * dt);
       shard.x += shard.vx * dt;
       shard.y += shard.vy * dt;
@@ -327,8 +274,9 @@ class ShatterLayer extends PositionComponent with HasGameReference {
       final t = shard.elapsed / shard.lifetime;
       final opacity = t <= Motion.shardFadeStartFraction
           ? 1.0
-          : (1 - (t - Motion.shardFadeStartFraction) /
-                    (1 - Motion.shardFadeStartFraction))
+          : (1 -
+                    (t - Motion.shardFadeStartFraction) /
+                        (1 - Motion.shardFadeStartFraction))
                 .clamp(0.0, 1.0);
       if (opacity <= 0) continue;
 
@@ -345,9 +293,6 @@ class ShatterLayer extends PositionComponent with HasGameReference {
     }
   }
 
-  /// The crack stage: the cell still looks like an intact block (same wood
-  /// tile as the settled pool) with dark fracture lines spreading across
-  /// it — exactly the reference footage's beat before the burst.
   void _renderCrackedCells(Canvas canvas) {
     if (_crackedCells.isEmpty) return;
     final tile = _tile;
@@ -382,8 +327,6 @@ class ShatterLayer extends PositionComponent with HasGameReference {
         canvas.restore();
       }
 
-      // Deterministic per-cell crack web: jagged polylines radiating from
-      // a point near the center toward the edges.
       final rng = math.Random(cell.seed);
       final crackPaint = Paint()
         ..style = PaintingStyle.stroke

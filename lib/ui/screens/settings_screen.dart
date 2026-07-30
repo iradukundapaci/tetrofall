@@ -5,10 +5,6 @@ import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
 
-/// The app's first Settings surface — currently just the adaptive
-/// start-speed toggle, styled to match `screens/settings.html`'s
-/// `.st-header`/`.st-section`/`.setting-row` layout (wood-dark background,
-/// gold accents, a translucent panel row per setting).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.storage});
 
@@ -83,8 +79,6 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
-        // Balances the back button's width so the title sits centered in
-        // the row, not just centered in the leftover space.
         const SizedBox(width: 48),
       ],
     );
@@ -159,7 +153,7 @@ class _SettingRow extends StatelessWidget {
             value: value,
             onChanged: onChanged,
             activeThumbColor: Tokens.colorGold,
-            activeTrackColor: const Color(0x4DF2B632), // rgba(242,182,50,0.3)
+            activeTrackColor: const Color(0x4DF2B632),
           ),
         ],
       ),
