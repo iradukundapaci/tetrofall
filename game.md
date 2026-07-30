@@ -190,17 +190,6 @@ chainMultiplier   = 1.0 + (0.5 * chainIndex)     cascade chains, chainIndex star
 levelMultiplier   = 1.0 + (elapsedMinutes * 0.1)
 ```
 
-Blocks-destroyed banner thresholds, per the GDD, counted across a single resolve (all chains included):
-
-```text
-  5 blocks  →  GOOD!            ×1
- 20 blocks  →  AWESOME!         ×2
- 50 blocks  →  INCREDIBLE!      ×5
-100 blocks  →  UNBELIEVABLE!    ×10
-```
-
-Banner renders in the reserved space above the board (`gameplay.html`, Phase 4), purple accent per the color-coding rule, scale-pop + fade.
-
 ## 1.8 Difficulty timeline
 
 | Elapsed | dropInterval | riseInterval | fillRatio | Notes |
@@ -402,7 +391,6 @@ lib/
       pending_row_component.dart the emerging row, clipped
       shatter_layer.dart         pooled particle system
       fall_animator.dart         drives §2.2 tweens from BlocksFell
-      combo_banner.dart          GOOD!/AWESOME!/… overlay
       effects/                   dust, shake, impact squash
     input/
       gesture_handler.dart
@@ -497,7 +485,7 @@ Order matters. Getting it wrong produces one-frame visual desyncs.
 4. tick gravity + lock delay    (skip if RESOLVING / PAUSED)
 5. run engine transitions       (lock, clear detect, cascade, chain)
 6. flush domain events → render layer
-7. advance render tweens        (falls, squash, banner, shake)
+7. advance render tweens        (falls, squash, shake)
 8. advance particle system
 9. draw
 ```
@@ -560,7 +548,7 @@ Register all of it in `pubspec.yaml` under `flutter: assets:` and `fonts:`.
 
 | Family | Weights needed | Files |
 |---|---|---|
-| **Baloo 2** (display: scores, titles, combo banner) | 500, 600, 700, 800 | `Baloo2-Medium.ttf`, `-SemiBold`, `-Bold`, `-ExtraBold` |
+| **Baloo 2** (display: scores, titles) | 500, 600, 700, 800 | `Baloo2-Medium.ttf`, `-SemiBold`, `-Bold`, `-ExtraBold` |
 | **Nunito** (body: buttons, labels) | 400, 600, 700, 800 | `Nunito-Regular.ttf`, `-SemiBold`, `-Bold`, `-ExtraBold` |
 
 Source: fonts.google.com → "Get font" → extract the static `.ttf` files (not variable fonts — Flutter handles static weights more predictably). Both are Open Font License, so commercial release is fine.
@@ -783,7 +771,6 @@ Keep every SFX under 1 second unless noted. Either generate them (prompts below)
 | `wood_fall.wav` | Blocks landing after cascade, hollow knock | 0.25 s |
 | `rise_groan.wav` | Low wooden strain as a row commits | 0.5 s |
 | `rise_warning.wav` | Tense creak, loops while stack is near the top | 1.0 s, loopable |
-| `combo_1..4.wav` | Four ascending stings for GOOD!/AWESOME!/INCREDIBLE!/UNBELIEVABLE! | 0.5–1.2 s |
 | `button.wav` | Soft UI tap | 0.08 s |
 | `game_over.wav` | Descending wooden collapse | 1.5 s |
 
@@ -826,16 +813,6 @@ For any text-to-sound-effect generator. Three rules run through all of them:
 > `rise_groan` — "A low wooden strain: a thick timber beam slowly taking on weight, a deep slow creak with a subtle groan underneath. Ominous but soft, dry, close mic, no music. 0.5 seconds."
 
 > `rise_warning` — "A tense sustained wooden creak, old timber under steadily increasing pressure, straining slowly. Uneasy, continuous, with no obvious start or end so it loops seamlessly. Dry, no music, no percussion. 1 second."
-
-**Combo stings** — generate all four from one family so they sound related. If a generator won't hold the timbre across four calls, make `combo_1` and build the others by pitch-shifting and extending it rather than mixing unrelated takes:
-
-> `combo_1` (GOOD!) — "Two ascending notes struck on warm hardwood marimba bars, gentle and bright, light natural resonance. Dry, close mic, no drums, no synth, no music bed. 0.5 seconds."
-
-> `combo_2` (AWESOME!) — "Three ascending notes on warm hardwood marimba, brighter and more celebratory than a two-note version, with a small shimmer on the last note. Dry, no drums, no synth, no music bed. 0.7 seconds."
-
-> `combo_3` (INCREDIBLE!) — "A rapid five-note ascending run on warm hardwood marimba ending in a soft golden bell shimmer. Exciting, dry, no drums, no synth, no music bed. 1 second."
-
-> `combo_4` (UNBELIEVABLE!) — "A fast ascending marimba run resolving into a bright gold bell chime over a low wooden boom. Triumphant and full, dry, no drums, no vocals, no music bed. 1.2 seconds."
 
 **UI & feedback:**
 
@@ -1051,26 +1028,24 @@ Note the native splash (the OS-level one, shown before Flutter boots) is a **thi
 ## Phase 6 — Scoring, combos, difficulty
 
 - `Scoring` with base values, chain/level multipliers.
-- Blocks-destroyed banner thresholds and text (`GOOD!` → `UNBELIEVABLE!`), purple accent, pop + fade in the reserved space above the board.
 - `Difficulty` interpolation across the §1.8 table, linear between checkpoints.
 - Session stats collection (blocks destroyed, max chain, time survived) for achievements later.
 - **Debug helper:** an on-screen overlay showing elapsed time, current `dropInterval`, `riseInterval`, `fillRatio`, chain index, and blocks destroyed this resolve.
 
-**Output:** a scoring game with a difficulty curve and combo banners.
+**Output:** a scoring game with a difficulty curve.
 
 **What you check:**
 
 1. Play a full 5-minute run watching the debug overlay. The numbers should slide continuously — if `riseInterval` jumps from 11 to 9 in one frame at the 2:00 mark, it's stepping instead of interpolating.
 2. More importantly: play it *without* looking at the overlay. Did you feel a sudden difficulty jump anywhere? You shouldn't.
-3. Trigger each of the four banners (`GOOD!` at 5 blocks, up to `UNBELIEVABLE!` at 100) — check the text is correct, purple, centred in the space above the board, and doesn't overlap the board or the top bar.
-4. Confirm a cascade chain scores more than the same number of rows cleared separately.
-5. Let the run reach 8:00+ and confirm the speed stops increasing rather than becoming impossible.
+3. Confirm a cascade chain scores more than the same number of rows cleared separately.
+4. Let the run reach 8:00+ and confirm the speed stops increasing rather than becoming impossible.
 
 ---
 
 ## Phase 7 — Juice pass
 
-- Audio via `flame_audio`: wood crack, wood fall, rise groan, combo sting, lock click, game over.
+- Audio via `flame_audio`: wood crack, wood fall, rise groan, lock click, game over.
 - Screen shake (hard drop, rise commit, big clear), dust particles, subtle board breathing.
 - Game-over crumble sequence (§1.9).
 
@@ -1081,7 +1056,7 @@ Note the native splash (the OS-level one, shown before Flutter boots) is a **thi
 1. Play with sound on, then with it off. The difference should be obvious — if it isn't, the mix is wrong.
 2. Listen specifically for the wood crack on clears. It's the signature sound; it should land at the exact moment the shatter starts, not before or after.
 3. Play a 5-minute run and notice whether any sound has started to annoy you. Replace it now.
-4. Clear four rows at once — the sting, shake, and shatter should feel like one event, not three.
+4. Clear four rows at once — the shake and shatter should feel like one event, not two.
 5. Confirm the rise groan makes you tense up slightly. That's the point.
 6. Check the shake is subtle. If it makes text hard to read, halve it.
 7. Play a full run and confirm the frame rate is still solid now that audio and effects are layered on.
@@ -1107,7 +1082,7 @@ Port `screens/components.css` → `lib/ui/widgets/` first (primary button, circu
 Rules for this phase:
 
 - **No new colors, radii, or spacing.** Everything comes from `tokens.dart`. If a value isn't in tokens, it doesn't belong on screen.
-- Gameplay HUD must match `gameplay.html` exactly: score/best left, pause right, board center with combo space reserved above, and the ad banner slot reserved below the board.
+- Gameplay HUD must match `gameplay.html` exactly: score/best left, pause right, board center, and the ad banner slot reserved below the board.
 - Tap targets ≥ 44×44 (the `screens.md` accessibility audit found and fixed one violation — don't reintroduce it).
 - `settings_screen.dart` gets a **Ghost Piece** toggle row alongside Sound and Music, using the same toggle component, defaulting to on and persisted to the profile.
 
@@ -1120,7 +1095,7 @@ Rules for this phase:
 3. Walk the full navigation: splash → loading → main menu → gameplay → pause → resume → game over → play again → home.
    - Cold-boot the app several times and watch the splash sequence closely: the block mark must **accelerate** as it falls, land with a visible squash, *then* the wordmark appears. If the mark drifts down and eases to a stop, the curve is inverted.
    - Confirm the loading screen never cuts off early on a fast device, and never sits at 100% waiting on a slow one.
-4. On the gameplay screen specifically: score/best left, pause right, the combo banner space reserved above the board so the banner never covers blocks, and the ad banner slot reserved below it.
+4. On the gameplay screen specifically: score/best left, pause right, and the ad banner slot reserved below the board.
 5. Pause mid-run — the board behind should dim and blur, and the game should be genuinely frozen (watch the rise, not just the piece).
 6. Beat your best score and confirm the NEW BEST! badge appears.
 7. Toggle Ghost Piece off in Settings, start a run — no outline. Toggle it on mid-run — the outline appears immediately.
@@ -1224,7 +1199,6 @@ Everything else is recoverable later. These four are structural.
 | Hold piece | Deferred | The rise mechanic already supplies the pressure Hold would relieve; adding both dilutes the twist. |
 | Rise during piece fall | Not frozen | Overlapping the two pressures *is* the game. Freezing it would make the game a slower Tetris. |
 | Rise during resolve | Frozen | Otherwise the player is punished for a good clear. |
-| Combo thresholds | Blocks destroyed, per GDD | Preserves the GDD's four banner tiers verbatim. |
 | Particle system | Pooled, single layer | A 4-line clear is ~500 particles; per-frame allocation would cause GC hitches. |
 | Game logo | **Code-drawn, not an image** | `splash.html` already builds it from block cells so it sits flush on the wood grain with no halo to mask. Also means it scales to any density, recolors with the theme, and can animate its own drop-and-squash. There is no separate studio-logo image asset. |
 | Themes at MVP | **One — `classic_wood`** | Ships the game sooner. The full `ThemeDefinition` plumbing is still built in Phase 9, so each later theme costs one PNG, one palette, and no code, even though MVP has no in-app theme browser. |

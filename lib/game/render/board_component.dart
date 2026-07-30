@@ -9,7 +9,6 @@ import '../engine/events.dart';
 import '../engine/game_engine.dart';
 import 'block_component.dart';
 import 'board_frame.dart';
-import 'combo_banner.dart';
 import 'fall_animator.dart';
 import 'pending_row_component.dart';
 import 'piece_component.dart';
@@ -31,7 +30,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
   late final FallAnimator fallAnimator;
   late final PendingRowComponent pendingRowComponent;
   late final ShatterLayer shatterLayer;
-  late final ComboBanner comboBanner;
 
   final List<List<BlockComponent>> _blocks = [];
 
@@ -89,9 +87,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
     shatterLayer = ShatterLayer(theme: theme);
     await _contentLayer.add(shatterLayer);
 
-    comboBanner = ComboBanner();
-    await add(comboBanner);
-
     engine.addEventListener(_onEngineEvent);
 
     _layout(game.size);
@@ -100,7 +95,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
   void resetForRestart() {
     fallAnimator.reset();
     shatterLayer.reset();
-    comboBanner.reset();
   }
 
   void _onEngineEvent(GameEvent event) {
@@ -108,8 +102,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
       fallAnimator.addFalls(event.falls);
     } else if (event is RowsClearedEvent) {
       shatterLayer.addClear(event.cells, BoardConfig.cols);
-    } else if (event is ComboBannerEvent) {
-      comboBanner.trigger(event.tier);
     }
   }
 
@@ -137,10 +129,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
     pendingRowComponent.updateLayout(newCellSize);
     shatterLayer.cellSize = newCellSize;
 
-    final bannerHeight = newCellSize * 2.4;
-    comboBanner
-      ..size = Vector2(frame.size.x, bannerHeight)
-      ..position = Vector2(0, newCellSize * 1.2);
     for (var r = 0; r < BoardConfig.rows; r++) {
       for (var c = 0; c < BoardConfig.cols; c++) {
         _blocks[r][c].setLayout(cellSize: newCellSize, row: r, col: c);

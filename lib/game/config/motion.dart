@@ -45,8 +45,4 @@ abstract final class Motion {
   static const riseEmergeFadeFraction = 0.30;
 
   static const horizontalMoveEase = Duration(milliseconds: 60);
-
-  static const comboBannerPopIn = Duration(milliseconds: 150);
-  static const comboBannerHold = Duration(milliseconds: 500);
-  static const comboBannerFadeOut = Duration(milliseconds: 300);
 }

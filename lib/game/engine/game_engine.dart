@@ -3,7 +3,6 @@ import 'dart:math';
 import '../config/motion.dart';
 import 'clear_detector.dart';
 import 'column_cascade.dart';
-import 'combo_tier.dart';
 import 'events.dart';
 import 'gravity_resolver.dart';
 import 'grid.dart';
@@ -52,8 +51,6 @@ class GameEngine {
 
   double _resolveTimer = 0;
   _ResolveStage _resolveStage = _ResolveStage.shatter;
-
-  final Set<ComboTier> _bannerTiersEmitted = {};
 
   final _intentQueue = <GameIntentType>[];
   final _eventListeners = <void Function(GameEvent)>[];
@@ -202,7 +199,6 @@ class GameEngine {
     phase = GamePhase.resolving;
     chainIndex = 0;
     scoring.startResolve();
-    _bannerTiersEmitted.clear();
   }
 
   void _resolvePass() {
@@ -229,17 +225,7 @@ class GameEngine {
       chainIndex: chainIndex,
       elapsedSeconds: riseController.elapsed,
     );
-    _checkComboBanners();
     _startShatterThenCascade(fullRows, removedCells);
-  }
-
-  void _checkComboBanners() {
-    for (final tier in ComboTier.values) {
-      if (scoring.blocksDestroyedThisResolve >= tier.threshold &&
-          _bannerTiersEmitted.add(tier)) {
-        _emit(ComboBannerEvent(tier));
-      }
-    }
   }
 
   void _startShatterThenCascade(

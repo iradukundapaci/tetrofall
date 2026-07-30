@@ -53,33 +53,6 @@
       height: 18px;
     }
 
-    /* ---------- Reserved combo callout space ---------- */
-    .game-combo-zone {
-      flex: 0 0 auto;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-    }
-
-    .combo-text {
-      font-family: var(--font-display);
-      font-size: var(--font-size-xl);
-      font-weight: 800;
-      letter-spacing: 0.03em;
-      color: var(--color-gold);
-      text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 16px rgba(242, 182, 50, 0.5);
-      opacity: 0;
-      transform: scale(0.7);
-      transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-
-    .combo-text.is-active {
-      opacity: 1;
-      transform: scale(1);
-    }
-
     /* ---------- Board ---------- */
     .game-board-wrap {
       flex: 1 1 auto;
@@ -233,10 +206,6 @@
             <a href="pause.html" class="btn-icon game-pause" aria-label="Pause">
               <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
             </a>
-          </div>
-
-          <div class="game-combo-zone">
-            <div class="combo-text" id="comboText">GOOD!</div>
           </div>
 
           <div class="game-board-wrap">
@@ -488,27 +457,6 @@
         sizeBoard();
       }
     })();
-
-    // Combo callout: resting state is empty; this just cycles the
-    // "triggered" tiers on a loop so both states are visible over time
-    // without a manual control.
-    var comboMessages = ['GOOD!', 'AWESOME!', 'INCREDIBLE!', 'UNBELIEVABLE!'];
-    var comboEl = document.getElementById('comboText');
-    var comboIndex = 0;
-
-    function showCombo() {
-      comboEl.textContent = comboMessages[comboIndex % comboMessages.length];
-      comboIndex++;
-      comboEl.classList.add('is-active');
-      setTimeout(function () {
-        comboEl.classList.remove('is-active');
-      }, 1100);
-    }
-
-    setTimeout(function () {
-      showCombo();
-      setInterval(showCombo, 3200);
-    }, 900);
   </script>
 </body>
 </html>

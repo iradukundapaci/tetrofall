@@ -1,5 +1,4 @@
 import 'cell.dart';
-import 'combo_tier.dart';
 
 sealed class GameEvent {
   const GameEvent();
@@ -58,9 +57,4 @@ class GameOverEvent extends GameEvent {
 
 class RiseCommittedEvent extends GameEvent {
   const RiseCommittedEvent();
-}
-
-class ComboBannerEvent extends GameEvent {
-  const ComboBannerEvent(this.tier);
-  final ComboTier tier;
 }
