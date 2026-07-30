@@ -2,7 +2,7 @@
 
 Companion to `screens.md`. That document defines the **UI**; this one defines the **game** — mechanics, animation, architecture, and the phased build order.
 
-Rule of precedence: **mechanics ship before UI polish.** Phases 1–9 are the game. Phase 10 ports the HTML mockups 1:1. Nothing in Phase 10+ may alter a rule defined in Section 1.
+Rule of precedence: **mechanics ship before UI polish.** Phases 1–7 are the game. Phase 8 ports the HTML mockups 1:1. Nothing in Phase 8+ may alter a rule defined in Section 1.
 
 ---
 
@@ -113,16 +113,15 @@ fillRatio     0.40 → 0.75 over 5 minutes
 gaps          COLS * (1 - fillRatio), clamped to [1, 4]  — never a full row (it would auto-clear)
 gap placement early game: gaps adjacent, forming an easy well
               late game:  gaps scattered, and shifted ≥2 columns from the previous row's gaps
-specials      after 3 min, each generated cell has a chance to be a special block (§1.8)
 ```
 
-**Rise pausing.** The rise timer is frozen during `RESOLVING` (clear + cascade) and during the Time Freeze booster. It is *not* frozen while a piece is merely falling — the two pressures must overlap.
+**Rise pausing.** The rise timer is frozen during `RESOLVING` (clear + cascade). It is *not* frozen while a piece is merely falling — the two pressures must overlap.
 
 ## 1.5 Line clear
 
 After a lock (or after any cascade settle), scan for full rows.
 
-- A row is full when all `COLS` cells are occupied **and clearable**. Stone blocks are not clearable and will block a row (§1.8).
+- A row is full when all `COLS` cells are occupied.
 - Multiple simultaneous full rows are cleared as one group, in one animation.
 - Clearing plays the shatter sequence (§2.3) — this is a **blocking** phase for game logic, but particles themselves are non-blocking and outlive it.
 
@@ -189,7 +188,6 @@ Multipliers, applied in order:
 ```text
 chainMultiplier   = 1.0 + (0.5 * chainIndex)     cascade chains, chainIndex starts at 0
 levelMultiplier   = 1.0 + (elapsedMinutes * 0.1)
-boosterMultiplier = 2.0 while Score Multiplier booster is active
 ```
 
 Blocks-destroyed banner thresholds, per the GDD, counted across a single resolve (all chains included):
@@ -203,65 +201,29 @@ Blocks-destroyed banner thresholds, per the GDD, counted across a single resolve
 
 Banner renders in the reserved space above the board (`gameplay.html`, Phase 4), purple accent per the color-coding rule, scale-pop + fade.
 
-## 1.8 Special blocks
-
-Special blocks arrive **only inside rising rows**, starting at the 3-minute mark. Falling tetrominoes are always plain wood — the player's tools stay predictable; the threat gets weirder.
-
-| Block | Behaviour in Tetrofall |
-|---|---|
-| **Wood** | Baseline. Clears normally. |
-| **Stone** | Not clearable by line completion. A row containing stone can never complete — it must be removed with Hammer/Bomb/Drill/Lightning. The primary late-game threat. |
-| **Ice** | Requires 2 hits. First line completion cracks it and clears the *rest* of the row, leaving the cracked ice behind; second completion clears it. |
-| **Bomb** | On clear, destroys the 3×3 neighbourhood, which can trigger further clears/cascades. |
-| **Gold** | On clear, +250 bonus points. |
-| **Diamond** | On clear, +5 coins. |
-| **Treasure** | On clear, rolls the reward table (coins / booster charge). |
-| **Locked** | Clears only if a Key block is cleared in the same resolve. Keys spawn in the same row. |
-| **Rainbow** | On clear, destroys all blocks within radius 2 regardless of type — including Stone. The pressure-release valve. |
-
-Every special must be distinguishable by **shape/icon, not just tint** (accessibility rule from `screens.md` Phase 12). Reuse the styling cheatsheet in `screens.md` Phase 4.
-
-## 1.9 Boosters
-
-Four on the HUD (`gameplay.html` bottom panel), matching the mockup exactly.
-
-| Booster | Effect | Input |
-|---|---|---|
-| **Hammer** | Destroy one block | arm → tap target cell |
-| **Bomb** | Destroy 3×3 area | arm → tap center cell |
-| **Drill** | Destroy an entire column | arm → tap column |
-| **Lightning** | Destroy an entire row | arm → tap row |
-
-Reserved (not on the 4-slot HUD; see the Stopwatch gap noted in `screens.md` Phase 11):
-
-- **Time Freeze** — halts the rise timer for 8s.
-- **Score Multiplier** — ×2 points for 30s.
-
-Rules: arming pauses gravity but **not** the rise. Tapping outside a valid target disarms. Every booster removal triggers a normal cascade + clear check, so boosters can start chains. Charges are consumed on use and earned via drops, achievements, and the shop.
-
-## 1.10 Difficulty timeline
+## 1.8 Difficulty timeline
 
 | Elapsed | dropInterval | riseInterval | fillRatio | Notes |
 |---|---|---|---|---|
 | 0:00 | 800 ms | 14 s | 0.40 | gaps clustered, tutorial-easy |
 | 1:00 | 700 ms | 11 s | 0.50 | denser rows |
 | 2:00 | 600 ms | 9 s | 0.60 | gaps scattered, harder patterns |
-| 3:00 | 480 ms | 7 s | 0.65 | special blocks begin |
+| 3:00 | 480 ms | 7 s | 0.65 | gaps fully scattered |
 | 5:00 | 320 ms | 5 s | 0.70 | fast phase |
 | 8:00+ | 200 ms (floor) | 4 s (floor) | 0.75 (cap) | endurance plateau |
 
 Interpolate **linearly between checkpoints** — never step. The player should never feel a discrete jolt of difficulty.
 
-## 1.11 Game over
+## 1.9 Game over
 
 Triggered by:
 
 1. **Top-out** — `commitRise()` would push a settled block above row 0.
 2. **Block-out** — a newly spawned piece overlaps settled blocks.
 
-Sequence: freeze board → desaturate → blocks crumble top-to-bottom (400ms) → `game-over.html` overlay with score, best, coins earned, Watch-Ad-To-Continue. Continue clears the bottom 6 rows and resumes at the current difficulty.
+Sequence: freeze board → desaturate → blocks crumble top-to-bottom (400ms) → `game-over.html` overlay with score, best, Watch-Ad-To-Continue. Continue clears the bottom 6 rows and resumes at the current difficulty.
 
-## 1.12 Controls
+## 1.10 Controls
 
 | Input | Action |
 |---|---|
@@ -270,7 +232,6 @@ Sequence: freeze board → desaturate → blocks crumble top-to-bottom (400ms) �
 | Two-finger tap | Rotate counter-clockwise |
 | Swipe down (short) | Soft drop |
 | Swipe down (fast/long) | Hard drop |
-| Tap booster slot | Arm booster |
 | Tap pause | Pause |
 
 All thresholds live in one `InputTuning` class so they can be tuned without touching gesture code.
@@ -350,8 +311,7 @@ Total sequence duration for `COLS = 10`: `126 ms + 120 ms beat = ~250 ms` before
 
 ```text
 particles     10–14 per cell, 3–6 px wooden shards
-color         plain blocks → active theme's tint; special blocks → that type's
-              own fixed shard palette (stone grey, diamond blue, gold amber…)
+color         active theme's tint
 initial vel   upward-biased cone: vy ∈ [-140, -40] px/s, vx ∈ [-90, 90] px/s
 gravity       900 px/s²  — they arc up briefly, then fall
 lifetime      600–900 ms, randomized per particle
@@ -406,7 +366,7 @@ The hard rule: **the rules engine is pure Dart with zero Flame imports.** It can
 └─────────────────────────────────────────────────┘
 ```
 
-Communication is one-way plus events: UI/render **reads** engine state and **sends** intents (`MoveLeft`, `Rotate`, `HardDrop`, `UseBooster`); the engine emits domain events (`RowsCleared`, `RiseCommitted`, `BlocksFell`, `GameOver`) that the render layer turns into animation.
+Communication is one-way plus events: UI/render **reads** engine state and **sends** intents (`MoveLeft`, `Rotate`, `HardDrop`); the engine emits domain events (`RowsCleared`, `RiseCommitted`, `BlocksFell`, `GameOver`) that the render layer turns into animation.
 
 ## 3.2 Folder structure
 
@@ -420,10 +380,10 @@ lib/
     config/
       board_config.dart          COLS, ROWS, spawn buffer
       motion.dart                all animation constants
-      difficulty.dart            the §1.10 timeline
+      difficulty.dart            the §1.8 timeline
     engine/                      ← PURE DART, NO FLAME
       grid.dart
-      cell.dart                  block type + state (ice hits, etc.)
+      cell.dart                  block type + state
       tetromino.dart             shapes, SRS kicks, 7-bag
       piece_controller.dart      move/rotate/lock/lock-delay
       rise_controller.dart       riseProgress, commitRise, generateRow
@@ -431,8 +391,6 @@ lib/
         column_cascade.dart      ← default
         sticky_group.dart        ← alternate, debug-swappable
       clear_detector.dart
-      special_blocks.dart
-      booster_engine.dart
       scoring.dart
       game_engine.dart           state machine + tick order
       events.dart                domain event definitions
@@ -456,17 +414,13 @@ lib/
       components.dart            1:1 port of screens/components.css
       device_frame.dart          portrait lock helper
     screens/
-      studio_logo_screen.dart    boot screen 1 — the only branded image
-      splash_screen.dart         boot screen 2 — code-drawn game logo
+      splash_screen.dart         boot screen 1 — code-drawn game logo
+      loading_screen.dart        boot screen 2 — asset/save preload progress bar
       main_menu_screen.dart
       gameplay_screen.dart       hosts GameWidget + HUD overlays
       pause_overlay.dart
       game_over_overlay.dart
-      daily_reward_screen.dart
-      themes_screen.dart
-      achievements_screen.dart
       settings_screen.dart
-      shop_screen.dart
     widgets/
       logo_mark.dart             code-drawn T-tetromino mark
       logo_wordmark.dart         gradient TETROFALL text
@@ -478,12 +432,9 @@ lib/
       nav_bar.dart
 
   services/
-    storage_service.dart         high score, coins, unlocks
+    storage_service.dart         high score, settings
     audio_service.dart
-    economy_service.dart
-    achievements_service.dart
-    daily_reward_service.dart
-    ads_service.dart             stubbed until Phase 13
+    ads_service.dart             stubbed until Phase 11
 
   models/
     player_profile.dart
@@ -492,16 +443,15 @@ lib/
   debug/
     debug_screen.dart            ASCII grid, steppers, sliders, stampers
     debug_fixtures.dart          preset boards for triggering cascades
-    debug_flags.dart             single kill-switch, stripped in Phase 12
+    debug_flags.dart             single kill-switch, stripped in Phase 10
 
 assets/
   fonts/                         Baloo2-*.ttf, Nunito-*.ttf
   images/
-    blocks/                      tile_<theme>.png, block_<type>.png
+    blocks/                      tile_<theme>.png
     textures/                    bg_wood.png  (frame is canvas-drawn, no asset)
-    ui/                          studio_logo.png, badges
-                                 (game logo is code-drawn — no asset)
     icons/                       SVGs extracted from screens/*.html
+                                 (game logo is code-drawn — no asset)
   audio/
     sfx/                         short .wav one-shots
     music/                       .mp3 loops
@@ -532,8 +482,8 @@ See **Phase P** for the full asset list, formats, and generation prompts.
    │         ↓ stable
    └─────────┘
 
-   PAUSED and BOOSTER_ARMED are orthogonal sub-states that suspend
-   gravity; only PAUSED and Time Freeze suspend the rise.
+   PAUSED is an orthogonal sub-state that suspends both gravity
+   and the rise.
 ```
 
 ## 3.4 Frame tick order
@@ -541,10 +491,10 @@ See **Phase P** for the full asset list, formats, and generation prompts.
 Order matters. Getting it wrong produces one-frame visual desyncs.
 
 ```text
-1. drain input intents          (move / rotate / drop / booster)
+1. drain input intents          (move / rotate / drop)
 2. advance difficulty clock
-3. tick rise                    (skip if RESOLVING / PAUSED / frozen)
-4. tick gravity + lock delay    (skip if RESOLVING / PAUSED / armed)
+3. tick rise                    (skip if RESOLVING / PAUSED)
+4. tick gravity + lock delay    (skip if RESOLVING / PAUSED)
 5. run engine transitions       (lock, clear detect, cascade, chain)
 6. flush domain events → render layer
 7. advance render tweens        (falls, squash, banner, shake)
@@ -584,7 +534,7 @@ Mechanics first. Every phase below states two things:
 
 ## Phase P — Asset Preparation (do this before Phase 0)
 
-Gather everything here *first*. Nothing below blocks engine work, but a missing texture halfway through Phase 5 stalls the fun part, and audio missing at Phase 9 means re-tuning animation timing after the fact.
+Gather everything here *first*. Nothing below blocks engine work, but a missing texture halfway through Phase 5 stalls the fun part, and audio missing at Phase 7 means re-tuning animation timing after the fact.
 
 **Where things go:**
 
@@ -592,9 +542,8 @@ Gather everything here *first*. Nothing below blocks engine work, but a missing 
 assets/
   fonts/          Baloo2-*.ttf, Nunito-*.ttf
   images/
-    blocks/       base tile per theme + 8 shared special-block tiles
+    blocks/       base tile per theme
     textures/     backgrounds, board frame
-    ui/           logo, badges, ribbons
     icons/        extracted SVGs
   audio/
     sfx/          short one-shots
@@ -620,34 +569,20 @@ Source: fonts.google.com → "Get font" → extract the static `.ttf` files (not
 
 ### P.2 — Logo & brand
 
-There are **two separate brand moments** at boot, in this order:
+Boot flow is **two screens**, in this order:
 
 ```text
-1. Studio logo screen   →  your studio's mark. IMAGE ASSET.
-2. Splash screen        →  the Tetrofall game logo. NO IMAGE — built in code.
+1. Splash screen    →  the Tetrofall game logo. NO IMAGE — built in code.
+2. Loading screen   →  progress bar while assets/save data finish loading.
 ```
 
----
-
-#### Screen 1 — Studio logo (the only image needed here)
-
-Maps to `logo.html`. This is where `assets/logo.svg` belongs — it's the studio mark, not the game mark.
-
-**One problem to fix:** `screens.md` notes the source SVG is dark ink on a flat white rectangle, worked around in the mockup with `mix-blend-mode: multiply`. **That trick does not exist in Flutter.** Painting it as-is puts a hard white box on the wood background.
-
-| Asset | Format | Size | Notes |
-|---|---|---|---|
-| `studio_logo.png` | PNG, **genuinely transparent** | 1024×1024 (or wider if it's a wordmark) | Or keep it SVG and render with `flutter_svg` |
-
-Fastest fix, no generation needed: open `logo.svg`, delete the white background `<rect>`, recolor the ink to `#f5ead9` (`--color-text`), re-export. Verify the transparency by opening it over a dark background before you ship it — a white halo is easy to miss on a white canvas.
-
-Presentation: centred, `min(60vw, 320px)` wide, on the plain wood background, no other UI. Suggested timing — fade in 400 ms, hold 1200 ms, fade out 400 ms, then hand off to the splash. Tap anywhere to skip.
+There is no separate studio-logo screen — the splash screen is the game's only branded boot moment, and it hands off directly to the loading screen, then the main menu.
 
 ---
 
-#### Screen 2 — Game logo (no asset — drawn in code)
+#### Screen 1 — Splash screen (no asset — drawn in code)
 
-`splash.html` already builds the Tetrofall mark out of CSS block cells rather than a raster, specifically so it sits flush on the wood grain with no halo to mask out. **Port that behaviour directly.** There is no `logo_full.png`, no `game-logo.png` — the mark is widgets and canvas.
+`splash.html` already builds the Tetrofall mark out of CSS block cells rather than a raster, specifically so it sits flush on the wood grain with no halo to mask out. **Port that behaviour directly.** There is no `logo_full.png`, no `game-logo.png`, no studio-logo asset — the mark is widgets and canvas.
 
 Two pieces:
 
@@ -684,45 +619,39 @@ Two pieces:
 | t | Event |
 |---|---|
 | 0 ms | Block mark begins falling from −420px, easing **in** (accelerating — `cubic-bezier(0.55, 0, 0.85, 0.15)`), over 550 ms. Landing shadow simultaneously grows `scaleX 0.3 → 1.0` and fades in. |
-| 550 ms | **Land.** Squash keyframes over 400 ms: `scaleY` 1 → 0.7 → 1.1 → 0.96 → 1, with `scaleX` inverse. Wordmark fades in and rises 6px. Loader fades in. |
-| 850 ms | Progress bar fills over 1800 ms, `cubic-bezier(0.3, 0.6, 0.3, 1)`. |
-| 3100 ms | Whole stage fades out over 600 ms. |
-| 3700 ms | Main menu. |
+| 550 ms | **Land.** Squash keyframes over 400 ms: `scaleY` 1 → 0.7 → 1.1 → 0.96 → 1, with `scaleX` inverse. Wordmark fades in and rises 6px. |
+| 950 ms | Hold. |
+| 1350 ms | Whole stage fades out over 400 ms, handing off to the loading screen. |
 
 The falling mark uses an **ease-in** curve, not ease-out — it's a tetromino under gravity, and it must accelerate. Getting this backwards makes the whole thing feel floaty and wrong.
 
-**d) Supporting detail:** 14 dust particles, 4px gold circles, drifting upward ~820px with ±20px horizontal drift, 4–8s durations and 0–6s staggered delays, opacity ramping 0 → 0.7 → 0.4 → 0. Loader bar is `min(55vw, 220px)` with an uppercase muted "LOADING…" label in Nunito 700, tracking `0.04em`.
-
-**Real loading vs. the animation:** drive the bar from actual asset preloading, but enforce a **minimum 2.5s** so the drop-and-land sequence always completes. Never cut the animation short because the assets happened to load fast — and never leave the player staring at a full bar because they didn't.
+**Supporting detail:** 14 dust particles, 4px gold circles, drifting upward ~820px with ±20px horizontal drift, 4–8s durations and 0–6s staggered delays, opacity ramping 0 → 0.7 → 0.4 → 0.
 
 **Where this lives:** `lib/ui/widgets/logo_mark.dart` (block mark) and `logo_wordmark.dart` (gradient text), so the main menu can reuse both at a smaller scale instead of re-implementing them.
 
 ---
 
-### P.3 — Block sprites (the important one)
+#### Screen 2 — Loading screen
 
-> **MVP scope: one theme — `classic_wood`.** The other eight are post-MVP, but the structure below makes each one cost a single PNG and zero code. Build the seam now; don't fill it yet.
+Follows the splash immediately. Plain wood background, the block mark and wordmark held at small scale near the top (reuses `logo_mark.dart` / `logo_wordmark.dart`), and a progress bar below.
 
-Naive approach: 9 block types × 9 themes = 81 sprites. **Don't do that.** Instead:
+| Property | Value |
+|---|---|
+| Loader bar | `min(55vw, 220px)` wide |
+| Label | Uppercase muted "LOADING…", Nunito 700, tracking `0.04em` |
+| Fill animation | `cubic-bezier(0.3, 0.6, 0.3, 1)` |
 
-- **One base tile per theme** — the material surface, used for plain blocks. *MVP: one file.*
-- **Eight complete special-block tiles**, shared across every theme and never re-drawn per theme. Nine files, since Ice needs a cracked state.
+**Real loading vs. the animation:** drive the bar from actual asset preloading and save-data restore, but enforce a **minimum 1.5s** so the screen never flashes. Never cut it short because assets happened to load fast — and never leave the player staring at a full bar because they didn't.
 
-For MVP that's **10 files**. At nine themes it's 18 — never 81.
+**Handoff:** once the bar completes, fade out over 400 ms into the main menu.
 
-### Why complete tiles, not overlays
+---
 
-The alternative — an 8-glyph overlay set composited onto whatever base tile the active theme provides — costs the *same* 8 files, so the budget doesn't decide this. Three things do:
+### P.3 — Block sprites
 
-**1. Readability is gameplay, and it shouldn't shift per theme.** Special blocks carry rules: *this one can't be cleared, this one explodes, this one needs two hits.* If a Stone block is grey granite in Classic Wood but grey-tinted candy in Candy, the player relearns the board every time they change skin. Shared tiles mean one visual vocabulary, learned once, permanent.
+> **MVP scope: one theme — `classic_wood`.** Post-MVP themes each cost a single PNG and zero code. Build the seam now; don't fill it yet.
 
-**2. Overlays have to survive nine backgrounds; tiles have to survive none.** A dark padlock glyph reads fine on oak and disappears on the Snow tile. Every overlay would need contrast-checking against every future theme material — 8 × 9 = 72 combinations, each a chance to ship something illegible. A complete tile controls its own contrast once, forever.
-
-**3. Complete tiles can break the square.** Ice can be genuinely translucent with the board showing through. Rainbow can bleed a soft glow past its cell. Bomb can sit slightly proud of the grid. Overlays are stuck inside whatever silhouette the base tile has.
-
-The cost is **cohesion**: in Candy theme, eight wooden-looking special blocks among pink candy tiles. Mitigate it by designing all eight in a deliberately material-neutral style — they should read as *objects embedded in the board*, not as the board's material. Give each one the same subtle recessed inner border so it looks inset into whatever surrounds it.
-
-**Keep the escape hatch:** `ThemeDefinition` holds an optional sprite override map, `Map<BlockType, String>`, empty by default. If Halloween later wants its own carved-pumpkin bomb, it supplies one entry and everything else keeps falling back to the shared set. Costs nothing to build now; costs a refactor to add later.
+One base tile per theme is all that's needed — plain wood blocks only, no special-block variants. MVP needs exactly one file; at nine themes it's nine — one PNG per theme, never more.
 
 ---
 
@@ -755,35 +684,6 @@ Since this is the only tile in the MVP, it carries the entire look of the game �
 > - `golden_wood` → "lacquered wood inlaid with gold leaf, rich metallic sheen"
 
 </details>
-
-**Special-block tiles** — `assets/images/blocks/block_<type>.png`
-
-Same geometry as the base tiles so they sit flush in the grid, but each is a finished block in its own right. Built once, shared by every theme.
-
-| Spec | Value |
-|---|---|
-| Format | PNG, 24-bit + alpha (alpha only where a block is deliberately translucent, e.g. ice) |
-| Size | 256×256, edge-to-edge, ~6px rounded corners |
-| Lighting | **Same top-left light source as the base tiles** — this is what makes them look like they belong on the same board |
-| Inner border | A subtle recessed inner edge on all eight, so they read as inset objects against any theme material |
-| Readability | Silhouette and value must be distinct at 32px. Check them greyscale — if two are hard to tell apart with color removed, they're relying on hue alone, which fails the accessibility rule |
-
-Needed: `stone`, `ice`, `ice_cracked`, `bomb`, `gold`, `diamond`, `treasure`, `locked`, `rainbow`. Plain blocks use the theme's base tile.
-
-> **Prompt template:** "A single square game block viewed straight-on, filling the entire square canvas edge to edge, with slightly rounded corners and a subtle recessed inner border. **{SUBJECT}**. Soft top-left lighting with a bevel — lighter on the top and left edges, darker on the bottom and right. Clean mobile-game asset, bold readable shapes, no text, no background outside the block, no drop shadow, flat orthographic view, 256×256."
->
-> Substitute `{SUBJECT}`:
-> - `stone` → "Rough grey granite with a chipped, pitted surface and no grain — visibly heavier and colder than wood"
-> - `ice` → "Translucent pale-blue ice, frosted edges, semi-transparent centre so the board shows faintly through"
-> - `ice_cracked` → "The same translucent pale-blue ice block, now split by deep white fracture lines radiating from the centre"
-> - `bomb` → "A dark charcoal block with a round black bomb set into its face and a short lit fuse, deep red accent glow (#d9432e)"
-> - `gold` → "Polished gold metal with a bright diagonal shine streak and warm amber highlights (#f2b632)"
-> - `diamond` → "Deep blue crystal with sharp geometric facets catching light (#3aa0d9)"
-> - `treasure` → "A small closed treasure chest with gold bands and a round clasp, set into the block face"
-> - `locked` → "A darkened block with heavy iron banding and a closed padlock at its centre"
-> - `rainbow` → "Smooth swirling multicolor gradient — magenta, cyan, gold, violet — with a soft inner glow"
-
-**Shard colors.** Each special tile also needs a shard color entry in code (§2.3): stone shatters grey, diamond blue, gold amber, and so on. Sample two or three colors off each finished sprite and record them next to the block type — the shatter is far more satisfying when a diamond bursts blue instead of brown.
 
 ---
 
@@ -849,13 +749,11 @@ SvgPicture.asset(AppIcons.hammer, width: 22,
   colorFilter: ColorFilter.mode(Tokens.text, BlendMode.srcIn));
 ```
 
-**Three are deliberately multicolor** — `medal`, `coin_detailed`, `coin_stack` — and must render *without* a `colorFilter` or they flatten to silhouettes. `AppIcons.multicolor` holds that set.
+**One is deliberately multicolor** — `medal` — and must render *without* a `colorFilter` or it flattens to a silhouette. `AppIcons.multicolor` holds that set.
 
 **One deliberate deviation:** `trophy` is stroked, not filled. `main-menu.html` sets `fill: gold`, but its stem and base are zero-area line paths that render as nothing under fill — the mockup's trophy is a cup with no stem. The extracted file strokes it, which is what the drawing intends. Everything else is a faithful port.
 
-**Gaps** (unchanged from the `screens.md` Phase 11 audit): no standalone `play` glyph (PLAY is a text button; the only play triangle lives inside `video`), `restart` is text-only by design, and `stopwatch` doesn't exist — it's reserved for Time Freeze, which needs a 5th booster slot. See §6.
-
-**Board-block glyphs** (`blocks-reference/`) are excluded from `pubspec.yaml` on purpose. P.3 ships special blocks as complete tiles, so those three files are reference art for drawing the tiles, not runtime assets.
+**Gaps:** no standalone `play` glyph (PLAY is a text button; the only play triangle lives inside `video`), and `restart` is text-only by design.
 
 **If the mockups change,** edit the HTML and re-run `python3 tools/extract_icons.py` — never hand-edit the SVGs, or the two will drift.
 
@@ -886,15 +784,7 @@ Keep every SFX under 1 second unless noted. Either generate them (prompts below)
 | `rise_groan.wav` | Low wooden strain as a row commits | 0.5 s |
 | `rise_warning.wav` | Tense creak, loops while stack is near the top | 1.0 s, loopable |
 | `combo_1..4.wav` | Four ascending stings for GOOD!/AWESOME!/INCREDIBLE!/UNBELIEVABLE! | 0.5–1.2 s |
-| `booster_hammer.wav` | Sharp mallet strike | 0.3 s |
-| `booster_bomb.wav` | Muffled wooden explosion | 0.6 s |
-| `booster_drill.wav` | Fast descending whirr | 0.5 s |
-| `booster_lightning.wav` | Crackling horizontal zap | 0.5 s |
-| `coin.wav` | Bright coin chime | 0.2 s |
 | `button.wav` | Soft UI tap | 0.08 s |
-| `reward.wav` | Warm ascending flourish | 1.0 s |
-| `unlock.wav` | Theme/achievement unlock fanfare | 1.5 s |
-| `treasure.wav` | Chest creaking open | 0.8 s |
 | `game_over.wav` | Descending wooden collapse | 1.5 s |
 
 **Music:**
@@ -913,7 +803,7 @@ Both loops must be **seam-checked**: play on repeat for two minutes and listen f
 
 For any text-to-sound-effect generator. Three rules run through all of them:
 
-1. **Everything is wood.** The whole palette should sound like it came off one physical object — dry seasoned timber. That coherence is what makes a sound set feel designed rather than assembled. Coins and lightning are the only deliberate exceptions.
+1. **Everything is wood.** The whole palette should sound like it came off one physical object — dry seasoned timber. That coherence is what makes a sound set feel designed rather than assembled.
 2. **Always say "dry, close mic, no reverb, no music, no room tone."** A reverb tail baked into a sound that plays 500 times an hour turns the mix to mud, and you can't remove it later.
 3. **Generate 3–5 takes of each and pick.** These are cheap to regenerate and expensive to live with.
 
@@ -947,27 +837,9 @@ For any text-to-sound-effect generator. Three rules run through all of them:
 
 > `combo_4` (UNBELIEVABLE!) — "A fast ascending marimba run resolving into a bright gold bell chime over a low wooden boom. Triumphant and full, dry, no drums, no vocals, no music bed. 1.2 seconds."
 
-**Boosters:**
-
-> `booster_hammer` — "A sharp mallet strike: a wooden mallet hitting a wooden block once, hard and dry, with a quick splintering edge. Close mic, no reverb, no music. 0.3 seconds."
-
-> `booster_bomb` — "A muffled wooden explosion: a dull low boom with splintering wood debris scattering outward. More woody thud than fiery blast, no fire crackle. Dry and punchy, no music. 0.6 seconds."
-
-> `booster_drill` — "A fast mechanical whirr boring down through wood, a short spinning drill bit throwing wood shavings, pitch falling as it cuts downward. Dry, close mic, no music. 0.5 seconds."
-
-> `booster_lightning` — "A short crackling electric zap sweeping sideways, a bright snap with a fizzing tail. No thunder rumble, no reverb, no music. 0.5 seconds."
-
-**Rewards & UI:**
-
-> `coin` — "A single bright metallic coin chime: one small gold coin struck once and ringing briefly. Clean and pleasant, dry, close mic, short ring-out, no music. 0.2 seconds."
+**UI & feedback:**
 
 > `button` — "A soft muted wooden tap, a fingertip pressing a small wooden button once. Gentle and warm, dry, very short, no reverb, no music. 0.08 seconds."
-
-> `reward` — "A warm ascending flourish on wooden marimba and soft bells, four rising notes resolving on a bright chime. Generous and pleasant, dry, light resonance, no drums, no music bed. 1 second."
-
-> `unlock` — "A short triumphant fanfare on warm wooden marimba with a gold bell accent and a soft ascending shimmer. Celebratory but understated. No brass, no drums, no music bed. 1.5 seconds."
-
-> `treasure` — "An old wooden chest creaking open: hinges turning slowly, a heavy wooden lid lifting, ending in a soft golden shimmer. Dry, close mic, no music. 0.8 seconds."
 
 > `game_over` — "A wooden collapse: a stack of wooden blocks tumbling down and settling into stillness, ending on a low descending wooden tone. Deflating but gentle, not harsh or comedic. Dry, close mic, no music. 1.5 seconds."
 
@@ -999,13 +871,13 @@ Then pull `move`, `lock`, and `rotate` down another 6 dB by hand. They fire many
 
 **MVP: one palette, `classic_wood`** — and it's already written. `tokens.css` *is* the classic wood palette, so `ThemeDefinition.classicWood` reads its values straight from `tokens.dart` rather than defining new ones.
 
-Fields: `background`, `boardBg`, `frameLight`, `frameDark`, `gridLine`, `blockTint`, `text`, `accent` — plus the optional per-type sprite override map from P.3. The frame colors are here rather than in an image because the frame is canvas-drawn (P.4). Nothing to gather.
+Fields: `background`, `boardBg`, `frameLight`, `frameDark`, `gridLine`, `blockTint`, `text`, `accent`. The frame colors are here rather than in an image because the frame is canvas-drawn (P.4). Nothing to gather.
 
 The one thing that matters here: **define the `ThemeDefinition` type properly even though there's only one instance of it.** Every color the board renders must come from the active `ThemeDefinition`, never from a `tokens.dart` constant read directly by a render component. Skip that and adding theme #2 later means auditing every draw call.
 
 ---
 
-### P.9 — Store & launch assets (needed at Phase 13, gather early if convenient)
+### P.9 — Store & launch assets (needed at Phase 11, gather early if convenient)
 
 | Asset | Format | Size |
 |---|---|---|
@@ -1017,7 +889,7 @@ The one thing that matters here: **define the `ThemeDefinition` type properly ev
 
 **The app icon and native splash still need rasters** — the OS can't render a Flutter widget before the app starts. Don't redraw the mark by hand: run the app with the logo mark scaled up on a transparent background, screenshot it at high resolution, and export from that. The store icon and the in-app splash then show the same object, which is the whole point of having a mark.
 
-Note the native splash (the OS-level one, shown before Flutter boots) is a **third** thing, distinct from the two boot screens in P.2. Keep it minimal — just the mark on `--color-bg` — so the handoff into the studio logo screen isn't jarring.
+Note the native splash (the OS-level one, shown before Flutter boots) is a **third** thing, distinct from the splash and loading screens in P.2. Keep it minimal — just the mark on `--color-bg` — so the handoff into the in-app splash screen isn't jarring.
 
 ---
 
@@ -1026,11 +898,9 @@ Note the native splash (the OS-level one, shown before Flutter boots) is a **thi
 **What you check:**
 
 1. `flutter pub get` runs clean with no missing-asset warnings.
-2. Open the studio logo over a **dark** background in any image viewer. Any white box or pale halo around it means the transparency wasn't actually removed — this is invisible on the white canvas most editors default to.
-3. Tile `tile_classic_wood.png` across a full 10×20 grid on a scratch screen. It's the only tile in the MVP, so it has to hold up repeated 200 times — check for grain that turns into noise, or a highlight that creates a visible repeating pattern across the board.
-4. Scatter the eight special tiles across that tiled board and step back an arm's length. Can you tell all eight apart? Now screenshot it and desaturate the image — if two become hard to distinguish in greyscale, they're leaning on color alone.
-5. Play each SFX once. Anything that makes you wince now will make you wince 500 times an hour later.
-6. Loop both music tracks for two minutes each and listen for the seam.
+2. Tile `tile_classic_wood.png` across a full 10×20 grid on a scratch screen. It's the only tile in the MVP, so it has to hold up repeated 200 times — check for grain that turns into noise, or a highlight that creates a visible repeating pattern across the board.
+3. Play each SFX once. Anything that makes you wince now will make you wince 500 times an hour later.
+4. Loop both music tracks for two minutes each and listen for the seam.
 
 ---
 
@@ -1066,7 +936,7 @@ Note the native splash (the OS-level one, shown before Flutter boots) is a **thi
 - `PieceController`: move, rotate + wall kicks, collision, hard/soft drop, lock delay with reset cap.
 - `ClearDetector`: full-row detection.
 - `GameEngine` state machine + `tick(dt)`.
-- **Debug screen** (reachable by a long-press on the board, kept until Phase 12): renders the grid as ASCII text, plus buttons for Step-One-Tick, Move L/R, Rotate CW/CCW, Hard Drop, and a readout of current phase / piece / bag contents.
+- **Debug screen** (reachable by a long-press on the board, kept until Phase 10): renders the grid as ASCII text, plus buttons for Step-One-Tick, Move L/R, Rotate CW/CCW, Hard Drop, and a readout of current phase / piece / bag contents.
 
 **Output:** a debug screen where you can drive a piece step by step and watch the grid update as text.
 
@@ -1087,8 +957,8 @@ Note the native splash (the OS-level one, shown before Flutter boots) is a **thi
 
 - `BoardComponent`, `BlockComponent`, `PieceComponent` + ghost piece.
 - Interpolated piece movement — horizontal moves ease over 60 ms, they do not snap between columns.
-- `GestureHandler` implementing §1.12, with `InputTuning`.
-- Ghost piece rendering, wired to a temporary in-memory toggle (the real Settings row lands in Phase 10).
+- `GestureHandler` implementing §1.10, with `InputTuning`.
+- Ghost piece rendering, wired to a temporary in-memory toggle (the real Settings row lands in Phase 8).
 - Full rows disappear instantly for now (placeholder — animation comes in Phase 5).
 
 **Output:** playable ordinary Tetris on a real device. No rise, no cascade, no score yet.
@@ -1173,17 +1043,16 @@ Note the native splash (the OS-level one, shown before Flutter boots) is a **thi
 2. At normal speed, is the outward spread still readable? It should feel like a ripple, not a single flash.
 3. Shards should arc upward slightly before falling, tumble as they fall, fade out, and disappear near the bottom.
 4. Temporarily swap the tint in `ThemeDefinition.classicWood` to something garish — plain-block shards should turn garish too. If they stay brown, they're reading a hardcoded color instead of the theme, which will block theme #2 later.
-5. Once specials exist (Phase 7), come back and confirm a diamond bursts blue and a stone bursts grey — special shards use their own palette, *not* the theme tint.
-6. **Clear four rows at once on your slowest test device.** Watch for a hitch at the moment of impact. Then do it repeatedly for a couple of minutes — if the frame rate degrades over time, the particle pool is leaking instead of recycling.
-7. Confirm the blocks above start falling right after the shatter begins — the cascade shouldn't wait for the last shard to land.
+5. **Clear four rows at once on your slowest test device.** Watch for a hitch at the moment of impact. Then do it repeatedly for a couple of minutes — if the frame rate degrades over time, the particle pool is leaking instead of recycling.
+6. Confirm the blocks above start falling right after the shatter begins — the cascade shouldn't wait for the last shard to land.
 
 ---
 
 ## Phase 6 — Scoring, combos, difficulty
 
-- `Scoring` with base values, chain/level/booster multipliers.
+- `Scoring` with base values, chain/level multipliers.
 - Blocks-destroyed banner thresholds and text (`GOOD!` → `UNBELIEVABLE!`), purple accent, pop + fade in the reserved space above the board.
-- `Difficulty` interpolation across the §1.10 table, linear between checkpoints.
+- `Difficulty` interpolation across the §1.8 table, linear between checkpoints.
 - Session stats collection (blocks destroyed, max chain, time survived) for achievements later.
 - **Debug helper:** an on-screen overlay showing elapsed time, current `dropInterval`, `riseInterval`, `fillRatio`, chain index, and blocks destroyed this resolve.
 
@@ -1199,59 +1068,11 @@ Note the native splash (the OS-level one, shown before Flutter boots) is a **thi
 
 ---
 
-## Phase 7 — Special blocks
+## Phase 7 — Juice pass
 
-- `special_blocks.dart`: behaviour for all nine types per §1.8.
-- Ice hit-tracking; Bomb 3×3 detonation feeding back into the clear/cascade loop; Rainbow radius-2 including Stone; Locked/Key pairing; Gold/Diamond/Treasure payouts.
-- Spawn weighting in `generateRow()` after the 3-minute mark.
-- Render each special using its own complete tile from P.3 — one sprite lookup per cell, no compositing. Plain blocks use the active theme's base tile.
-- Per-type shard palettes wired into the Phase 5 shatter.
-- **Debug helper:** a block-type picker that stamps any special block onto any cell you tap, so each behaviour can be triggered on demand instead of waiting for a spawn.
-
-**Output:** all nine block types appear in rising rows after the 3-minute mark and behave per §1.8.
-
-**What you check:** stamp each type and trigger it —
-
-1. **Stone** — complete a row containing it. The row must *not* clear. Confirm a Drill or Hammer removes it.
-2. **Ice** — complete its row once: the rest of the row clears, the ice stays and looks visibly cracked. Complete it again: it clears.
-3. **Bomb** — clear it and confirm the surrounding 3×3 goes with it, and that this can trigger a follow-on clear and bump the chain counter.
-4. **Gold** — score jumps by 250.
-5. **Diamond** — coin counter goes up by 5.
-6. **Treasure** — a reward appears (coins or a booster charge).
-7. **Locked / Key** — locked block survives a clear on its own; clears when a key goes in the same resolve.
-8. **Rainbow** — wipes everything within 2 cells *including stone*.
-9. Then step back and look at a full board: can you tell all nine apart at a glance, at real size, without relying on color? Squint at it.
-10. Play past 3:00 in a normal run and confirm specials actually start appearing — and that they arrive at a rate that's interesting rather than overwhelming.
-
----
-
-## Phase 8 — Boosters
-
-- `BoosterEngine`: arm → target → apply → cascade → clear-check.
-- Hammer / Bomb / Drill / Lightning with targeting overlays (highlight the affected cells before commit).
-- Charge inventory + consumption.
-- Time Freeze and Score Multiplier implemented but not surfaced on the 4-slot HUD.
-- **Debug helper:** a "give 99 charges" button.
-
-**Output:** four working boosters on the bottom panel.
-
-**What you check:**
-
-1. Arm each booster — the affected cells should highlight *before* you commit, so you can see what you're about to destroy.
-2. Tap somewhere invalid — it disarms cleanly and doesn't consume a charge.
-3. Fire each one: Hammer takes exactly one block, Bomb a 3×3, Drill a full column, Lightning a full row.
-4. After each, confirm blocks above fall correctly (Phase 3 rules still apply) and that a resulting full row clears.
-5. Arm a booster and wait — gravity should pause, but the rise should keep coming. You don't get to stop the clock by hovering.
-6. Confirm charges decrement on use and that you can't fire with zero.
-7. Try to break it: fire boosters repeatedly into a cascading board and confirm nothing locks up.
-
----
-
-## Phase 9 — Juice pass
-
-- Audio via `flame_audio`: wood crack, wood fall, rise groan, combo sting, lock click, booster fire, game over, reward.
-- Screen shake (hard drop, rise commit, big clear), dust particles, subtle board breathing, coin fly-to-counter.
-- Game-over crumble sequence (§1.11).
+- Audio via `flame_audio`: wood crack, wood fall, rise groan, combo sting, lock click, game over.
+- Screen shake (hard drop, rise commit, big clear), dust particles, subtle board breathing.
+- Game-over crumble sequence (§1.9).
 
 **Output:** the game with full audio and tactile feedback.
 
@@ -1267,7 +1088,7 @@ Note the native splash (the OS-level one, shown before Flutter boots) is a **thi
 
 ---
 
-## Phase 10 — UI screens (1:1 ports)
+## Phase 8 — UI screens (1:1 ports)
 
 **Goal:** every screen matches its HTML mockup exactly. The mockups are the spec — this is transcription, not redesign.
 
@@ -1275,36 +1096,31 @@ Port `screens/components.css` → `lib/ui/widgets/` first (primary button, circu
 
 | Source | Flutter target |
 |---|---|
-| `logo.html` | `studio_logo_screen.dart` — boot screen 1, studio mark |
-| `splash.html` | `splash_screen.dart` — boot screen 2, code-drawn logo + drop sequence |
+| `splash.html` | `splash_screen.dart` — boot screen 1, code-drawn logo + drop sequence |
+| `loading.html` | `loading_screen.dart` — boot screen 2, progress bar |
 | `main-menu.html` | `main_menu_screen.dart` |
 | `gameplay.html` | `gameplay_screen.dart` — HUD overlays on `GameWidget` |
 | `pause.html` | `pause_overlay.dart` — dim + blur the live board |
 | `game-over.html` | `game_over_overlay.dart` — NEW BEST! badge |
-| `daily-reward.html` | `daily_reward_screen.dart` |
-| `themes.html` | `themes_screen.dart` |
-| `achievements.html` | `achievements_screen.dart` |
 | `settings.html` | `settings_screen.dart` |
-| `shop.html` | `shop_screen.dart` |
 
 Rules for this phase:
 
 - **No new colors, radii, or spacing.** Everything comes from `tokens.dart`. If a value isn't in tokens, it doesn't belong on screen.
-- Gameplay HUD must match `gameplay.html` exactly: coin counter left, score/best center, pause right, board center with combo space reserved above, four booster slots in equal-width bottom slots with charge badges.
+- Gameplay HUD must match `gameplay.html` exactly: score/best left, pause right, board center with combo space reserved above, and the ad banner slot reserved below the board.
 - Tap targets ≥ 44×44 (the `screens.md` accessibility audit found and fixed one violation — don't reintroduce it).
 - `settings_screen.dart` gets a **Ghost Piece** toggle row alongside Sound and Music, using the same toggle component, defaulting to on and persisted to the profile.
 
-**Output:** the complete app — every screen built and navigable, wrapping the game from Phases 1–9.
+**Output:** the complete app — every screen built and navigable, wrapping the game from Phases 1–7.
 
 **What you check:** open each mockup in a browser at 375×812 next to the running app on a phone, one screen at a time —
 
 1. Same spacing, same corner radii, same font weights, same colors. Look hardest at the gaps between elements; that's where ports usually drift.
 2. Repeat at 768×1024 on a tablet.
-3. Walk the full navigation: studio logo → splash → main menu → gameplay → pause → resume → game over → play again → home. Then every hub screen via the bottom nav, and back.
-   - Cold-boot the app several times and watch the splash sequence closely: the block mark must **accelerate** as it falls, land with a visible squash, *then* the wordmark and loader appear. If the mark drifts down and eases to a stop, the curve is inverted.
-   - Confirm the studio logo has no white box around it on the wood background.
-   - Confirm the splash never cuts off early on a fast device, and never sits at 100% waiting on a slow one.
-4. On the gameplay screen specifically: coin counter left, score/best centre, pause right, four booster slots with charge badges, and the combo banner space reserved above the board so the banner never covers blocks.
+3. Walk the full navigation: splash → loading → main menu → gameplay → pause → resume → game over → play again → home.
+   - Cold-boot the app several times and watch the splash sequence closely: the block mark must **accelerate** as it falls, land with a visible squash, *then* the wordmark appears. If the mark drifts down and eases to a stop, the curve is inverted.
+   - Confirm the loading screen never cuts off early on a fast device, and never sits at 100% waiting on a slow one.
+4. On the gameplay screen specifically: score/best left, pause right, the combo banner space reserved above the board so the banner never covers blocks, and the ad banner slot reserved below it.
 5. Pause mid-run — the board behind should dim and blur, and the game should be genuinely frozen (watch the rise, not just the piece).
 6. Beat your best score and confirm the NEW BEST! badge appears.
 7. Toggle Ghost Piece off in Settings, start a run — no outline. Toggle it on mid-run — the outline appears immediately.
@@ -1312,37 +1128,26 @@ Rules for this phase:
 
 ---
 
-## Phase 11 — Persistence, economy, meta
+## Phase 9 — Persistence & settings
 
-- `StorageService`: high score, coins, unlocked themes, booster inventory, achievement progress, daily-reward streak.
-- `EconomyService`: coin earning (runs, combos, diamonds, treasure, achievements, daily) and spending (themes, boosters, continues).
-- `AchievementsService`: five achievements, progress-tracked and claimable — the GDD's four block/score/combo goals plus an MVP substitute for "Unlock all themes" (see below).
-- `DailyRewardService`: 7-day streak, midnight rollover, streak-break handling. The GDD's Day 3 "Theme Unlock" reward becomes coins or a booster for MVP.
-- **Theme system**: build the full `ThemeDefinition` plumbing — palette + block sprite set, read by the render layer, swappable at runtime — but ship **one theme, `classic_wood`, unlocked and equipped by default**. Themes must never require an engine change; the render layer is the only thing that knows a theme exists.
-- `themes_screen.dart` renders Classic Wood as equipped, and the remaining eight as **"Coming Soon"** cards (locked state, no coin price, not purchasable). Same layout as `themes.html` — a screen with one card looks broken, and the empty slots communicate that more are coming.
-- Correspondingly: the Shop's theme section links to the Themes screen but sells nothing yet, and the "Unlock all themes" achievement from the GDD is **replaced for MVP** — it's meaningless with one theme. Substitute something the MVP can actually deliver, e.g. *"Survive 5 minutes in a single run."*
+- `StorageService`: high score and player settings (sound, music, vibrate, Ghost Piece).
+- **Theme system**: build the `ThemeDefinition` plumbing — palette + block sprite set, read by the render layer — but ship **one theme, `classic_wood`, equipped by default**. Themes must never require an engine change; the render layer is the only thing that knows a theme exists. There is no in-app theme browser in MVP; the architecture just keeps a future theme cheap to add (one PNG, one palette, no code).
 
-**Output:** progression that survives app restarts — coins, best score, unlocks, streaks — with Classic Wood equipped.
+**Output:** progression that survives app restarts — best score and settings — with Classic Wood equipped.
 
 **What you check:**
 
-1. Earn coins and bump your best score. **Force-quit the app** (swipe it away, don't just background it) and relaunch. Everything should still be there.
-2. Open the Themes screen: Classic Wood shows as equipped, the other eight as Coming Soon, and tapping a locked card does nothing (no purchase flow, no error).
-3. **The theme-plumbing check:** temporarily add a second `ThemeDefinition` — the same tile with a crude color filter — and equip it. The board, blocks, and shatter particles should all change together, with **zero changes to any file under `engine/`**. If you had to touch the engine, the boundary is wrong and it'll cost you when the real themes land. Delete the test theme afterwards.
-4. Spend coins on a booster, then force-quit and relaunch — the charge should still be spent, not refunded.
-5. Claim a daily reward, then relaunch — it should stay claimed, and the next day's card shouldn't be claimable yet.
-6. Change your device clock forward one day, reopen the app — the next reward unlocks and the streak increments. Set it forward three days instead — the streak should break and reset to Day 1.
-7. Play until an achievement completes, claim it, confirm the coins arrive and it can't be claimed twice. Confirm no achievement in the list is unreachable (nothing should still reference unlocking all themes).
-8. Check the Day 3 daily reward — the GDD lists it as a Theme Unlock, which the MVP can't grant. It should hand out coins or a booster instead.
+1. Set your best score and adjust a setting (e.g. turn music off). **Force-quit the app** (swipe it away, don't just background it) and relaunch. Both should still be there.
+2. **The theme-plumbing check:** temporarily add a second `ThemeDefinition` — the same tile with a crude color filter — and equip it. The board, blocks, and shatter particles should all change together, with **zero changes to any file under `engine/`**. If you had to touch the engine, the boundary is wrong and it'll cost you when the real themes land. Delete the test theme afterwards.
 
 ---
 
-## Phase 12 — Balance & polish
+## Phase 10 — Balance & polish
 
-- Full playtest pass: is the rise fair? Is Stone too punishing without boosters? Does the 3-minute special-block introduction land as interesting rather than unfair?
+- Full playtest pass: is the rise fair? Does the difficulty ramp land as interesting rather than unfair?
 - Tune **only** `motion.dart` and `difficulty.dart` — resist changing rules to fix feel.
 - Target metrics: average first-session run ≈ 90–150 s; skilled run 5+ min; the player should lose to a **mistake**, never to something they couldn't see coming.
-- Remove the debug screen and all debug helpers added in Phases 1–8.
+- Remove the debug screen and all debug helpers added in Phases 1–6.
 
 **Output:** a balanced, shippable game.
 
@@ -1351,16 +1156,15 @@ Rules for this phase:
 1. Hand the phone to five people who've never played it. Say nothing. Watch where they get confused, and count how many ask to play again without being prompted.
 2. Time their first runs. If most last under 60 seconds, the early game is too harsh; over 4 minutes and there's no pressure.
 3. Play ten runs yourself and after each loss ask: *did I lose because I made a mistake, or because the game did something I couldn't have prevented?* The second answer means something needs tuning.
-4. Check that Stone doesn't feel like a death sentence when you're out of booster charges.
-5. Leave a run going for 10 minutes on your slowest device with the memory profiler open — the line should be flat. A rising line means the particle pool is leaking.
-6. Confirm the debug screen is actually gone from the release build.
+4. Leave a run going for 10 minutes on your slowest device with the memory profiler open — the line should be flat. A rising line means the particle pool is leaking.
+5. Confirm the debug screen is actually gone from the release build.
 
 ---
 
-## Phase 13 — Monetization & release
+## Phase 11 — Monetization & release
 
-- `AdsService`: rewarded ad for continue, rewarded ad for coins. **No interstitials mid-run** — that violates the "relaxing" pillar.
-- IAP: coin packs, Remove Ads, Starter Pack. Cosmetics only — **no pay-to-win**, per the GDD. Boosters must remain fully earnable.
+- `AdsService`: a fixed banner slot below the board on `gameplay.html`/`pause.html`, plus a rewarded ad for continue. **No interstitials mid-run** — that violates the "relaxing" pillar.
+- IAP: **Remove Ads** — a single non-consumable purchase that hides the banner and skips the rewarded-continue ad prompt. No coins, no cosmetics, no other SKUs at MVP.
 - App icons, store screenshots, privacy policy, build signing (assets from P.9).
 
 **Output:** signed release builds for both platforms.
@@ -1368,11 +1172,11 @@ Rules for this phase:
 **What you check:**
 
 1. Install the release build (not debug) on a real device and play a full session. Release builds behave differently — this is where anything that only worked in debug shows up.
-2. Watch a rewarded ad for a continue: the run resumes correctly with the bottom 6 rows cleared, and you don't lose your score.
-3. Confirm no ad ever interrupts an active run.
-4. Make a test purchase of each IAP; force-quit and relaunch to confirm it persisted. Then test Restore Purchases.
-5. Play a full run with airplane mode on — no crashes, no hangs waiting on an ad that will never load.
-6. Sanity check the promise: could a player who spends nothing reach the same high score as one who spends? If not, something is pay-to-win and needs to change.
+2. Confirm the banner slot below the board loads correctly and never overlaps the board or HUD.
+3. Watch a rewarded ad for a continue: the run resumes correctly with the bottom 6 rows cleared, and you don't lose your score.
+4. Confirm no ad ever interrupts an active run.
+5. Purchase Remove Ads; force-quit and relaunch to confirm the banner stays hidden and the continue prompt no longer offers an ad. Then test Restore Purchases.
+6. Play a full run with airplane mode on — no crashes, no hangs waiting on an ad that will never load.
 
 ---
 
@@ -1389,10 +1193,8 @@ Verification is **manual and hands-on** — you play each phase and confirm it y
 | 4 | Rise-speed slider (0.5×–10×) |
 | 5 | Global time-scale slider (0.1×–1×) |
 | 6 | Live overlay: elapsed time, drop/rise interval, fill ratio, chain index |
-| 7 | Block-type stamper (place any special block on any cell) |
-| 8 | Give-99-charges button |
 
-Removed in Phase 12, before release.
+Removed in Phase 10, before release.
 
 **2. Seeded RNG.** The engine takes an injectable seeded random source, and the debug screen displays and lets you set the seed. When something goes wrong, you re-enter the seed and watch it happen again instead of trying to reproduce it by feel. This is also the prerequisite for a future replay / leaderboard-validation feature.
 
@@ -1404,7 +1206,7 @@ Removed in Phase 12, before release.
 Phase 3  →  no block ever rests above an empty cell
 Phase 4  →  no stutter at the rise commit boundary (check at 0.5×)
 Phase 5  →  4-line clear on the slowest device without a frame hitch
-Phase 10 →  each screen side by side with its .html mockup
+Phase 8  →  each screen side by side with its .html mockup
 ```
 
 Everything else is recoverable later. These four are structural.
@@ -1422,20 +1224,16 @@ Everything else is recoverable later. These four are structural.
 | Hold piece | Deferred | The rise mechanic already supplies the pressure Hold would relieve; adding both dilutes the twist. |
 | Rise during piece fall | Not frozen | Overlapping the two pressures *is* the game. Freezing it would make the game a slower Tetris. |
 | Rise during resolve | Frozen | Otherwise the player is punished for a good clear. |
-| Specials in rising rows only | Yes | Keeps the player's own tools predictable; the threat evolves instead. |
 | Combo thresholds | Blocks destroyed, per GDD | Preserves the GDD's four banner tiers verbatim. |
 | Particle system | Pooled, single layer | A 4-line clear is ~500 particles; per-frame allocation would cause GC hitches. |
-| Special blocks | **Complete shared tiles**, not overlays on the theme tile | Identical asset count either way, so cost doesn't decide it. Shared tiles keep gameplay-critical blocks looking the same in every theme (one vocabulary, learned once), avoid contrast-checking 8 glyphs against 9 backgrounds, and let a block break the square silhouette — translucent ice, glowing rainbow. `ThemeDefinition` keeps an optional per-type override map for the rare case a future theme wants its own. |
-| Game logo | **Code-drawn, not an image** | `splash.html` already builds it from block cells so it sits flush on the wood grain with no halo to mask. Also means it scales to any density, recolors with the theme, and can animate its own drop-and-squash. The studio logo (screen 1) stays an image. |
-| Themes at MVP | **One — `classic_wood`** | Ships the game sooner. The full `ThemeDefinition` plumbing is still built in Phase 11, so each later theme costs one PNG, one palette, and no code. The Themes screen shows the other eight as "Coming Soon" rather than hiding them. |
+| Game logo | **Code-drawn, not an image** | `splash.html` already builds it from block cells so it sits flush on the wood grain with no halo to mask. Also means it scales to any density, recolors with the theme, and can animate its own drop-and-squash. There is no separate studio-logo image asset. |
+| Themes at MVP | **One — `classic_wood`** | Ships the game sooner. The full `ThemeDefinition` plumbing is still built in Phase 9, so each later theme costs one PNG, one palette, and no code, even though MVP has no in-app theme browser. |
 
-## Open questions for playtest (Phase 12)
+## Open questions for playtest (Phase 10)
 
 1. Does `ColumnCascade` make clears *too* easy once the stack is tall? If runs stretch past 15 minutes, consider a "sticky above the clear line" hybrid.
-2. Is Stone fair before the player has booster charges? Possible fix: guarantee at least one Rainbow within N rows of any Stone spawn.
-3. Should hard drop grant brief rise immunity (~200 ms)? It would reward aggressive play but might trivialize the pressure.
-4. Is the 4-booster HUD enough, or does Time Freeze deserve a 5th slot? (`screens.md` Phase 11 fixes the count at 4 and flags the Stopwatch icon as an intentional gap — revisit here, and update the mockup if the answer changes.)
+2. Should hard drop grant brief rise immunity (~200 ms)? It would reward aggressive play but might trivialize the pressure.
 
 ---
 
-**Next step:** Phase P. Gather the assets — fonts, the studio logo (transparent, no white box), the single `classic_wood` tile, the nine shared special-block tiles, the wood background, the extracted icons, and the SFX list. The game logo needs nothing gathered; it's built in Phase 10. Then Phase 0: dependencies, portrait lock, `tokens.css` → `tokens.dart`, empty 10×20 board on screen.
+**Next step:** Phase P. Gather the assets — fonts, the single `classic_wood` tile, the wood background, the extracted icons, and the SFX list. The game logo needs nothing gathered; it's built in Phase 8. Then Phase 0: dependencies, portrait lock, `tokens.css` → `tokens.dart`, empty 10×20 board on screen.
