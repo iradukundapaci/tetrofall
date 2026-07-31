@@ -8,6 +8,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../game/engine/events.dart';
 import '../../game/engine/game_engine.dart';
+import '../../game/engine/grid.dart';
+import '../../game/engine/tetromino.dart';
 import '../../game/tetrofall_game.dart';
 import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
@@ -23,7 +25,10 @@ import 'settings_screen.dart';
 /// `.menu-video-slot` (there's no gameplay clip to drop in, so the real
 /// engine stands in for one). It's purely decorative: a separate
 /// throwaway `TetrofallGame` that never touches saved best score or
-/// settings, autoplaying itself and restarting whenever it tops out.
+/// settings, autoplaying itself and restarting whenever it tops out —
+/// tuned to actively hunt for line clears so the shatter/cascade "juice"
+/// (the whole point of the game) actually shows up on the menu instead
+/// of just watching pieces stack.
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key, required this.storage});
 
@@ -41,9 +46,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   bool _adsRemoved = false;
 
   late final TetrofallGame _demoGame = TetrofallGame(storage: widget.storage);
-  final _random = math.Random();
   Timer? _autoplayTimer;
   Timer? _restartTimer;
+  RotationState _targetRotation = RotationState.spawn;
   int _targetCol = 0;
 
   @override
@@ -66,7 +71,12 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   void _onDemoEvent(GameEvent event) {
     if (event is PieceSpawnedEvent) {
-      _targetCol = _pickTargetColumn();
+      final piece = _demoGame.engine.pieceController.piece;
+      if (piece != null) {
+        final placement = _bestPlacement(_demoGame.engine.grid, piece.type);
+        _targetRotation = placement.$1;
+        _targetCol = placement.$2;
+      }
     } else if (event is GameOverEvent) {
       _restartTimer = Timer(const Duration(seconds: 2), () {
         if (mounted) _demoGame.restart();
@@ -74,40 +84,20 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     }
   }
 
-  /// No line-clearing lookahead — just aims each piece at whichever
-  /// column is currently shortest. That alone keeps the stack roughly
-  /// level instead of the jagged, fast-topping-out mess a fully random
-  /// column choice produces, and it's enough to clear rows now and then.
-  int _pickTargetColumn() {
-    final grid = _demoGame.engine.grid;
-    final heights = List<int>.generate(grid.cols, (col) {
-      for (var row = 0; row <= grid.maxRow; row++) {
-        if (grid.at(row, col) != null) return grid.maxRow - row + 1;
-      }
-      return 0;
-    });
-    final minHeight = heights.reduce(math.min);
-    final shortest = [
-      for (var c = 0; c < heights.length; c++)
-        if (heights[c] == minHeight) c,
-    ];
-    return shortest[_random.nextInt(shortest.length)];
-  }
-
-  /// Simple decorative autoplay: steer toward the target column, then
-  /// hard-drop — no rotation-aware placement, just enough motion to read
-  /// as "a game is being played" behind the menu.
+  /// Steer to the pre-computed rotation and column, then hard-drop —
+  /// the placement itself is what does the work of hunting for clears,
+  /// this just drives the piece there.
   void _tickAutoplay() {
     final engine = _demoGame.engine;
     if (engine.phase != GamePhase.playing) return;
     final piece = engine.pieceController.piece;
     if (piece == null) return;
-    if (piece.anchorCol < _targetCol) {
+    if (piece.rotation != _targetRotation) {
+      engine.enqueueIntent(GameIntentType.rotateCW);
+    } else if (piece.anchorCol < _targetCol) {
       engine.enqueueIntent(GameIntentType.moveRight);
     } else if (piece.anchorCol > _targetCol) {
       engine.enqueueIntent(GameIntentType.moveLeft);
-    } else if (_random.nextDouble() < 0.15) {
-      engine.enqueueIntent(GameIntentType.rotateCW);
     } else {
       engine.enqueueIntent(GameIntentType.hardDrop);
     }
@@ -262,4 +252,116 @@ String _formatScore(int value) {
     buffer.write(digits[i]);
   }
   return buffer.toString();
+}
+
+final _demoRandom = math.Random();
+
+/// Brute-force search over every (rotation, column) placement for the
+/// given piece — no multi-piece lookahead, just whatever gets the
+/// current one down best. Scored by rows cleared first (so the demo
+/// actively hunts for the shatter/cascade effect instead of merely
+/// stacking), then by holes created and resulting height as tie-breakers
+/// so it doesn't bury gaps chasing a clear two pieces away.
+(RotationState, int) _bestPlacement(Grid grid, TetrominoType type) {
+  RotationState? bestRotation;
+  int? bestCol;
+  var bestScore = double.negativeInfinity;
+  var ties = 0;
+
+  for (final rotation in RotationState.values) {
+    final cells = Tetromino.cellsFor(type, rotation);
+    final cellCols = cells.map((c) => c.col);
+    final minCol = cellCols.reduce(math.min);
+    final maxCol = cellCols.reduce(math.max);
+
+    for (var col = -minCol; col <= grid.cols - 1 - maxCol; col++) {
+      final landingRow = _demoLandingRow(grid, cells, col);
+      if (landingRow == null) continue;
+      final score = _demoScorePlacement(grid, cells, landingRow, col);
+      if (score > bestScore) {
+        bestScore = score;
+        bestRotation = rotation;
+        bestCol = col;
+        ties = 1;
+      } else if (score == bestScore) {
+        // Reservoir sampling: ties are common (every rotation of an O
+        // piece scores identically), so without this the demo would
+        // always resolve them to the same rotation/column and look
+        // robotic.
+        ties++;
+        if (_demoRandom.nextInt(ties) == 0) {
+          bestRotation = rotation;
+          bestCol = col;
+        }
+      }
+    }
+  }
+
+  return (
+    bestRotation ?? RotationState.spawn,
+    bestCol ?? Tetromino.spawnColumn[type]!,
+  );
+}
+
+bool _demoCollidesAt(
+  Grid grid,
+  List<GridOffset> cells,
+  int anchorRow,
+  int anchorCol,
+) {
+  for (final c in cells) {
+    final row = anchorRow + c.row;
+    final col = anchorCol + c.col;
+    if (!grid.inBounds(row, col)) return true;
+    if (grid.isOccupied(row, col)) return true;
+  }
+  return false;
+}
+
+int? _demoLandingRow(Grid grid, List<GridOffset> cells, int anchorCol) {
+  var row = grid.minRow;
+  if (_demoCollidesAt(grid, cells, row, anchorCol)) return null;
+  while (!_demoCollidesAt(grid, cells, row + 1, anchorCol)) {
+    row++;
+  }
+  return row;
+}
+
+double _demoScorePlacement(
+  Grid grid,
+  List<GridOffset> cells,
+  int landingRow,
+  int anchorCol,
+) {
+  final rows = grid.maxRow + 1;
+  final occ = List.generate(
+    rows,
+    (r) => List.generate(grid.cols, (c) => grid.isOccupied(r, c)),
+  );
+  for (final cell in cells) {
+    final r = landingRow + cell.row;
+    final c = anchorCol + cell.col;
+    if (r >= 0 && r < rows) occ[r][c] = true;
+  }
+
+  var cleared = 0;
+  for (final row in occ) {
+    if (row.every((occupied) => occupied)) cleared++;
+  }
+
+  var holes = 0;
+  var maxHeight = 0;
+  for (var c = 0; c < grid.cols; c++) {
+    var seenBlock = false;
+    for (var r = 0; r < rows; r++) {
+      if (occ[r][c]) {
+        if (!seenBlock) maxHeight = math.max(maxHeight, rows - r);
+        seenBlock = true;
+      } else if (seenBlock) {
+        holes++;
+      }
+    }
+  }
+
+  return cleared * 1000.0 - holes * 40.0 - maxHeight * 2.0;
 }
