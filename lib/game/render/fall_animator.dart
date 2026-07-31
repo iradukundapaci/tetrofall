@@ -97,6 +97,7 @@ class FallAnimator extends PositionComponent {
             DustPuff(
               at: Vector2((f.col + 0.5) * cellSize, (f.toRow + 1) * cellSize),
               cellSize: cellSize,
+              theme: theme,
             ),
           );
         }

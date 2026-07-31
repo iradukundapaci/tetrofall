@@ -106,7 +106,11 @@ class BlockComponent extends PositionComponent with HasGameReference {
             tile.height - srcInset * 2,
           ),
           rect,
-          Paint(),
+          // Colorize with theme.blockTint (hue/saturation from the
+          // theme, luminance from the tile) so the one bundled tile
+          // asset reskins per theme instead of needing a new PNG.
+          Paint()
+            ..colorFilter = ColorFilter.mode(theme.blockTint, BlendMode.color),
         );
         canvas.restore();
       }

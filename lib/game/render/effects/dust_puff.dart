@@ -3,13 +3,17 @@ import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
-import '../../../ui/theme/tokens.dart';
+import '../../../models/theme_definition.dart';
 
 class DustPuff extends PositionComponent {
-  DustPuff({required Vector2 at, required double cellSize})
-    : _cellSize = cellSize,
-      super(position: at, size: Vector2.zero());
+  DustPuff({
+    required Vector2 at,
+    required double cellSize,
+    required this.theme,
+  }) : _cellSize = cellSize,
+       super(position: at, size: Vector2.zero());
 
+  final ThemeDefinition theme;
   final double _cellSize;
   final _random = Random();
   static const _lifetime = 0.35;
@@ -45,7 +49,7 @@ class DustPuff extends PositionComponent {
     final t = (_elapsed / _lifetime).clamp(0.0, 1.0);
     final opacity = (1 - t) * 0.6;
     if (opacity <= 0) return;
-    final paint = Paint()..color = Tokens.colorText.withValues(alpha: opacity);
+    final paint = Paint()..color = theme.text.withValues(alpha: opacity);
     for (final s in _specks) {
       canvas.drawCircle(Offset(s.x, s.y), s.radius, paint);
     }

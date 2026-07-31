@@ -10,21 +10,19 @@ import '../../models/theme_definition.dart';
 import '../config/motion.dart';
 import '../engine/events.dart';
 
-const _shardBaseColors = <Color>[
-  Color(0xFFB97F4E),
-  Color(0xFFA96F42),
-  Color(0xFF8F5730),
-  Color(0xFFC98F5C),
-  Color(0xFF9C6238),
-];
-const _shardFacetColors = <Color>[
-  Color(0xFFE8D3B0),
-  Color(0xFFF2E7D2),
-  Color(0xFFF7F1E4),
-  Color(0xFFDDBE93),
-];
-const _shardEdgeColor = Color(0xFF6E4225);
-const _crackColor = Color(0xFF4A2C16);
+// Shard colors are derived from the active theme's block tint (below),
+// not hardcoded — so a theme swap recolors the shatter effect along
+// with the blocks, with zero changes needed here.
+const _baseLightnessDeltas = [-0.16, -0.10, -0.22, -0.06, -0.18];
+const _facetLightnessDeltas = [0.32, 0.38, 0.42, 0.26];
+
+Color _shiftLightness(Color color, double delta) {
+  final hsl = HSLColor.fromColor(color);
+  return hsl.withLightness((hsl.lightness + delta).clamp(0.0, 1.0)).toColor();
+}
+
+List<Color> _tonalVariants(Color base, List<double> deltas) =>
+    [for (final d in deltas) _shiftLightness(base, d)];
 
 class _Shard {
   bool active = false;
@@ -86,9 +84,17 @@ class _CrackedCell {
 }
 
 class ShatterLayer extends PositionComponent with HasGameReference {
-  ShatterLayer({required this.theme});
+  ShatterLayer({required this.theme})
+    : _baseColors = _tonalVariants(theme.blockTint, _baseLightnessDeltas),
+      _facetColors = _tonalVariants(theme.blockTint, _facetLightnessDeltas),
+      _shardEdgeColor = _shiftLightness(theme.blockTint, -0.32),
+      _crackColor = _shiftLightness(theme.blockTint, -0.40);
 
   final ThemeDefinition theme;
+  final List<Color> _baseColors;
+  final List<Color> _facetColors;
+  final Color _shardEdgeColor;
+  final Color _crackColor;
   double cellSize = 1;
 
   final List<_Shard> _pool = List.generate(
@@ -204,9 +210,8 @@ class ShatterLayer extends PositionComponent with HasGameReference {
             Motion.shardMaxRotationSpeed,
             _random.nextDouble(),
           )
-      ..baseColor = _shardBaseColors[_random.nextInt(_shardBaseColors.length)]
-      ..facetColor =
-          _shardFacetColors[_random.nextInt(_shardFacetColors.length)];
+      ..baseColor = _baseColors[_random.nextInt(_baseColors.length)]
+      ..facetColor = _facetColors[_random.nextInt(_facetColors.length)];
 
     final vertexCount = 4 + _random.nextInt(2);
     shard.vertexCount = vertexCount;
@@ -322,7 +327,8 @@ class ShatterLayer extends PositionComponent with HasGameReference {
             tile.height - srcInset * 2,
           ),
           rect,
-          Paint(),
+          Paint()
+            ..colorFilter = ColorFilter.mode(theme.blockTint, BlendMode.color),
         );
         canvas.restore();
       }

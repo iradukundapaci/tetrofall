@@ -33,10 +33,6 @@ class BoardFrame extends PositionComponent {
 
   ui.Image? _woodTexture;
 
-  static const _grooveColor = Color(0xFF8A6844);
-
-  static const _pineFallback = Color(0xFFEBC078);
-
   @override
   Future<void> onLoad() async {
     _woodTexture = await Flame.images.load('textures/bg_wood.png');
@@ -54,7 +50,7 @@ class BoardFrame extends PositionComponent {
 
     final texture = _woodTexture;
     if (texture == null) {
-      canvas.drawRect(rect, Paint()..color = _pineFallback);
+      canvas.drawRect(rect, Paint()..color = theme.boardBg);
     } else {
       final imgW = texture.width.toDouble();
       final imgH = texture.height.toDouble();
@@ -67,16 +63,23 @@ class BoardFrame extends PositionComponent {
         srcW,
         srcH,
       );
+      // Colorize (hue + saturation from the theme, luminance from the
+      // photo) rather than swap the asset per theme — classic_wood's
+      // frameLight is already this same warm tan, so this is a no-op
+      // for the shipping look, but it means a new theme only needs a
+      // palette entry, never a new frame texture.
       canvas.drawImageRect(
         texture,
         src,
         rect,
-        Paint()..filterQuality = FilterQuality.medium,
+        Paint()
+          ..filterQuality = FilterQuality.medium
+          ..colorFilter = ColorFilter.mode(theme.frameLight, BlendMode.color),
       );
     }
 
     final groovePaint = Paint()
-      ..color = _grooveColor.withValues(alpha: 0.55)
+      ..color = theme.frameDark.withValues(alpha: 0.55)
       ..strokeWidth = math.max(1, cellSize * 0.035);
     for (var c = 1; c < cols; c++) {
       final x = c * cellSize;
