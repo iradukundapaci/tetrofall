@@ -1,6 +1,7 @@
 import 'dart:math';
 
-/// An integer (row, col) offset. Row grows downward, matching [Grid].
+import '../config/board_config.dart';
+
 class GridOffset {
   const GridOffset(this.row, this.col);
 
@@ -16,8 +17,6 @@ class GridOffset {
 
 enum TetrominoType { I, O, T, S, Z, J, L }
 
-/// Rotation states in SRS order: 0 (spawn), R (clockwise), 2 (180°),
-/// L (counter-clockwise).
 enum RotationState { spawn, right, flip, left }
 
 extension on RotationState {
@@ -27,10 +26,7 @@ extension on RotationState {
       RotationState.values[(index + 3) % RotationState.values.length];
 }
 
-/// Standard 7 tetrominoes: shapes, spawn position, and SRS wall kicks.
-/// See game.md §1.2.
 abstract final class Tetromino {
-  /// Cell offsets for each rotation state, within each piece's bounding box.
   static const Map<TetrominoType, List<List<GridOffset>>> _shapes = {
     TetrominoType.I: [
       [GridOffset(1, 0), GridOffset(1, 1), GridOffset(1, 2), GridOffset(1, 3)],
@@ -76,22 +72,19 @@ abstract final class Tetromino {
     ],
   };
 
-  /// Column of the bounding box's top-left corner at spawn, centering the
-  /// piece on a `BoardConfig.cols == 10` board.
-  static const Map<TetrominoType, int> spawnColumn = {
-    TetrominoType.I: 3,
-    TetrominoType.O: 4,
-    TetrominoType.T: 3,
-    TetrominoType.S: 3,
-    TetrominoType.Z: 3,
-    TetrominoType.J: 3,
-    TetrominoType.L: 3,
+  static final Map<TetrominoType, int> spawnColumn = {
+    TetrominoType.I: (BoardConfig.cols - 4) ~/ 2,
+    TetrominoType.O: (BoardConfig.cols - 2) ~/ 2,
+    TetrominoType.T: (BoardConfig.cols - 3) ~/ 2,
+    TetrominoType.S: (BoardConfig.cols - 3) ~/ 2,
+    TetrominoType.Z: (BoardConfig.cols - 3) ~/ 2,
+    TetrominoType.J: (BoardConfig.cols - 3) ~/ 2,
+    TetrominoType.L: (BoardConfig.cols - 3) ~/ 2,
   };
 
   static List<GridOffset> cellsFor(TetrominoType type, RotationState state) =>
       _shapes[type]![state.index];
 
-  /// SRS wall kicks for JLSTZ pieces, keyed by (from, to) rotation state.
   static final Map<(RotationState, RotationState), List<GridOffset>>
   _jlstzKicks = {
     (RotationState.spawn, RotationState.right): _k([
@@ -152,9 +145,7 @@ abstract final class Tetromino {
     ]),
   };
 
-  /// SRS wall kicks for the I piece — a separate table per the guideline.
-  static final Map<(RotationState, RotationState), List<GridOffset>>
-  _iKicks = {
+  static final Map<(RotationState, RotationState), List<GridOffset>> _iKicks = {
     (RotationState.spawn, RotationState.right): _k([
       (0, 0),
       (-2, 0),
@@ -213,13 +204,10 @@ abstract final class Tetromino {
     ]),
   };
 
-  /// `(dCol, dRow)` pairs, matching this codebase's row-down convention —
-  /// converted once here from the guideline's row-up `(x, y)` kick tables.
-  static List<GridOffset> _k(List<(int, int)> dColDRow) =>
-      [for (final (dCol, dRow) in dColDRow) GridOffset(dRow, dCol)];
+  static List<GridOffset> _k(List<(int, int)> dColDRow) => [
+    for (final (dCol, dRow) in dColDRow) GridOffset(dRow, dCol),
+  ];
 
-  /// Wall-kick candidate offsets to try, in order, for a rotation attempt.
-  /// `O` has none — it does not rotate.
   static List<GridOffset> kicksFor(
     TetrominoType type,
     RotationState from,
@@ -231,22 +219,17 @@ abstract final class Tetromino {
   }
 }
 
-/// A piece's live rotation, tracking transitions for kick lookups.
 extension RotationStateTransitions on RotationState {
   RotationState rotatedCW() => clockwise();
   RotationState rotatedCCW() => counterClockwise();
 }
 
-/// 7-bag randomizer (§1.2): shuffle all seven, deal, reshuffle. Takes an
-/// injectable [Random] so runs are seed-reproducible (see game.md §5).
 class SevenBag {
   SevenBag(this._random);
 
   final Random _random;
   final List<TetrominoType> _queue = [];
 
-  /// Current queue contents, for the debug bag readout. Does not mutate
-  /// the bag.
   List<TetrominoType> peekAll() => List.unmodifiable(_queue);
 
   TetrominoType next() {

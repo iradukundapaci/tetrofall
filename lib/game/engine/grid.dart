@@ -1,9 +1,6 @@
 import '../config/board_config.dart';
 import 'cell.dart';
 
-/// The settled-block playfield. Rows run `-spawnRows .. visibleRows - 1`:
-/// negative rows are the hidden spawn buffer (§1.1), never occupied by a
-/// settled block — only by the active piece while it's still above row 0.
 class Grid {
   Grid({
     this.cols = BoardConfig.cols,
@@ -38,17 +35,13 @@ class Grid {
 
   bool isOccupied(int row, int col) => at(row, col) != null;
 
-  /// A row is full when every column is occupied **and** clearable — a row
-  /// containing Stone can never complete (§1.5).
   bool isRowFull(int row) {
     for (var c = 0; c < cols; c++) {
-      final cell = at(row, c);
-      if (cell == null || cell.blocksLineClear) return false;
+      if (at(row, c) == null) return false;
     }
     return true;
   }
 
-  /// True if any settled block occupies the given row.
   bool rowHasAnyBlock(int row) {
     for (var c = 0; c < cols; c++) {
       if (at(row, c) != null) return true;
@@ -56,9 +49,20 @@ class Grid {
     return false;
   }
 
-  /// Clears every cell. Used by the debug screen's fixture loader.
   void clearAll() {
     for (var r = minRow; r <= maxRow; r++) {
+      for (var c = 0; c < cols; c++) {
+        set(r, c, null);
+      }
+    }
+  }
+
+  /// Empties the bottom [count] visible rows in place — used by the
+  /// Watch-Ad-To-Continue flow (game.md §1.9). No shifting: the stack
+  /// above stays exactly where it is, it just gains breathing room below.
+  void clearBottomRows(int count) {
+    final firstRow = (maxRow - count + 1).clamp(0, maxRow);
+    for (var r = firstRow; r <= maxRow; r++) {
       for (var c = 0; c < cols; c++) {
         set(r, c, null);
       }

@@ -3,11 +3,12 @@ import 'cell.dart';
 import 'grid.dart';
 import 'tetromino.dart';
 
-/// The active piece: type, rotation, and the (row, col) of its bounding
-/// box's top-left corner.
 class ActivePiece {
-  ActivePiece({required this.type, required this.anchorRow, required this.anchorCol})
-    : rotation = RotationState.spawn;
+  ActivePiece({
+    required this.type,
+    required this.anchorRow,
+    required this.anchorCol,
+  }) : rotation = RotationState.spawn;
 
   final TetrominoType type;
   RotationState rotation;
@@ -16,7 +17,6 @@ class ActivePiece {
 
   List<GridOffset> get cells => Tetromino.cellsFor(type, rotation);
 
-  /// Absolute (row, col) of each occupied cell on the grid.
   List<GridOffset> absoluteCells() => [
     for (final c in cells) GridOffset(anchorRow + c.row, anchorCol + c.col),
   ];
@@ -24,8 +24,6 @@ class ActivePiece {
 
 enum PieceTickResult { continues, locked }
 
-/// Move/rotate/lock, collision, hard/soft drop, lock delay with reset cap.
-/// Pure Dart — see game.md §1.3, §1.12 and §3.1's layer-separation rule.
 class PieceController {
   PieceController(this.grid);
 
@@ -42,15 +40,6 @@ class PieceController {
   Duration dropInterval = const Duration(milliseconds: 800);
   bool softDropActive = false;
 
-  /// Rows advanced by gravity while [softDropActive] was true, since the
-  /// last time [GameEngine] consumed it for scoring (§1.3: soft drop
-  /// awards 1 pt/row). Hard drop scores directly off [hardDrop]'s return
-  /// value instead, since that's a single discrete action.
-  int softDropRowsAccrued = 0;
-
-  /// Places a new piece at its spawn position. Returns false if the spawn
-  /// cell collides with settled blocks — the block-out game-over condition
-  /// (§1.11). The caller is responsible for acting on that.
   bool spawn(TetrominoType type) {
     final anchorCol = Tetromino.spawnColumn[type]!;
     final anchorRow = grid.minRow;
@@ -81,9 +70,6 @@ class PieceController {
     return false;
   }
 
-  /// Whether the active piece would collide if placed at the given anchor.
-  /// Used by the rise mechanic's active-piece carry (§1.4) to test the
-  /// post-shift position without mutating state.
   bool collidesAt(int anchorRow, int anchorCol) {
     final p = _piece;
     if (p == null) return false;
@@ -100,9 +86,6 @@ class PieceController {
     _grounded = below;
   }
 
-  /// Registers a successful move/rotate against the lock-reset cap (§1.3):
-  /// up to 15 resets, then the piece force-locks regardless of further
-  /// input.
   void _onSuccessfulAction() {
     if (!_grounded) return;
     if (_resetCount < Motion.lockResetLimit) {
@@ -114,15 +97,12 @@ class PieceController {
   bool moveLeft() => _playerShift(0, -1);
   bool moveRight() => _playerShift(0, 1);
 
-  /// Player-initiated shift: on success, counts against the lock-reset cap.
   bool _playerShift(int dRow, int dCol) {
     final moved = _attemptShift(dRow, dCol);
     if (moved) _onSuccessfulAction();
     return moved;
   }
 
-  /// Raw shift with no lock-reset bookkeeping — used by gravity (which
-  /// should never itself spend a reset credit) and by drop methods.
   bool _attemptShift(int dRow, int dCol) {
     final p = _piece;
     if (p == null) return false;
@@ -158,18 +138,10 @@ class PieceController {
     return false;
   }
 
-  /// Instant descent to the landing row; caller should lock immediately
-  /// after (§1.3: hard drop "locks immediately"). Returns rows dropped.
-  int hardDrop() {
-    var rows = 0;
-    while (_attemptShift(1, 0)) {
-      rows++;
-    }
-    return rows;
+  void hardDrop() {
+    while (_attemptShift(1, 0)) {}
   }
 
-  /// Row the piece would land on if hard-dropped right now, without
-  /// mutating state — feeds the ghost piece (Phase 2).
   int? ghostLandingRow() {
     final p = _piece;
     if (p == null) return null;
@@ -180,8 +152,6 @@ class PieceController {
     return row;
   }
 
-  /// Writes the active piece's cells into the grid and clears it. Call
-  /// after a [PieceTickResult.locked] tick.
   void lockPiece() {
     final p = _piece;
     if (p == null) return;
@@ -191,9 +161,6 @@ class PieceController {
     _piece = null;
   }
 
-  /// Advances gravity and lock-delay timers by [dt] seconds. Returns
-  /// [PieceTickResult.locked] when the piece should be locked this frame —
-  /// on `RESOLVING`, the caller doesn't return here until spawning again.
   PieceTickResult tick(double dt) {
     final p = _piece;
     if (p == null) return PieceTickResult.continues;
@@ -206,8 +173,7 @@ class PieceController {
     _gravityTimer += dt;
     if (_gravityTimer >= intervalSeconds) {
       _gravityTimer -= intervalSeconds;
-      final moved = _attemptShift(1, 0); // if blocked, _updateGrounded still runs below
-      if (moved && softDropActive) softDropRowsAccrued++;
+      _attemptShift(1, 0);
     }
     _updateGrounded();
 

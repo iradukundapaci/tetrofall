@@ -17,7 +17,7 @@
       box-sizing: border-box;
     }
 
-    /* Top: coin balance + highest score on the left, settings on the right */
+    /* Top: highest score on the left, settings on the right */
     .menu-topbar {
       flex: 0 0 auto;
       width: 100%;
@@ -26,17 +26,9 @@
       justify-content: space-between;
     }
 
-    .menu-coin-pill .pill-icon svg,
     .menu-score-pill .pill-icon svg {
       width: 16px;
       height: 16px;
-    }
-
-    .icon-coin {
-      fill: var(--color-gold);
-    }
-
-    .menu-score-pill .pill-icon svg {
       fill: var(--color-gold);
     }
 
@@ -47,28 +39,16 @@
       letter-spacing: 0.05em;
     }
 
-    /* Middle: side icon columns flanking the play button, vertically
-       centered as a game HUD instead of a mobile-app bottom tab bar. The
-       play button itself sits lower, anchored to the bottom of its own
-       column while the icons stay centered. */
-    .menu-body {
+    /* Middle: play button, vertically centered in remaining space, with
+       the "No Ads" upsell sitting just below it. */
+    .menu-center {
       flex: 1 1 auto;
       width: 100%;
       display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-    }
-
-    .menu-center {
-      flex: 1 1 auto;
-      min-width: 0;
-      align-self: stretch;
-      display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-end;
-      padding-bottom: var(--space-xl);
-      box-sizing: border-box;
+      justify-content: center;
+      gap: var(--space-md);
     }
 
     /* Placeholder slot for a looping gameplay video (to be dropped in
@@ -82,10 +62,7 @@
     }
 
     /* PLAY — the one large/bright element on the whole screen. It's an <a>
-       (links to gameplay.html) styled as .btn-primary, so strip link defaults.
-       Fills the width of the center column (capped on tablet) instead of
-       sizing to its own text, so it reads as a substantial primary CTA
-       rather than a small floating button. */
+       (links to gameplay.html) styled as .btn-primary, so strip link defaults. */
     .btn-play {
       width: 100%;
       max-width: 160px;
@@ -98,34 +75,21 @@
       text-align: center;
     }
 
-    /* Left/right HUD columns — Daily+Awards on the left, Themes+Shop on
-       the right, vertically centered (independent of the play button's
-       lower position). */
-    .menu-side {
-      flex: 0 0 auto;
-      width: 56px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-lg);
-    }
-
-    .menu-icon-btn {
-      flex: 0 0 auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .menu-icon-btn a.btn-icon {
+    /* No Ads — secondary upsell CTA below PLAY. Triggers a mock purchase
+       directly (no navigation) — in the real app this opens the platform
+       payment sheet; here the button just flips to a "purchased" state. */
+    .btn-noads {
+      width: 100%;
+      max-width: 200px;
+      box-sizing: border-box;
+      padding: 10px 0;
+      font-size: var(--font-size-sm);
       text-decoration: none;
     }
 
-    .menu-icon-btn .btn-icon svg {
-      width: 20px;
-      height: 20px;
+    .btn-noads svg {
+      width: 18px;
+      height: 18px;
       stroke: currentColor;
       fill: none;
       stroke-width: 1.8;
@@ -133,12 +97,11 @@
       stroke-linejoin: round;
     }
 
-    .menu-icon-label {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--color-text-muted);
-      letter-spacing: 0.02em;
-      text-align: center;
+    .btn-noads.is-purchased {
+      background: rgba(242, 182, 50, 0.18);
+      border-color: var(--color-gold);
+      color: var(--color-gold);
+      cursor: default;
     }
   </style>
 </head>
@@ -153,30 +116,6 @@
         <div class="menu-stage">
 
           <div class="menu-topbar">
-            <div class="pill-counter menu-coin-pill">
-              <span class="pill-icon">
-                <svg viewBox="0 0 24 24" class="icon-coin">
-                  <circle cx="12" cy="12" r="10" fill="#F4C542"/>
-                  <circle cx="12" cy="12" r="8" fill="none" stroke="#D89E00" stroke-width="1.2"/>
-
-                  <!-- Shine -->
-                  <path d="M8 8c1-1.5 3-2.5 5-2.5" fill="none" stroke="#FFF3B0"
-                        stroke-width="1.2" stroke-linecap="round"/>
-
-                  <!-- Coin symbol -->
-                  <path d="M12 6.5v11
-                           M8.7 9.3c0-1.1 1.2-1.9 3.3-1.9s3.3.8 3.3 1.9
-                           c0 1-.9 1.5-3.3 1.9
-                           c-2.4.4-3.3.9-3.3 2
-                           0 1.1 1.3 1.9 3.3 1.9s3.3-.8 3.3-1.9"
-                        fill="none"
-                        stroke="#6B4E16"
-                        stroke-width="1.3"
-                        stroke-linecap="round"/>
-                </svg>
-              </span>
-              <span>640</span>
-            </div>
             <div class="pill-counter menu-score-pill">
               <span class="menu-score-label">BEST</span>
               <span class="pill-icon">
@@ -194,46 +133,16 @@
             </a>
           </div>
 
-          <div class="menu-body">
-            <div class="menu-side menu-side-left">
-              <div class="menu-icon-btn">
-                <a href="daily-reward.html" class="btn-icon" aria-label="Daily Reward">
-                  <svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M4 9h16"/><path d="M12 9v11"/><path d="M12 9c-1.5-4-6-4-6-1.2C6 9 9 9 12 9z"/><path d="M12 9c1.5-4 6-4 6-1.2C18 9 15 9 12 9z"/></svg>
-                  <span class="badge">1</span>
-                </a>
-                <span class="menu-icon-label">Daily</span>
-              </div>
+          <div class="menu-center">
+            <!-- Video placeholder: drop a <video muted autoplay loop playsinline> in here once the gameplay clip is ready -->
+            <div class="menu-video-slot"></div>
 
-              <div class="menu-icon-btn">
-                <a href="achievements.html" class="btn-icon" aria-label="Achievements">
-                  <svg viewBox="0 0 24 24"><path d="M8 3l2 6-3 2-3-6z"/><path d="M16 3l-2 6 3 2 3-6z"/><circle cx="12" cy="15" r="6"/><circle cx="12" cy="15" r="2.5"/></svg>
-                </a>
-                <span class="menu-icon-label">Awards</span>
-              </div>
-            </div>
+            <a href="gameplay.html" class="btn-primary btn-play">PLAY</a>
 
-            <div class="menu-center">
-              <!-- Video placeholder: drop a <video muted autoplay loop playsinline> in here once the gameplay clip is ready -->
-              <div class="menu-video-slot"></div>
-
-              <a href="gameplay.html" class="btn-primary btn-play">PLAY</a>
-            </div>
-
-            <div class="menu-side menu-side-right">
-              <div class="menu-icon-btn">
-                <a href="themes.html" class="btn-icon" aria-label="Themes">
-                  <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a2.5 2.5 0 0 0 2.5-2.5c0-.7-.3-1.3-.7-1.8-.4-.4-.6-1-.6-1.6a2 2 0 0 1 2-2H18a3 3 0 0 0 3-3c0-4.4-4-6.1-9-6.1z"/><circle cx="7.5" cy="10.5" r="1.1"/><circle cx="9.5" cy="7" r="1.1"/><circle cx="14" cy="6.8" r="1.1"/><circle cx="16.5" cy="9.5" r="1.1"/></svg>
-                </a>
-                <span class="menu-icon-label">Themes</span>
-              </div>
-
-              <div class="menu-icon-btn">
-                <a href="shop.html" class="btn-icon" aria-label="Shop">
-                  <svg viewBox="0 0 24 24"><path d="M6 9h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 9z"/><path d="M9 9V7a3 3 0 0 1 6 0v2"/></svg>
-                </a>
-                <span class="menu-icon-label">Shop</span>
-              </div>
-            </div>
+            <button type="button" class="btn-secondary btn-noads" id="noAdsBtn">
+              <svg id="noAdsIcon" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M2 2l20 20"/><path d="M17.5 8.5a5 5 0 0 1 0 7"/></svg>
+              <span id="noAdsLabel">No Ads — $2.99</span>
+            </button>
           </div>
 
         </div>
@@ -251,6 +160,21 @@
         frame.classList.toggle('is-tablet', btn.dataset.size === 'tablet');
       });
     });
+
+    // No Ads — mock the platform payment sheet completing successfully.
+    // No navigation: the button just flips to a purchased/disabled state.
+    var noAdsBtn = document.getElementById('noAdsBtn');
+    var noAdsLabel = document.getElementById('noAdsLabel');
+    var noAdsIcon = document.getElementById('noAdsIcon');
+    if (noAdsBtn) {
+      noAdsBtn.addEventListener('click', function () {
+        if (noAdsBtn.classList.contains('is-purchased')) return;
+        noAdsBtn.classList.add('is-purchased');
+        noAdsLabel.textContent = 'Ads Removed';
+        noAdsIcon.innerHTML = '<path d="M20 6 9 17l-5-5"/>';
+        noAdsBtn.disabled = true;
+      });
+    }
   </script>
 </body>
 </html>

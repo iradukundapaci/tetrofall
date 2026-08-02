@@ -1,5 +1,5 @@
-/// The §1.10 difficulty timeline. Values are interpolated linearly between
-/// checkpoints — never stepped.
+import 'dart:math';
+
 class DifficultyCheckpoint {
   const DifficultyCheckpoint({
     required this.elapsed,
@@ -8,27 +8,16 @@ class DifficultyCheckpoint {
     required this.fillRatio,
   });
 
-  /// Time since run start.
   final Duration elapsed;
 
-  /// Gravity: piece descends 1 row every [dropInterval].
   final Duration dropInterval;
 
-  /// Seconds for one full pending row to arrive.
   final double riseInterval;
 
-  /// Fraction of a generated row's cells that are filled.
   final double fillRatio;
 }
 
-/// The §1.10 timeline and the interpolation over it. Pure Dart, no Flame —
-/// lives in the engine layer conceptually even though it's a config file.
 abstract final class Difficulty {
-  /// Beginner-friendly ramp (see improvement.md §2): the original table
-  /// hit 700ms/11s by the 1-minute mark, which read as brutal to new
-  /// players. This starts noticeably slower and stretches the early
-  /// checkpoints out further before catching back up to the same late-game
-  /// pace.
   static const checkpoints = <DifficultyCheckpoint>[
     DifficultyCheckpoint(
       elapsed: Duration.zero,
@@ -68,35 +57,16 @@ abstract final class Difficulty {
     ),
   ];
 
-  /// No rise pressure at all for the first stretch of a run — gravity
-  /// still runs, but the rising floor doesn't start climbing until a
-  /// beginner has had a moment to get their bearings (§2).
   static const riseGracePeriod = Duration(seconds: 12);
 
-  /// Elapsed time after which special blocks begin appearing in rising
-  /// rows. Lowered from 3 minutes (§3) — most runs previously ended
-  /// before players ever met the mechanic.
-  static const specialBlocksStart = Duration(seconds: 90);
+  static const _adaptiveStartCeiling = Duration(minutes: 3);
+  static const _adaptiveStartFullScore = 8000;
 
-  /// Chance for each filled cell in a generated row to become a special
-  /// block once [specialBlocksStart] has passed (§1.8) — tuned to feel
-  /// "interesting rather than overwhelming" per the Phase 7 checklist.
-  static const specialBlockChance = 0.12;
-
-  /// Debug-only override (§3): when true, special blocks are eligible from
-  /// the very first generated row at a much higher chance, so the mechanic
-  /// can be exercised without surviving a real run. Never toggled by
-  /// shipping gameplay code — only from a `kDebugMode`-gated UI control.
-  static bool debugForceSpecials = false;
-
-  /// Effective [specialBlocksStart], in seconds, honoring
-  /// [debugForceSpecials].
-  static int get effectiveSpecialBlocksStartSeconds =>
-      debugForceSpecials ? 0 : specialBlocksStart.inSeconds;
-
-  /// Effective [specialBlockChance], honoring [debugForceSpecials].
-  static double get effectiveSpecialBlockChance =>
-      debugForceSpecials ? 0.5 : specialBlockChance;
+  static Duration adaptiveStartElapsed(int bestScore) {
+    if (bestScore <= 0) return Duration.zero;
+    final t = sqrt((bestScore / _adaptiveStartFullScore).clamp(0.0, 1.0));
+    return _adaptiveStartCeiling * t;
+  }
 
   static double _lerp(double a, double b, double t) => a + (b - a) * t;
 
@@ -109,9 +79,7 @@ abstract final class Difficulty {
       final b = checkpoints[i + 1];
       if (elapsed >= a.elapsed && elapsed <= b.elapsed) {
         final span = (b.elapsed - a.elapsed).inMicroseconds;
-        final t = span == 0
-            ? 0.0
-            : (elapsed - a.elapsed).inMicroseconds / span;
+        final t = span == 0 ? 0.0 : (elapsed - a.elapsed).inMicroseconds / span;
         return DifficultyCheckpoint(
           elapsed: elapsed,
           dropInterval: Duration(

@@ -6,15 +6,6 @@ import '../../ui/theme/app_icons.dart';
 import '../../ui/theme/tokens.dart';
 import '../tetrofall_game.dart';
 
-/// Top bar overlay per `gameplay.html`: coin counter left, score + best
-/// centre, pause slot right (R3). A minimal stand-in for the full Phase 10
-/// port of the gameplay screen — this only needs to actually show the
-/// numbers the engine already tracks.
-///
-/// Pushes updates from [Scoring]'s listener list instead of polling on a
-/// timer (unlike the deleted debug overlay), so it only rebuilds when
-/// score or coins actually change. Best score and coins are persisted via
-/// [storage] (§8) — seeded on load, saved every time either changes.
 class ScoreHud extends StatefulWidget {
   const ScoreHud({super.key, required this.game, required this.storage});
 
@@ -42,7 +33,6 @@ class _ScoreHudState extends State<ScoreHud> {
 
   void _onScoringChanged() {
     final scoring = widget.game.engine.scoring;
-    widget.storage.saveCoins(scoring.coins);
     if (scoring.score > _best) {
       setState(() => _best = scoring.score);
       widget.storage.saveBestScore(_best);
@@ -54,10 +44,6 @@ class _ScoreHudState extends State<ScoreHud> {
     final scoring = widget.game.engine.scoring;
     if (scoring.score > _best) _best = scoring.score;
 
-    // A flow widget, not a `Positioned` overlay — its real height is
-    // measured by the enclosing `Column` (R4's layout budget), and
-    // everything else (the board, the booster panel) sizes off what's
-    // actually left over instead of guessing a fixed offset.
     return SafeArea(
       bottom: false,
       child: Padding(
@@ -66,57 +52,13 @@ class _ScoreHudState extends State<ScoreHud> {
           vertical: Tokens.spaceSm,
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _CoinPill(coins: scoring.coins),
-              ),
-            ),
             _ScoreBlock(score: scoring.score, best: _best),
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: _PauseButton(game: widget.game),
-              ),
-            ),
+            _PauseButton(game: widget.game),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CoinPill extends StatelessWidget {
-  const _CoinPill({required this.coins});
-
-  final int coins;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Tokens.colorPanel,
-        borderRadius: BorderRadius.circular(Tokens.radiusPill),
-        border: Border.all(color: Tokens.colorPanelBorder),
-        boxShadow: const [Tokens.shadowSoft],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SvgPicture.asset(AppIcons.coin, width: 22, height: 22),
-          const SizedBox(width: Tokens.spaceSm),
-          Text(
-            '$coins',
-            style: const TextStyle(
-              fontFamily: Tokens.fontDisplay,
-              fontSize: Tokens.fontSizeMd,
-              fontWeight: FontWeight.bold,
-              color: Tokens.colorText,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -157,50 +99,56 @@ class _ScoreBlock extends StatelessWidget {
   }
 }
 
-class _PauseButton extends StatefulWidget {
+class _PauseButton extends StatelessWidget {
   const _PauseButton({required this.game});
 
   final TetrofallGame game;
 
   @override
-  State<_PauseButton> createState() => _PauseButtonState();
-}
-
-class _PauseButtonState extends State<_PauseButton> {
-  @override
   Widget build(BuildContext context) {
-    final paused = widget.game.paused;
-    return GestureDetector(
-      onTap: () => setState(() {
-        if (paused) {
-          widget.game.resumeEngine();
-        } else {
-          widget.game.pauseEngine();
-        }
-      }),
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: Tokens.colorPanel,
-          shape: BoxShape.circle,
-          border: Border.all(color: Tokens.colorPanelBorder),
-          boxShadow: const [Tokens.shadowSoft],
-        ),
-        child: Center(
-          child: paused
-              ? const Icon(Icons.play_arrow, color: Tokens.colorText, size: 20)
-              : SvgPicture.asset(
-                  AppIcons.pause,
-                  width: 18,
-                  height: 18,
-                  colorFilter: const ColorFilter.mode(
-                    Tokens.colorText,
-                    BlendMode.srcIn,
-                  ),
-                ),
-        ),
-      ),
+    // Listens to the same notifier the pause overlay uses, so the icon
+    // stays correct whether pause/resume is triggered from here or from
+    // Resume in the overlay — not just from this button's own tap.
+    return ValueListenableBuilder<bool>(
+      valueListenable: game.pausedNotifier,
+      builder: (context, paused, _) {
+        return GestureDetector(
+          onTap: () {
+            if (paused) {
+              game.resumeEngine();
+            } else {
+              game.pauseEngine();
+            }
+          },
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Tokens.colorPanel,
+              shape: BoxShape.circle,
+              border: Border.all(color: Tokens.colorPanelBorder),
+              boxShadow: const [Tokens.shadowSoft],
+            ),
+            child: Center(
+              child: paused
+                  ? const Icon(
+                      Icons.play_arrow,
+                      color: Tokens.colorText,
+                      size: 20,
+                    )
+                  : SvgPicture.asset(
+                      AppIcons.pause,
+                      width: 18,
+                      height: 18,
+                      colorFilter: const ColorFilter.mode(
+                        Tokens.colorText,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

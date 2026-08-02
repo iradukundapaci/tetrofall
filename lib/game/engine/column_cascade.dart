@@ -1,11 +1,6 @@
 import 'grid.dart';
 import 'gravity_resolver.dart';
 
-/// Default resolver (§1.6): each column repacks independently, bottom-up.
-/// A block only falls as far as the next block *in its own column* — the
-/// "middle row" rule that makes Tetrofall's cascade different from
-/// Tetris's uniform row-shift. Produces more clears and chains, and reads
-/// more clearly in motion, than [StickyGroup].
 class ColumnCascade implements GravityResolver {
   @override
   List<BlockFall> resolve(Grid grid) {

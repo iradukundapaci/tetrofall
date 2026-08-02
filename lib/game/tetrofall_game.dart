@@ -3,57 +3,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../models/theme_definition.dart';
-import 'engine/booster_engine.dart';
+import '../services/storage_service.dart';
+import 'config/difficulty.dart';
 import 'engine/events.dart';
 import 'engine/game_engine.dart';
 import 'input/gesture_handler.dart';
 import 'render/board_component.dart';
-import 'render/wood_background.dart';
 
-/// FlameGame root. Owns the pure-Dart [GameEngine] and ticks it every
-/// frame; the render tree only reads engine state (§3.1).
 class TetrofallGame extends FlameGame {
-  TetrofallGame({this.theme = ThemeDefinition.classicWood, int initialCoins = 0})
-    : engine = GameEngine() {
+  TetrofallGame({
+    this.theme = ThemeDefinition.classicWood,
+    required this.storage,
+  }) : engine = GameEngine() {
     gestureHandler = GestureHandler(engine, () => _board?.cellSize ?? 0);
-    // Coins are a persistent wallet, not a per-run stat (§8) — seeded here
-    // rather than in `GameEngine` itself, which stays pure Dart with no
-    // knowledge of `StorageService`.
-    engine.scoring.coins = initialCoins;
     engine.addEventListener(_onHapticEvent);
   }
 
   final ThemeDefinition theme;
 
-  // Created in the constructor, not onLoad: app.dart wires the Flutter
-  // `Listener` to `gestureHandler` synchronously at build time, before
-  // onLoad's async `add()` calls would otherwise have run.
+  final StorageService storage;
+
   final GameEngine engine;
   late final GestureHandler gestureHandler;
 
   BoardComponent? _board;
 
-  /// Set once [onLoad] finishes. Nullable until then so
-  /// [gestureHandler]'s cell-relative thresholds (I2) have something safe
-  /// to fall back on in the brief window before the board's first layout.
   BoardComponent get board => _board!;
 
-  /// Temporary in-memory toggle — the real Settings row lands in Phase 10.
-  /// Enabled by default per §1.2.
   bool showGhost = true;
 
-  /// Mirrors [paused] so Flutter widgets outside the Flame tree (the pause
-  /// scrim, §6.1) can react to pause state without polling — Flame's own
-  /// `paused` field is a plain getter/setter, not observable on its own.
   final ValueNotifier<bool> pausedNotifier = ValueNotifier(false);
 
   @override
   void pauseEngine() {
-    // A swipe that's mid-flight when pause is hit would otherwise leave
-    // `GestureHandler` in a stale state — the Flutter `Listener` in
-    // app.dart keeps forwarding pointer events while paused, but is told
-    // to ignore them, so without this reset the in-progress gesture would
-    // just silently hang rather than resuming cleanly (§6.1).
     gestureHandler.reset();
     super.pauseEngine();
     pausedNotifier.value = true;
@@ -65,48 +47,24 @@ class TetrofallGame extends FlameGame {
     pausedNotifier.value = false;
   }
 
-  /// Phase 8: updates the pre-commit highlight for the armed booster as
-  /// the player's finger moves, without destroying anything yet (§1.9).
-  void previewBoosterAt(Offset screenPos) {
-    final type = engine.boosterEngine.armed;
-    if (type == null) return;
-    final cell = board.cellFromScreen(Vector2(screenPos.dx, screenPos.dy));
-    if (cell == null) {
-      board.boosterTargetOverlay.hide();
-      return;
-    }
-    board.boosterTargetOverlay.show(
-      BoosterEngine.targetCells(type, cell.$1, cell.$2, engine.grid),
-    );
-  }
-
-  /// Phase 8: commits the armed booster at the released position, or
-  /// disarms cleanly (no charge spent) if the release misses the board.
-  void commitBoosterAt(Offset screenPos) {
-    board.boosterTargetOverlay.hide();
-    final cell = board.cellFromScreen(Vector2(screenPos.dx, screenPos.dy));
-    if (cell == null) {
-      engine.disarmBooster();
-      return;
-    }
-    engine.tapBoosterTarget(cell.$1, cell.$2);
-  }
-
-  /// Starts a fresh run after game-over or a mid-run restart (§4, §6.1):
-  /// clears lingering render-only animation state (shatter shards, an
-  /// in-flight cascade, the combo banner) that would otherwise carry over
-  /// from the run that just ended, resets any in-progress gesture, resumes
-  /// if paused, then hands off to [GameEngine.start].
   void restart() {
     board.resetForRestart();
     gestureHandler.reset();
     if (paused) resumeEngine();
-    engine.start();
+    engine.start(initialElapsed: _adaptiveStartElapsed);
   }
 
-  /// Tactile confirmation for the two silent, non-gesture-driven moments
-  /// (§6.6) — a piece locking (gravity can trigger this with no touch at
-  /// all) and a clear resolving.
+  /// Watch-Ad-To-Continue from the game-over overlay (game.md §1.9).
+  void continueAfterAd() {
+    board.resetForRestart();
+    gestureHandler.reset();
+    engine.continueAfterAd();
+  }
+
+  Duration get _adaptiveStartElapsed => storage.adaptiveStartSpeedEnabled
+      ? Difficulty.adaptiveStartElapsed(storage.bestScore)
+      : Duration.zero;
+
   void _onHapticEvent(GameEvent event) {
     if (event is PieceLockedEvent) {
       HapticFeedback.lightImpact();
@@ -116,16 +74,15 @@ class TetrofallGame extends FlameGame {
   }
 
   @override
-  Color backgroundColor() => theme.background;
+  Color backgroundColor() => const Color(0x00000000);
 
   @override
   Future<void> onLoad() async {
-    await add(WoodBackground());
     final board = BoardComponent(engine: engine, theme: theme);
     _board = board;
     await add(board);
 
-    engine.start();
+    engine.start(initialElapsed: _adaptiveStartElapsed);
   }
 
   @override

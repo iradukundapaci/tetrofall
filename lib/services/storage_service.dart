@@ -1,16 +1,14 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Wraps `shared_preferences` for the handful of values that must survive
-/// an app relaunch (improvement.md §8): best score and the coin wallet.
-/// Loaded once at app start ([load]) so every read afterward is
-/// synchronous — `SharedPreferences` caches values in memory after
-/// `getInstance()`, so [bestScore]/[coins] are always up to date even
-/// before a pending [saveBestScore]/[saveCoins] write has hit disk.
 class StorageService {
   StorageService(this._prefs);
 
   static const _bestScoreKey = 'best_score';
-  static const _coinsKey = 'coins';
+  static const _adaptiveStartSpeedKey = 'adaptive_start_speed_enabled';
+  static const _musicVolumeKey = 'music_volume';
+  static const _sfxVolumeKey = 'sfx_volume';
+  static const _vibrateEnabledKey = 'vibrate_enabled';
+  static const _ghostPieceEnabledKey = 'ghost_piece_enabled';
 
   final SharedPreferences _prefs;
 
@@ -19,8 +17,34 @@ class StorageService {
   }
 
   int get bestScore => _prefs.getInt(_bestScoreKey) ?? 0;
-  int get coins => _prefs.getInt(_coinsKey) ?? 0;
+
+  bool get adaptiveStartSpeedEnabled =>
+      _prefs.getBool(_adaptiveStartSpeedKey) ?? false;
+
+  /// 0.0–1.0. Defaults match settings.html's mockup sliders (70/85%).
+  double get musicVolume => _prefs.getDouble(_musicVolumeKey) ?? 0.70;
+
+  double get sfxVolume => _prefs.getDouble(_sfxVolumeKey) ?? 0.85;
+
+  bool get vibrateEnabled => _prefs.getBool(_vibrateEnabledKey) ?? true;
+
+  /// Enabled by default per game.md §1.2.
+  bool get ghostPieceEnabled => _prefs.getBool(_ghostPieceEnabledKey) ?? true;
 
   Future<void> saveBestScore(int value) => _prefs.setInt(_bestScoreKey, value);
-  Future<void> saveCoins(int value) => _prefs.setInt(_coinsKey, value);
+
+  Future<void> saveAdaptiveStartSpeedEnabled(bool value) =>
+      _prefs.setBool(_adaptiveStartSpeedKey, value);
+
+  Future<void> saveMusicVolume(double value) =>
+      _prefs.setDouble(_musicVolumeKey, value);
+
+  Future<void> saveSfxVolume(double value) =>
+      _prefs.setDouble(_sfxVolumeKey, value);
+
+  Future<void> saveVibrateEnabled(bool value) =>
+      _prefs.setBool(_vibrateEnabledKey, value);
+
+  Future<void> saveGhostPieceEnabled(bool value) =>
+      _prefs.setBool(_ghostPieceEnabledKey, value);
 }
