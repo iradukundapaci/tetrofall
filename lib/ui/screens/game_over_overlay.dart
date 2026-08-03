@@ -5,8 +5,6 @@ import '../theme/tokens.dart';
 import '../widgets/icon_button.dart';
 import '../widgets/primary_button.dart';
 
-/// 1:1 port of game-over.html: NEW BEST badge, score, previous best,
-/// Watch Ad to Continue / Play Again / Home actions.
 class GameOverOverlay extends StatelessWidget {
   const GameOverOverlay({
     super.key,
@@ -14,6 +12,8 @@ class GameOverOverlay extends StatelessWidget {
     required this.score,
     required this.best,
     required this.onRestart,
+    required this.onHome,
+    required this.canContinueWithAd,
     required this.onContinueWithAd,
   });
 
@@ -21,6 +21,9 @@ class GameOverOverlay extends StatelessWidget {
   final int score;
   final int best;
   final VoidCallback onRestart;
+  final VoidCallback onHome;
+
+  final bool canContinueWithAd;
   final VoidCallback onContinueWithAd;
 
   bool get _isNewBest => score > best;
@@ -151,16 +154,18 @@ class GameOverOverlay extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      SecondaryButton(
-                        label: 'Watch Ad to Continue',
-                        icon: const Icon(
-                          Icons.smart_display_outlined,
-                          size: 18,
-                          color: Tokens.colorText,
+                      if (canContinueWithAd) ...[
+                        SecondaryButton(
+                          label: 'Watch Ad to Continue',
+                          icon: const Icon(
+                            Icons.smart_display_outlined,
+                            size: 18,
+                            color: Tokens.colorText,
+                          ),
+                          onPressed: onContinueWithAd,
                         ),
-                        onPressed: onContinueWithAd,
-                      ),
-                      const SizedBox(height: Tokens.spaceMd),
+                        const SizedBox(height: Tokens.spaceMd),
+                      ],
                       PrimaryButton(label: 'Play Again', onPressed: onRestart),
                       const SizedBox(height: Tokens.spaceMd),
                       Center(
@@ -170,7 +175,7 @@ class GameOverOverlay extends StatelessWidget {
                             Icons.home_outlined,
                             color: Tokens.colorText,
                           ),
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: onHome,
                         ),
                       ),
                     ],

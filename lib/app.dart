@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import 'services/ads_service.dart';
 import 'services/storage_service.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/theme/tokens.dart';
 
 class TetrofallApp extends StatelessWidget {
-  const TetrofallApp({super.key, required this.storage});
+  const TetrofallApp({super.key, required this.storage, required this.ads});
 
   final StorageService storage;
+  final AdsService ads;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +24,7 @@ class TetrofallApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: SplashScreen(storage: storage),
+      home: SplashScreen(storage: storage, ads: ads),
     );
   }
 }

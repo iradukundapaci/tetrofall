@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app.dart';
+import 'services/ads_service.dart';
 import 'services/storage_service.dart';
 
 void main() async {
@@ -11,5 +14,7 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
   final storage = await StorageService.load();
-  runApp(TetrofallApp(storage: storage));
+  final ads = AdsService(storage);
+  unawaited(ads.init());
+  runApp(TetrofallApp(storage: storage, ads: ads));
 }

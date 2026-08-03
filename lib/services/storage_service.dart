@@ -9,6 +9,10 @@ class StorageService {
   static const _sfxVolumeKey = 'sfx_volume';
   static const _vibrateEnabledKey = 'vibrate_enabled';
   static const _ghostPieceEnabledKey = 'ghost_piece_enabled';
+  static const _runsSinceLastInterstitialKey = 'ads_runs_since_interstitial';
+  static const _playSecondsSinceLastInterstitialKey =
+      'ads_play_seconds_since_interstitial';
+  static const _lastAppOpenAdEpochMsKey = 'ads_last_app_open_epoch_ms';
 
   final SharedPreferences _prefs;
 
@@ -31,6 +35,23 @@ class StorageService {
   /// Enabled by default per game.md §1.2.
   bool get ghostPieceEnabled => _prefs.getBool(_ghostPieceEnabledKey) ?? true;
 
+  /// Interstitial frequency cap (phase11_monetization_plan.md §3) — number
+  /// of completed runs since the last interstitial was shown.
+  int get runsSinceLastInterstitial =>
+      _prefs.getInt(_runsSinceLastInterstitialKey) ?? 0;
+
+  /// Cumulative play seconds since the last interstitial was shown.
+  double get playSecondsSinceLastInterstitial =>
+      _prefs.getDouble(_playSecondsSinceLastInterstitialKey) ?? 0;
+
+  /// Epoch ms of the last app-open ad shown, or null if none yet.
+  DateTime? get lastAppOpenAdShownAt {
+    final epochMs = _prefs.getInt(_lastAppOpenAdEpochMsKey);
+    return epochMs == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(epochMs);
+  }
+
   Future<void> saveBestScore(int value) => _prefs.setInt(_bestScoreKey, value);
 
   Future<void> saveAdaptiveStartSpeedEnabled(bool value) =>
@@ -47,4 +68,13 @@ class StorageService {
 
   Future<void> saveGhostPieceEnabled(bool value) =>
       _prefs.setBool(_ghostPieceEnabledKey, value);
+
+  Future<void> saveRunsSinceLastInterstitial(int value) =>
+      _prefs.setInt(_runsSinceLastInterstitialKey, value);
+
+  Future<void> savePlaySecondsSinceLastInterstitial(double value) =>
+      _prefs.setDouble(_playSecondsSinceLastInterstitialKey, value);
+
+  Future<void> saveLastAppOpenAdShownAt(DateTime value) =>
+      _prefs.setInt(_lastAppOpenAdEpochMsKey, value.millisecondsSinceEpoch);
 }

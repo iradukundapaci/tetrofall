@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:tetrofall/app.dart';
+import 'package:tetrofall/services/ads_service.dart';
 import 'package:tetrofall/services/storage_service.dart';
 
 void main() {
@@ -10,8 +11,9 @@ void main() {
   ) async {
     SharedPreferences.setMockInitialValues({});
     final storage = await StorageService.load();
+    final ads = AdsService(storage);
 
-    await tester.pumpWidget(TetrofallApp(storage: storage));
+    await tester.pumpWidget(TetrofallApp(storage: storage, ads: ads));
     await tester.pump();
 
     expect(find.byType(TetrofallApp), findsOneWidget);

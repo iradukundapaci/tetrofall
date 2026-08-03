@@ -1,5 +1,6 @@
 import '../config/board_config.dart';
 import 'cell.dart';
+import 'events.dart';
 
 class Grid {
   Grid({
@@ -60,12 +61,19 @@ class Grid {
   /// Empties the bottom [count] visible rows in place — used by the
   /// Watch-Ad-To-Continue flow (game.md §1.9). No shifting: the stack
   /// above stays exactly where it is, it just gains breathing room below.
-  void clearBottomRows(int count) {
+  /// Returns the cells that were cleared, for the caller to animate.
+  List<ClearedCell> clearBottomRows(int count) {
     final firstRow = (maxRow - count + 1).clamp(0, maxRow);
+    final captured = <ClearedCell>[];
     for (var r = firstRow; r <= maxRow; r++) {
       for (var c = 0; c < cols; c++) {
+        final cell = at(r, c);
+        if (cell != null) {
+          captured.add(ClearedCell(row: r, col: c, type: cell.type));
+        }
         set(r, c, null);
       }
     }
+    return captured;
   }
 }

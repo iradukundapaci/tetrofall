@@ -11,6 +11,7 @@ import '../../game/engine/game_engine.dart';
 import '../../game/engine/grid.dart';
 import '../../game/engine/tetromino.dart';
 import '../../game/tetrofall_game.dart';
+import '../../services/ads_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
@@ -30,21 +31,16 @@ import 'settings_screen.dart';
 /// (the whole point of the game) actually shows up on the menu instead
 /// of just watching pieces stack.
 class MainMenuScreen extends StatefulWidget {
-  const MainMenuScreen({super.key, required this.storage});
+  const MainMenuScreen({super.key, required this.storage, required this.ads});
 
   final StorageService storage;
+  final AdsService ads;
 
   @override
   State<MainMenuScreen> createState() => _MainMenuScreenState();
 }
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
-  // Mock purchase state only — IAP itself is Phase 11. Tapping just
-  // flips the button, exactly like main-menu.html's script does; nothing
-  // is persisted and nothing is actually hidden yet, since there is no ad
-  // to remove.
-  bool _adsRemoved = false;
-
   late final TetrofallGame _demoGame = TetrofallGame(storage: widget.storage);
   Timer? _autoplayTimer;
   Timer? _restartTimer;
@@ -174,36 +170,12 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                               fontSize: Tokens.fontSizeMd,
                               onPressed: () => Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      GameplayScreen(storage: widget.storage),
+                                  builder: (_) => GameplayScreen(
+                                    storage: widget.storage,
+                                    ads: widget.ads,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: Tokens.spaceMd),
-                          SizedBox(
-                            width: 200,
-                            child: SecondaryButton(
-                              label: _adsRemoved
-                                  ? 'Ads Removed'
-                                  : 'No Ads — \$2.99',
-                              highlighted: _adsRemoved,
-                              icon: SvgPicture.asset(
-                                _adsRemoved
-                                    ? AppIcons.checkCircle
-                                    : AppIcons.soundOff,
-                                width: 18,
-                                height: 18,
-                                colorFilter: ColorFilter.mode(
-                                  _adsRemoved
-                                      ? Tokens.colorGold
-                                      : Tokens.colorText,
-                                  BlendMode.srcIn,
-                                ),
-                              ),
-                              onPressed: _adsRemoved
-                                  ? () {}
-                                  : () => setState(() => _adsRemoved = true),
                             ),
                           ),
                         ],

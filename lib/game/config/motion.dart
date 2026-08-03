@@ -34,6 +34,18 @@ abstract final class Motion {
         1000;
   }
 
+  static const continueRevealRowStep = Duration(milliseconds: 90);
+
+  static double continueRevealSeconds(int rows, int cols) {
+    final rowSpan = (rows - 1) * continueRevealRowStep.inMilliseconds;
+    final colSpan = (cols - 1) * shatterStep.inMilliseconds;
+    return (crackHold.inMilliseconds +
+            rowSpan +
+            colSpan +
+            shatterBeat.inMilliseconds) /
+        1000;
+  }
+
   static const gravityCellsPerS2 = 60.0;
   static const impactSquash = Duration(milliseconds: 60);
 

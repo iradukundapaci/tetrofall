@@ -126,6 +126,45 @@ class ShatterLayer extends PositionComponent with HasGameReference {
     final stepSeconds = Motion.shatterStep.inMilliseconds / 1000;
     final crackSeconds = Motion.crackHold.inMilliseconds / 1000;
 
+    _addShatter(
+      cells,
+      linesCleared: linesCleared,
+      delayFor: (cell) =>
+          crackSeconds + (cell.col - center).abs() * stepSeconds,
+      offCenterFor: (cell) =>
+          center == 0 ? 0.0 : (cell.col - center) / center,
+    );
+  }
+
+  /// Same crack-then-shatter visual as [addClear], but staggered
+  /// bottom-to-top and left-to-right within each row instead of outward
+  /// from the column center — used by the watch-ad-to-continue reveal
+  /// (phase11_monetization_plan.md / continueAfterAd), which "clears" a
+  /// block of rows all at once rather than a single completed line.
+  void addContinueReveal(List<ClearedCell> cells, {required int lastRow}) {
+    final rowStepSeconds = Motion.continueRevealRowStep.inMilliseconds / 1000;
+    final cellStepSeconds = Motion.shatterStep.inMilliseconds / 1000;
+    final crackSeconds = Motion.crackHold.inMilliseconds / 1000;
+
+    _addShatter(
+      cells,
+      linesCleared: 1,
+      delayFor: (cell) {
+        final rowOrder = lastRow - cell.row;
+        return crackSeconds +
+            rowOrder * rowStepSeconds +
+            cell.col * cellStepSeconds;
+      },
+      offCenterFor: (_) => 0.0,
+    );
+  }
+
+  void _addShatter(
+    List<ClearedCell> cells, {
+    required int linesCleared,
+    required double Function(ClearedCell cell) delayFor,
+    required double Function(ClearedCell cell) offCenterFor,
+  }) {
     final lineBonus =
         (linesCleared - 1).clamp(0, 20) * Motion.particlesLineBonusPerExtraLine;
     final perCellMax = math.min(
@@ -140,7 +179,7 @@ class ShatterLayer extends PositionComponent with HasGameReference {
         : 1.0;
 
     for (final cell in cells) {
-      final delay = crackSeconds + (cell.col - center).abs() * stepSeconds;
+      final delay = delayFor(cell);
       _crackedCells.add(
         _CrackedCell(
           row: cell.row,
@@ -149,7 +188,7 @@ class ShatterLayer extends PositionComponent with HasGameReference {
           seed: _random.nextInt(1 << 31),
         ),
       );
-      final t = center == 0 ? 0.0 : (cell.col - center) / center;
+      final t = offCenterFor(cell);
       final rawCount =
           perCellMin + _random.nextInt(perCellMax - perCellMin + 1);
       final count = math.max(1, (rawCount * budgetScale).round());

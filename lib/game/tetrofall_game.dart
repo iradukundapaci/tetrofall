@@ -58,6 +58,7 @@ class TetrofallGame extends FlameGame {
   void continueAfterAd() {
     board.resetForRestart();
     gestureHandler.reset();
+    if (paused) resumeEngine();
     engine.continueAfterAd();
   }
 

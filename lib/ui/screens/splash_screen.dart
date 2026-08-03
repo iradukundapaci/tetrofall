@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../services/ads_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/logo_mark.dart';
@@ -17,9 +18,10 @@ import 'main_menu_screen.dart';
 /// both the animation and the real load are done, handing off to the
 /// main menu.
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key, required this.storage});
+  const SplashScreen({super.key, required this.storage, required this.ads});
 
   final StorageService storage;
+  final AdsService ads;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -47,10 +49,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    _dropController = AnimationController(
-      vsync: this,
-      duration: _dropDuration,
-    );
+    _dropController = AnimationController(vsync: this, duration: _dropDuration);
     _squashController = AnimationController(
       vsync: this,
       duration: _squashDuration,
@@ -99,9 +98,12 @@ class _SplashScreenState extends State<SplashScreen>
 
     await Future.delayed(_fadeOutDuration);
     if (!mounted) return;
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => MainMenuScreen(storage: widget.storage)));
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) =>
+            MainMenuScreen(storage: widget.storage, ads: widget.ads),
+      ),
+    );
   }
 
   @override
@@ -293,14 +295,13 @@ class _SplashDustState extends State<_SplashDust>
       (_) => _DustSpec(
         left: random.nextDouble(),
         driftX: random.nextDouble() * 40 - 20,
-        duration: Duration(
-          milliseconds: 4000 + random.nextInt(4000),
-        ),
+        duration: Duration(milliseconds: 4000 + random.nextInt(4000)),
         delay: Duration(milliseconds: random.nextInt(6000)),
       ),
     );
     _controllers = [
-      for (final spec in _specs) AnimationController(vsync: this, duration: spec.duration),
+      for (final spec in _specs)
+        AnimationController(vsync: this, duration: spec.duration),
     ];
     for (var i = 0; i < _controllers.length; i++) {
       Future.delayed(_specs[i].delay, () {

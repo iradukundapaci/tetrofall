@@ -11,7 +11,7 @@ import 'rise_controller.dart';
 import 'scoring.dart';
 import 'tetromino.dart';
 
-enum GamePhase { ready, spawning, playing, resolving, gameOver }
+enum GamePhase { ready, spawning, playing, resolving, gameOver, revealing }
 
 enum GameIntentType {
   moveLeft,
@@ -69,17 +69,18 @@ class GameEngine {
 
   void enqueueIntent(GameIntentType intent) => _intentQueue.add(intent);
 
-  /// Watch-Ad-To-Continue (game.md §1.9): clears the bottom 6 rows and
-  /// resumes at the current difficulty — `riseController.elapsed` is left
-  /// untouched so the rise/drop pacing doesn't reset to the tutorial-easy
-  /// checkpoint. Only valid from `gameOver`.
   static const continueRowsCleared = 6;
 
+  bool hasUsedContinueThisRun = false;
+
   void continueAfterAd() {
-    if (phase != GamePhase.gameOver) return;
-    grid.clearBottomRows(continueRowsCleared);
+    if (phase != GamePhase.gameOver || hasUsedContinueThisRun) return;
+    hasUsedContinueThisRun = true;
     _intentQueue.clear();
-    phase = GamePhase.spawning;
+    final revealedCells = grid.clearBottomRows(continueRowsCleared);
+    phase = GamePhase.revealing;
+    _resolveTimer = Motion.continueRevealSeconds(continueRowsCleared, grid.cols);
+    _emit(ContinueRevealEvent(revealedCells));
   }
 
   void start({Duration initialElapsed = Duration.zero}) {
@@ -87,6 +88,7 @@ class GameEngine {
     _intentQueue.clear();
     riseController.reset(initialElapsed: initialElapsed);
     scoring.reset();
+    hasUsedContinueThisRun = false;
     phase = GamePhase.spawning;
     _trySpawn();
   }
@@ -126,6 +128,16 @@ class GameEngine {
         }
       case GamePhase.gameOver:
         return;
+      case GamePhase.revealing:
+        riseController.tickElapsedOnly(dt);
+        if (_resolveTimer > 0) {
+          _resolveTimer -= dt;
+          if (_resolveTimer <= 0) {
+            phase = GamePhase.spawning;
+          }
+        } else {
+          phase = GamePhase.spawning;
+        }
     }
   }
 

@@ -34,9 +34,10 @@ class _ScoreHudState extends State<ScoreHud> {
   void _onScoringChanged() {
     final scoring = widget.game.engine.scoring;
     if (scoring.score > _best) {
-      setState(() => _best = scoring.score);
+      _best = scoring.score;
       widget.storage.saveBestScore(_best);
     }
+    setState(() {});
   }
 
   @override
