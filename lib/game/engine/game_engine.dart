@@ -76,12 +76,6 @@ class GameEngine {
 
   bool hasUsedContinueThisRun = false;
 
-  /// Watch-Ad-To-Continue: clears the spawn buffer, then plays out a
-  /// two-stage board-wipe — rows fill in bottom-to-top until the board
-  /// is completely full, hold a beat, then rows clear top-to-bottom, one
-  /// row per step (each firing the standard per-row shatter effect).
-  /// None of this is scored — the player keeps exactly the score they
-  /// had, just with a clean board once it's done.
   void continueAfterAd() {
     if (phase != GamePhase.gameOver || hasUsedContinueThisRun) return;
     hasUsedContinueThisRun = true;
@@ -139,7 +133,6 @@ class GameEngine {
       case GamePhase.gameOver:
         return;
       case GamePhase.continuing:
-        riseController.tickElapsedOnly(dt);
         _resolveTimer -= dt;
         if (_resolveTimer <= 0) {
           _advanceContinue();
