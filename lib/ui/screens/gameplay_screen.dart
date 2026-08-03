@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import '../../game/config/board_config.dart';
@@ -67,10 +68,16 @@ class _GameplayScreenState extends State<GameplayScreen> {
   }
 
   Future<void> _continueAfterAd() async {
-    final earned = await widget.ads.showRewardedContinue();
-    if (!earned) {
-      setState(() {});
-      return;
+    // Debug builds skip the rewarded ad entirely so the continue flow
+    // (fill bottom rows → clear-row pipeline → resume, score kept) can be
+    // tested without waiting on ad infrastructure. Release builds are
+    // unaffected — they still require a watched ad.
+    if (!kDebugMode) {
+      final earned = await widget.ads.showRewardedContinue();
+      if (!earned) {
+        setState(() {});
+        return;
+      }
     }
     _game.continueAfterAd();
     setState(() => _gameOverReason = null);
@@ -107,7 +114,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
                   onRestart: _restartAfterGameOver,
                   onHome: _goHome,
                   canContinueWithAd:
-                      widget.ads.isRewardedContinueReady &&
+                      (kDebugMode || widget.ads.isRewardedContinueReady) &&
                       !_game.engine.hasUsedContinueThisRun,
                   onContinueWithAd: _continueAfterAd,
                 ),

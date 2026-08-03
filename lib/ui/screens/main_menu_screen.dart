@@ -41,7 +41,12 @@ class MainMenuScreen extends StatefulWidget {
 }
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
-  late final TetrofallGame _demoGame = TetrofallGame(storage: widget.storage);
+  /// Nullable (rather than the live-forever `late final` this started as)
+  /// so the demo can be fully torn down while a real run is in progress:
+  /// dropping the reference lets the GameWidget unmount, which makes Flame
+  /// release the demo's component tree and stop ticking it in the
+  /// background instead of burning memory/CPU behind the gameplay screen.
+  TetrofallGame? _demoGame;
   Timer? _autoplayTimer;
   Timer? _restartTimer;
   RotationState _targetRotation = RotationState.spawn;
@@ -50,32 +55,58 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   @override
   void initState() {
     super.initState();
-    _demoGame.engine.addEventListener(_onDemoEvent);
+    _startDemo();
+  }
+
+  @override
+  void dispose() {
+    _stopDemo();
+    super.dispose();
+  }
+
+  void _startDemo() {
+    final game = TetrofallGame(storage: widget.storage);
+    _demoGame = game;
+    game.engine.addEventListener(_onDemoEvent);
     _autoplayTimer = Timer.periodic(
       const Duration(milliseconds: 220),
       (_) => _tickAutoplay(),
     );
   }
 
-  @override
-  void dispose() {
+  void _stopDemo() {
     _autoplayTimer?.cancel();
+    _autoplayTimer = null;
     _restartTimer?.cancel();
-    _demoGame.engine.removeEventListener(_onDemoEvent);
-    super.dispose();
+    _restartTimer = null;
+    _demoGame?.engine.removeEventListener(_onDemoEvent);
+    _demoGame = null;
+  }
+
+  Future<void> _openGameplay() async {
+    setState(_stopDemo);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            GameplayScreen(storage: widget.storage, ads: widget.ads),
+      ),
+    );
+    if (mounted) setState(_startDemo);
   }
 
   void _onDemoEvent(GameEvent event) {
+    final game = _demoGame;
+    if (game == null) return;
     if (event is PieceSpawnedEvent) {
-      final piece = _demoGame.engine.pieceController.piece;
+      final piece = game.engine.pieceController.piece;
       if (piece != null) {
-        final placement = _bestPlacement(_demoGame.engine.grid, piece.type);
+        final placement = _bestPlacement(game.engine.grid, piece.type);
         _targetRotation = placement.$1;
         _targetCol = placement.$2;
       }
     } else if (event is GameOverEvent) {
       _restartTimer = Timer(const Duration(seconds: 2), () {
-        if (mounted) _demoGame.restart();
+        _demoGame?.restart();
       });
     }
   }
@@ -84,8 +115,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   /// the placement itself is what does the work of hunting for clears,
   /// this just drives the piece there.
   void _tickAutoplay() {
-    final engine = _demoGame.engine;
-    if (engine.phase != GamePhase.playing) return;
+    final engine = _demoGame?.engine;
+    if (engine == null || engine.phase != GamePhase.playing) return;
     final piece = engine.pieceController.piece;
     if (piece == null) return;
     if (piece.rotation != _targetRotation) {
@@ -107,10 +138,12 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         children: [
           Positioned.fill(
             child: IgnorePointer(
-              child: ImageFiltered(
-                imageFilter: ui.ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
-                child: GameWidget(game: _demoGame),
-              ),
+              child: _demoGame == null
+                  ? const ColoredBox(color: Tokens.colorBg)
+                  : ImageFiltered(
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
+                      child: GameWidget(game: _demoGame!),
+                    ),
             ),
           ),
           const Positioned.fill(child: _MenuScrim()),
@@ -168,14 +201,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                             child: PrimaryButton(
                               label: 'PLAY',
                               fontSize: Tokens.fontSizeMd,
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => GameplayScreen(
-                                    storage: widget.storage,
-                                    ads: widget.ads,
-                                  ),
-                                ),
-                              ),
+                              onPressed: _openGameplay,
                             ),
                           ),
                         ],

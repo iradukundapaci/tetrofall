@@ -11,7 +11,7 @@ import 'rise_controller.dart';
 import 'scoring.dart';
 import 'tetromino.dart';
 
-enum GamePhase { ready, spawning, playing, resolving, gameOver, revealing }
+enum GamePhase { ready, spawning, playing, resolving, gameOver, continuing }
 
 enum GameIntentType {
   moveLeft,
@@ -24,6 +24,8 @@ enum GameIntentType {
 }
 
 enum _ResolveStage { shatter, cascade }
+
+enum _ContinueStage { filling, clearing }
 
 class GameEngine {
   GameEngine({Random? random, Grid? grid})
@@ -52,6 +54,9 @@ class GameEngine {
   double _resolveTimer = 0;
   _ResolveStage _resolveStage = _ResolveStage.shatter;
 
+  _ContinueStage _continueStage = _ContinueStage.filling;
+  int _continueRow = 0;
+
   final _intentQueue = <GameIntentType>[];
   final _eventListeners = <void Function(GameEvent)>[];
 
@@ -69,18 +74,23 @@ class GameEngine {
 
   void enqueueIntent(GameIntentType intent) => _intentQueue.add(intent);
 
-  static const continueRowsCleared = 6;
-
   bool hasUsedContinueThisRun = false;
 
+  /// Watch-Ad-To-Continue: clears the spawn buffer, then plays out a
+  /// two-stage board-wipe — rows fill in bottom-to-top until the board
+  /// is completely full, hold a beat, then rows clear top-to-bottom, one
+  /// row per step (each firing the standard per-row shatter effect).
+  /// None of this is scored — the player keeps exactly the score they
+  /// had, just with a clean board once it's done.
   void continueAfterAd() {
     if (phase != GamePhase.gameOver || hasUsedContinueThisRun) return;
     hasUsedContinueThisRun = true;
     _intentQueue.clear();
-    final revealedCells = grid.clearBottomRows(continueRowsCleared);
-    phase = GamePhase.revealing;
-    _resolveTimer = Motion.continueRevealSeconds(continueRowsCleared, grid.cols);
-    _emit(ContinueRevealEvent(revealedCells));
+    grid.clearSpawnRows();
+    phase = GamePhase.continuing;
+    _continueStage = _ContinueStage.filling;
+    _continueRow = grid.maxRow;
+    _resolveTimer = 0;
   }
 
   void start({Duration initialElapsed = Duration.zero}) {
@@ -128,15 +138,11 @@ class GameEngine {
         }
       case GamePhase.gameOver:
         return;
-      case GamePhase.revealing:
+      case GamePhase.continuing:
         riseController.tickElapsedOnly(dt);
-        if (_resolveTimer > 0) {
-          _resolveTimer -= dt;
-          if (_resolveTimer <= 0) {
-            phase = GamePhase.spawning;
-          }
-        } else {
-          phase = GamePhase.spawning;
+        _resolveTimer -= dt;
+        if (_resolveTimer <= 0) {
+          _advanceContinue();
         }
     }
   }
@@ -294,5 +300,41 @@ class GameEngine {
     if (maxDistance == 0) return 0;
     final fallSeconds = sqrt(2 * maxDistance / Motion.gravityCellsPerS2);
     return fallSeconds + Motion.impactSquash.inMilliseconds / 1000;
+  }
+
+  void _advanceContinue() {
+    switch (_continueStage) {
+      case _ContinueStage.filling:
+        grid.fillRow(_continueRow);
+        if (_continueRow == 0) {
+          _continueStage = _ContinueStage.clearing;
+          _continueRow = 0;
+          _resolveTimer = Motion.continueFullHold.inMilliseconds / 1000;
+        } else {
+          _continueRow--;
+          _resolveTimer = Motion.continueFillRowStep.inMilliseconds / 1000;
+        }
+      case _ContinueStage.clearing:
+        _clearContinueRow(_continueRow);
+        if (_continueRow == grid.maxRow) {
+          phase = GamePhase.spawning;
+          return;
+        }
+        _continueRow++;
+        _resolveTimer = Motion.continueClearRowStep.inMilliseconds / 1000;
+    }
+  }
+
+  void _clearContinueRow(int row) {
+    final removedCells = <ClearedCell>[];
+    for (var c = 0; c < grid.cols; c++) {
+      final cell = grid.at(row, c);
+      if (cell == null) continue;
+      removedCells.add(ClearedCell(row: row, col: c, type: cell.type));
+      grid.set(row, c, null);
+    }
+    if (removedCells.isNotEmpty) {
+      _emit(RowsClearedEvent([row], removedCells));
+    }
   }
 }

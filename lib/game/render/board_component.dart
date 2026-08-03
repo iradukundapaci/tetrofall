@@ -102,8 +102,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
       fallAnimator.addFalls(event.falls);
     } else if (event is RowsClearedEvent) {
       shatterLayer.addClear(event.cells, BoardConfig.cols);
-    } else if (event is ContinueRevealEvent) {
-      shatterLayer.addContinueReveal(event.cells, lastRow: engine.grid.maxRow);
     }
   }
 

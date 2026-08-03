@@ -136,29 +136,6 @@ class ShatterLayer extends PositionComponent with HasGameReference {
     );
   }
 
-  /// Same crack-then-shatter visual as [addClear], but staggered
-  /// bottom-to-top and left-to-right within each row instead of outward
-  /// from the column center — used by the watch-ad-to-continue reveal
-  /// (phase11_monetization_plan.md / continueAfterAd), which "clears" a
-  /// block of rows all at once rather than a single completed line.
-  void addContinueReveal(List<ClearedCell> cells, {required int lastRow}) {
-    final rowStepSeconds = Motion.continueRevealRowStep.inMilliseconds / 1000;
-    final cellStepSeconds = Motion.shatterStep.inMilliseconds / 1000;
-    final crackSeconds = Motion.crackHold.inMilliseconds / 1000;
-
-    _addShatter(
-      cells,
-      linesCleared: 1,
-      delayFor: (cell) {
-        final rowOrder = lastRow - cell.row;
-        return crackSeconds +
-            rowOrder * rowStepSeconds +
-            cell.col * cellStepSeconds;
-      },
-      offCenterFor: (_) => 0.0,
-    );
-  }
-
   void _addShatter(
     List<ClearedCell> cells, {
     required int linesCleared,

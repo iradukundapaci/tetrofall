@@ -25,11 +25,6 @@ class RowsClearedEvent extends GameEvent {
   final List<ClearedCell> cells;
 }
 
-class ContinueRevealEvent extends GameEvent {
-  const ContinueRevealEvent(this.cells);
-  final List<ClearedCell> cells;
-}
-
 class BlockFallEvent {
   const BlockFallEvent({
     required this.fromRow,

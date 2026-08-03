@@ -34,17 +34,12 @@ abstract final class Motion {
         1000;
   }
 
-  static const continueRevealRowStep = Duration(milliseconds: 90);
-
-  static double continueRevealSeconds(int rows, int cols) {
-    final rowSpan = (rows - 1) * continueRevealRowStep.inMilliseconds;
-    final colSpan = (cols - 1) * shatterStep.inMilliseconds;
-    return (crackHold.inMilliseconds +
-            rowSpan +
-            colSpan +
-            shatterBeat.inMilliseconds) /
-        1000;
-  }
+  /// Watch-Ad-To-Continue: rows fill bottom-to-top, hold a beat once the
+  /// board is completely full, then clear top-to-bottom — one row per
+  /// step, each firing the standard per-row shatter effect.
+  static const continueFillRowStep = Duration(milliseconds: 35);
+  static const continueFullHold = Duration(milliseconds: 220);
+  static const continueClearRowStep = Duration(milliseconds: 90);
 
   static const gravityCellsPerS2 = 60.0;
   static const impactSquash = Duration(milliseconds: 60);

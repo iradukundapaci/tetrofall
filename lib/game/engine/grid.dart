@@ -1,6 +1,5 @@
 import '../config/board_config.dart';
 import 'cell.dart';
-import 'events.dart';
 
 class Grid {
   Grid({
@@ -58,22 +57,25 @@ class Grid {
     }
   }
 
-  /// Empties the bottom [count] visible rows in place — used by the
-  /// Watch-Ad-To-Continue flow (game.md §1.9). No shifting: the stack
-  /// above stays exactly where it is, it just gains breathing room below.
-  /// Returns the cells that were cleared, for the caller to animate.
-  List<ClearedCell> clearBottomRows(int count) {
-    final firstRow = (maxRow - count + 1).clamp(0, maxRow);
-    final captured = <ClearedCell>[];
-    for (var r = firstRow; r <= maxRow; r++) {
+  /// Fills every empty cell in a single visible [row] — used one row at a
+  /// time, bottom-to-top, by the Watch-Ad-To-Continue fill animation.
+  void fillRow(int row) {
+    for (var c = 0; c < cols; c++) {
+      if (at(row, c) == null) {
+        set(row, c, Cell(BlockType.wood));
+      }
+    }
+  }
+
+  /// Empties the spawn buffer above the board. It isn't rendered, so
+  /// unlike a visible-row clear it needs no animation — just a direct
+  /// wipe so nothing left over there can block the next spawn after a
+  /// Watch-Ad-To-Continue.
+  void clearSpawnRows() {
+    for (var r = minRow; r < 0; r++) {
       for (var c = 0; c < cols; c++) {
-        final cell = at(r, c);
-        if (cell != null) {
-          captured.add(ClearedCell(row: r, col: c, type: cell.type));
-        }
         set(r, c, null);
       }
     }
-    return captured;
   }
 }

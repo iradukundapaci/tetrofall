@@ -210,7 +210,7 @@ Triggered by:
 1. **Top-out** — `commitRise()` would push a settled block above row 0.
 2. **Block-out** — a newly spawned piece overlaps settled blocks.
 
-Sequence: freeze board → desaturate → blocks crumble top-to-bottom (400ms) → `game-over.html` overlay with score, best, Watch-Ad-To-Continue. Continue clears the bottom 6 rows and resumes at the current difficulty.
+Sequence: freeze board → desaturate → blocks crumble top-to-bottom (400ms) → `game-over.html` overlay with score, best, Watch-Ad-To-Continue. Continue clears the spawn buffer, then wipes the board in two stages: rows fill in bottom-to-top until it's completely full, hold a beat, then rows clear top-to-bottom — one row per step, each firing the standard per-row shatter effect. None of it is scored — the player keeps exactly the score they had — and the run resumes at the current difficulty on a clean board.
 
 ## 1.10 Controls
 
@@ -1148,7 +1148,7 @@ Rules for this phase:
 
 1. Install the release build (not debug) on a real device and play a full session. Release builds behave differently — this is where anything that only worked in debug shows up.
 2. Confirm the banner slot below the board loads correctly and never overlaps the board or HUD.
-3. Watch a rewarded ad for a continue: the run resumes correctly with the bottom 6 rows cleared, and you don't lose your score.
+3. Watch a rewarded ad for a continue: the run resumes correctly with the whole board cleared, and your score is exactly what it was (the forced clear doesn't add to it).
 4. Confirm no ad ever interrupts an active run.
 5. Purchase Remove Ads; force-quit and relaunch to confirm the banner stays hidden and the continue prompt no longer offers an ad. Then test Restore Purchases.
 6. Play a full run with airplane mode on — no crashes, no hangs waiting on an ad that will never load.

@@ -23,7 +23,7 @@ Expands the Phase 11 entry in `game.md` (line 1139) into a standalone plan. **Th
 
 Tetrofall has no coin/cosmetic economy at MVP (per the Phase 9 decision: one theme), so rewarded placements are limited to what the current feature set supports:
 
-1. **Continue once after losing** (already in `game.md`) — watch an ad, resume with the bottom 6 rows cleared, score preserved. This is the only rewarded placement at MVP.
+1. **Continue once after losing** (already in `game.md`) — watch an ad, resume with the whole board cleared, score preserved (the forced clear itself isn't scored). This is the only rewarded placement at MVP.
 2. **Deferred, not MVP:** double coins, daily bonus claim, temporary cosmetic/theme unlock — these all require a meta-progression system (coins, multiple themes) that doesn't exist yet. Revisit once/if that system ships. Don't build the ad hooks for these now; there's nothing behind them.
 
 ## 3. Interstitial ads — placements & caps
@@ -81,7 +81,7 @@ Needed before any ad SDK initializes:
 
 1. Install the **release** build (signed AAB/APK) on a real Android device, not debug.
 2. Play a fresh session: no interstitial on the first loss; one appears only after the 4-run / 6-minute cap trips.
-3. Lose a run, watch the rewarded continue ad: run resumes with the bottom 6 rows cleared, score intact.
+3. Lose a run, watch the rewarded continue ad: run resumes with the whole board cleared, score intact.
 4. Confirm no interstitial fires immediately after a rewarded continue.
 5. Background the app for 5+ minutes, foreground it: one app-open ad, not a rewarded or interstitial. Repeat within the same hour — no second app-open ad.
 6. Confirm the banner loads below the board on the gameplay screen and stays put (no overlap with HUD/board) when paused; confirm it collapses cleanly with no crash if the banner fails to load.
