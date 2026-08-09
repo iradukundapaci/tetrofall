@@ -4,6 +4,7 @@ import 'package:flutter/animation.dart' show Curves;
 import '../../models/theme_definition.dart';
 import '../config/motion.dart';
 import '../engine/game_engine.dart';
+import '../engine/piece_controller.dart';
 import '../tetrofall_game.dart';
 import 'block_component.dart';
 
@@ -24,6 +25,10 @@ class PieceComponent extends PositionComponent
   double _easeTarget = 0;
   double _easeT = 1;
   int? _lastCol;
+
+  /// The piece the ease is currently tracking, held by identity so a newly
+  /// spawned piece can be told apart from the one that just locked.
+  ActivePiece? _lastPiece;
 
   @override
   Future<void> onLoad() async {
@@ -48,6 +53,16 @@ class PieceComponent extends PositionComponent
         b.blockVisible = false;
       }
       return;
+    }
+
+    // A new piece starts where it spawns, it does not slide in from wherever
+    // the last one landed. Clearing the tracked column is what makes the
+    // branch below snap instead of ease. The `piece == null` path above is
+    // not enough on its own: a hard drop locks and respawns inside a single
+    // engine tick, so the renderer never observes the gap.
+    if (!identical(_lastPiece, piece)) {
+      _lastPiece = piece;
+      _lastCol = null;
     }
 
     if (_lastCol != piece.anchorCol) {
@@ -92,8 +107,11 @@ class PieceComponent extends PositionComponent
         final offset = cells[i];
         g
           ..size = Vector2.all(cellSize)
+          // Shares the eased column so the landing outline stays under the
+          // piece it belongs to; reading the raw column instead put the two
+          // a whole cell apart for the length of every sideways move.
           ..position = Vector2(
-            (piece.anchorCol + offset.col) * cellSize,
+            (_visualCol + offset.col) * cellSize,
             (ghostRow + offset.row) * cellSize,
           );
       }

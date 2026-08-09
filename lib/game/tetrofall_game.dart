@@ -86,9 +86,25 @@ class TetrofallGame extends FlameGame {
     engine.start(initialElapsed: _adaptiveStartElapsed);
   }
 
+  /// The engine must advance *before* the component tree, and the order is
+  /// load-bearing rather than arbitrary.
+  ///
+  /// Flame runs `update` for every component and only then `render`, so a
+  /// component that reads engine state inside `render` sees the state as of
+  /// the end of this method, while one that reads it inside `update` sees
+  /// whatever it was when the component's turn came. With the engine ticking
+  /// last those two disagreed: `BoardComponent` positioned the scrolling
+  /// content layer from the pre-tick `riseProgress`, but
+  /// `BoardBlocksComponent` reads the grid straight out of the engine at
+  /// render time. On an ordinary frame they differ by one frame of rise —
+  /// invisible. On the frame a rise commits, `riseProgress` has just wrapped
+  /// from ~1 back to ~0 *and* every settled block has moved up a row, so the
+  /// board drew a full cell too high for exactly that frame and dropped back
+  /// on the next one: the whole stack visibly jumping up and falling back,
+  /// once per rise interval.
   @override
   void update(double dt) {
-    super.update(dt);
     engine.tick(dt);
+    super.update(dt);
   }
 }
