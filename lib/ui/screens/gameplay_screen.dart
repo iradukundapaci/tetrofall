@@ -11,6 +11,7 @@ import '../../services/ads_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/banner_ad_slot.dart';
+import 'confirm_quit_overlay.dart';
 import 'game_over_overlay.dart';
 import 'pause_overlay.dart';
 
@@ -29,6 +30,12 @@ class _GameplayScreenState extends State<GameplayScreen> {
     ..showGhost = widget.storage.ghostPieceEnabled;
   GameOverReason? _gameOverReason;
   Duration _runElapsedAtGameOver = Duration.zero;
+  bool _confirmingQuit = false;
+
+  /// Whether the run was already paused when the quit prompt opened, so
+  /// "Keep Playing" returns to the pause modal instead of resuming a game
+  /// the player deliberately paused.
+  bool _wasPausedBeforeConfirm = false;
 
   @override
   void initState() {
@@ -47,7 +54,10 @@ class _GameplayScreenState extends State<GameplayScreen> {
       _runElapsedAtGameOver = Duration(
         milliseconds: (_game.engine.riseController.elapsed * 1000).round(),
       );
-      setState(() => _gameOverReason = event.reason);
+      setState(() {
+        _gameOverReason = event.reason;
+        _confirmingQuit = false;
+      });
     }
   }
 
@@ -56,13 +66,39 @@ class _GameplayScreenState extends State<GameplayScreen> {
     setState(() => _gameOverReason = null);
   }
 
+  /// Freezes the run behind the prompt so the board can't advance (or the
+  /// player top out) while they decide.
+  void _requestQuit() {
+    if (_confirmingQuit) return;
+    _wasPausedBeforeConfirm = _game.paused;
+    if (!_game.paused) _game.pauseEngine();
+    setState(() => _confirmingQuit = true);
+  }
+
+  void _cancelQuit() {
+    setState(() => _confirmingQuit = false);
+    if (!_wasPausedBeforeConfirm) _game.resumeEngine();
+  }
+
+  void _confirmQuit() {
+    setState(() => _confirmingQuit = false);
+    _goHome();
+  }
+
   void _restartAfterGameOver() {
     widget.ads.notifyRunEnded(_runElapsedAtGameOver);
     _restart();
   }
 
   void _goHome() {
-    widget.ads.notifyRunEnded(_runElapsedAtGameOver);
+    // Quitting mid-run still counts toward the interstitial cadence, so use
+    // the live clock when the run never reached game over.
+    final elapsed = _gameOverReason != null
+        ? _runElapsedAtGameOver
+        : Duration(
+            milliseconds: (_game.engine.riseController.elapsed * 1000).round(),
+          );
+    widget.ads.notifyRunEnded(elapsed);
     Navigator.of(context).pop();
   }
 
@@ -78,42 +114,65 @@ class _GameplayScreenState extends State<GameplayScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Tokens.colorBg,
-      body: ValueListenableBuilder<bool>(
-        valueListenable: _game.pausedNotifier,
-        builder: (context, paused, _) {
-          final showPause = paused && _gameOverReason == null;
-          return Stack(
-            children: [
-              _GameplayBody(
-                game: _game,
-                storage: widget.storage,
-                ads: widget.ads,
-                dimmed: showPause,
-              ),
-              if (showPause)
-                PauseOverlay(
+    return PopScope(
+      // A back gesture mid-run never leaves directly — it opens the quit
+      // prompt (or dismisses it, if it is already up).
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_gameOverReason != null) {
+          _goHome();
+        } else if (_confirmingQuit) {
+          _cancelQuit();
+        } else {
+          _requestQuit();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Tokens.colorBg,
+        body: ValueListenableBuilder<bool>(
+          valueListenable: _game.pausedNotifier,
+          builder: (context, paused, _) {
+            final showPause =
+                paused && _gameOverReason == null && !_confirmingQuit;
+            return Stack(
+              children: [
+                _GameplayBody(
+                  game: _game,
                   storage: widget.storage,
-                  liveGame: _game,
-                  onResume: _game.resumeEngine,
-                  onRestart: _restart,
+                  ads: widget.ads,
+                  dimmed: showPause || _confirmingQuit,
                 ),
-              if (_gameOverReason != null)
-                GameOverOverlay(
-                  reason: _gameOverReason!,
-                  score: _game.engine.scoring.score,
-                  best: widget.storage.bestScore,
-                  onRestart: _restartAfterGameOver,
-                  onHome: _goHome,
-                  canContinueWithAd:
-                      widget.ads.isRewardedContinueReady &&
-                      !_game.engine.hasUsedContinueThisRun,
-                  onContinueWithAd: _continueAfterAd,
-                ),
-            ],
-          );
-        },
+                if (showPause)
+                  PauseOverlay(
+                    storage: widget.storage,
+                    liveGame: _game,
+                    onResume: _game.resumeEngine,
+                    onRestart: _restart,
+                    onQuit: _requestQuit,
+                  ),
+                if (_confirmingQuit && _gameOverReason == null)
+                  ConfirmQuitOverlay(
+                    score: _game.engine.scoring.score,
+                    onContinue: _cancelQuit,
+                    onQuit: _confirmQuit,
+                  ),
+                if (_gameOverReason != null)
+                  GameOverOverlay(
+                    reason: _gameOverReason!,
+                    score: _game.engine.scoring.score,
+                    best: widget.storage.bestScore,
+                    onRestart: _restartAfterGameOver,
+                    onHome: _goHome,
+                    canContinueWithAd:
+                        widget.ads.isRewardedContinueReady &&
+                        !_game.engine.hasUsedContinueThisRun,
+                    onContinueWithAd: _continueAfterAd,
+                  ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

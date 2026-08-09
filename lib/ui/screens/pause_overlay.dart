@@ -15,12 +15,16 @@ class PauseOverlay extends StatelessWidget {
     required this.liveGame,
     required this.onResume,
     required this.onRestart,
+    required this.onQuit,
   });
 
   final StorageService storage;
   final TetrofallGame liveGame;
   final VoidCallback onResume;
   final VoidCallback onRestart;
+
+  /// Asks the host screen to confirm before abandoning the run.
+  final VoidCallback onQuit;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +72,7 @@ class PauseOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: Tokens.spaceMd),
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: onQuit,
                     child: const Text(
                       'Quit',
                       style: TextStyle(
