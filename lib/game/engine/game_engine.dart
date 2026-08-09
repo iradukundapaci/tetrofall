@@ -161,6 +161,10 @@ class GameEngine {
       return;
     }
     for (final buffered in _intentQueue) {
+      // A hard drop locks the piece and leaves the playing phase mid-drain.
+      // Anything queued behind it belonged to the piece that just landed, so
+      // it is dropped rather than replayed onto whatever spawns next.
+      if (phase != GamePhase.playing) break;
       switch (buffered.type) {
         case GameIntentType.moveLeft:
           pieceController.moveLeft();

@@ -80,7 +80,10 @@ class PieceController {
     final p = _piece;
     if (p == null) return;
     final below = _collides(p.cells, p.anchorRow + 1, p.anchorCol);
-    if (below && !_grounded) {
+    // Landing on a fresh surface restarts the lock delay, but only out of
+    // the same budget a move or rotation spends. Refreshing it for free let
+    // a piece be walked off a ledge and back on forever.
+    if (below && !_grounded && _resetCount < Motion.lockResetLimit) {
       _lockTimer = 0;
     }
     _grounded = below;
@@ -179,8 +182,11 @@ class PieceController {
 
     if (_grounded) {
       _lockTimer += dt;
-      if (_lockTimer * 1000 >= Motion.lockDelay.inMilliseconds ||
-          _resetCount >= Motion.lockResetLimit) {
+      // Only the delay running out locks a piece. Exhausting the reset
+      // budget used to lock it on the spot, so the fifteenth nudge along a
+      // row snapped the piece down under the player's finger instead of
+      // simply being the last nudge that bought more time.
+      if (_lockTimer * 1000 >= Motion.lockDelay.inMilliseconds) {
         return PieceTickResult.locked;
       }
     }
