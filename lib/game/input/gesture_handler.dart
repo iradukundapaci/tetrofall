@@ -27,6 +27,8 @@ class GestureHandler {
 
   double _accumDx = 0;
 
+  DateTime? _lastHaptic;
+
   void onPointerDown(PointerDownEvent event) {
     if (_pointer != null) return;
     final pos = event.localPosition;
@@ -47,6 +49,7 @@ class GestureHandler {
 
   void _handleMove(Offset pos) {
     final dx = pos.dx - _last!.dx;
+    final dy = pos.dy - _last!.dy;
     _last = pos;
 
     final totalMove = (pos - _down!).distance;
@@ -60,10 +63,12 @@ class GestureHandler {
     final totalDx = pos.dx - _down!.dx;
     final totalDown = pos.dy - _down!.dy;
 
-    final isVertical =
-        totalDown > InputTuning.hardDropVerticalityRatio * totalDx.abs();
-
-    if (!isVertical) {
+    // Sideways intent is judged on this event's own delta. It used to be
+    // gated on `totalDown > 1.5 * totalDx.abs()` — both measured from the
+    // touch-down point — so once the thumb had arced downward at all, and
+    // permanently once a soft drop was engaged, horizontal moves stopped
+    // registering for the rest of the gesture.
+    if (dx.abs() > dy.abs() * InputTuning.horizontalAxisRatio) {
       if (_accumDx != 0 && dx != 0 && (_accumDx > 0) != (dx > 0)) {
         _accumDx = dx;
       } else {
@@ -75,6 +80,11 @@ class GestureHandler {
         _accumDx -= dir * swipeColumnThreshold;
       }
     }
+
+    // Hard drop stays a deliberate, mostly-vertical flick, so it is still
+    // measured against the whole gesture rather than one event.
+    final isVertical =
+        totalDown > InputTuning.hardDropVerticalityRatio * totalDx.abs();
 
     if (totalDown >= hardDropDistance && isVertical) {
       if (_softDropEngaged) engine.enqueueIntent(GameIntentType.softDropEnd);
@@ -131,6 +141,15 @@ class GestureHandler {
     engine.enqueueIntent(
       dir > 0 ? GameIntentType.moveRight : GameIntentType.moveLeft,
     );
-    HapticFeedback.selectionClick();
+
+    // A fast swipe can cross several columns inside one pointer event, and
+    // each click is a platform-channel round trip on the UI thread.
+    final now = DateTime.now();
+    final last = _lastHaptic;
+    if (last == null ||
+        now.difference(last) >= InputTuning.hapticMinInterval) {
+      _lastHaptic = now;
+      HapticFeedback.selectionClick();
+    }
   }
 }

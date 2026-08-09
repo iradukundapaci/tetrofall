@@ -27,6 +27,15 @@ enum _ResolveStage { shatter, cascade }
 
 enum _ContinueStage { filling, clearing }
 
+class _BufferedIntent {
+  _BufferedIntent(this.type);
+
+  final GameIntentType type;
+
+  /// Seconds spent waiting for a phase that can act on it.
+  double age = 0;
+}
+
 class GameEngine {
   GameEngine({Random? random, Grid? grid})
     : grid = grid ?? Grid(),
@@ -57,7 +66,12 @@ class GameEngine {
   _ContinueStage _continueStage = _ContinueStage.filling;
   int _continueRow = 0;
 
-  final _intentQueue = <GameIntentType>[];
+  /// How long a move or rotation survives while the board is busy resolving
+  /// a clear. The shatter sequence runs close to a second on an 18-wide
+  /// board, and swipes made during it used to be thrown away outright.
+  static const inputBufferWindow = Duration(milliseconds: 150);
+
+  final _intentQueue = <_BufferedIntent>[];
   final _eventListeners = <void Function(GameEvent)>[];
 
   void addEventListener(void Function(GameEvent) listener) =>
@@ -72,7 +86,8 @@ class GameEngine {
     }
   }
 
-  void enqueueIntent(GameIntentType intent) => _intentQueue.add(intent);
+  void enqueueIntent(GameIntentType intent) =>
+      _intentQueue.add(_BufferedIntent(intent));
 
   bool hasUsedContinueThisRun = false;
 
@@ -98,7 +113,7 @@ class GameEngine {
   }
 
   void tick(double dt) {
-    _drainIntents();
+    _drainIntents(dt);
 
     switch (phase) {
       case GamePhase.ready:
@@ -140,13 +155,13 @@ class GameEngine {
     }
   }
 
-  void _drainIntents() {
+  void _drainIntents(double dt) {
     if (phase != GamePhase.playing) {
-      _intentQueue.clear();
+      _ageBufferedIntents(dt);
       return;
     }
-    for (final intent in _intentQueue) {
-      switch (intent) {
+    for (final buffered in _intentQueue) {
+      switch (buffered.type) {
         case GameIntentType.moveLeft:
           pieceController.moveLeft();
         case GameIntentType.moveRight:
@@ -166,6 +181,31 @@ class GameEngine {
     }
     _intentQueue.clear();
   }
+
+  /// Carries recent moves and rotations across a resolve so they land on the
+  /// next piece rather than vanishing. Drops and soft-drop toggles are not
+  /// held — replaying those onto a freshly spawned piece would be a nasty
+  /// surprise.
+  void _ageBufferedIntents(double dt) {
+    final window = inputBufferWindow.inMilliseconds / 1000;
+    for (var i = _intentQueue.length - 1; i >= 0; i--) {
+      final buffered = _intentQueue[i];
+      buffered.age += dt;
+      if (buffered.age > window || !_isBufferable(buffered.type)) {
+        _intentQueue.removeAt(i);
+      }
+    }
+  }
+
+  static bool _isBufferable(GameIntentType type) => switch (type) {
+    GameIntentType.moveLeft ||
+    GameIntentType.moveRight ||
+    GameIntentType.rotateCW ||
+    GameIntentType.rotateCCW => true,
+    GameIntentType.softDropStart ||
+    GameIntentType.softDropEnd ||
+    GameIntentType.hardDrop => false,
+  };
 
   void _handleRiseCommit() {
     if (riseController.wouldTopOut()) {

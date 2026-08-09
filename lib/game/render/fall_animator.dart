@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/animation.dart' show Curves;
 
 import '../../models/theme_definition.dart';
+import '../config/board_config.dart';
 import '../config/motion.dart';
 import '../engine/events.dart';
 import 'block_component.dart';
@@ -36,12 +37,20 @@ class FallAnimator extends PositionComponent {
   final List<_FallingBlock> _falls = [];
   final List<BlockComponent> _pool = [];
 
-  final Set<(int, int)> activeTargets = {};
+  // Packed as row * cols + col rather than a (row, col) record: the board
+  // renderer probes this once per occupied cell per frame, and a record
+  // literal per probe allocated tens of thousands of objects a second.
+  final Set<int> _activeTargets = {};
+
+  static int _targetKey(int row, int col) => row * BoardConfig.cols + col;
+
+  bool isFallTarget(int row, int col) =>
+      _activeTargets.contains(_targetKey(row, col));
 
   bool get isAnimating => _falls.isNotEmpty;
 
   void reset() {
-    activeTargets.clear();
+    _activeTargets.clear();
     _falls.clear();
     for (final block in _pool) {
       block
@@ -64,7 +73,7 @@ class FallAnimator extends PositionComponent {
           fallDuration: duration,
         ),
       );
-      activeTargets.add((f.toRow, f.col));
+      _activeTargets.add(_targetKey(f.toRow, f.col));
       if (_pool.length < _falls.length) {
         final b = BlockComponent(theme: theme);
         _pool.add(b);
@@ -110,7 +119,7 @@ class FallAnimator extends PositionComponent {
           ..position = Vector2(f.col * cellSize, f.toRow * cellSize)
           ..squashY = 1.0 - 0.15 * math.sin(math.pi * it);
         if (it >= 1.0) {
-          activeTargets.remove((f.toRow, f.col));
+          _activeTargets.remove(_targetKey(f.toRow, f.col));
           block.blockVisible = false;
           block.squashY = 1.0;
           _falls.removeAt(i);

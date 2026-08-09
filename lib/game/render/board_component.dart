@@ -7,12 +7,13 @@ import '../config/board_config.dart';
 import '../config/motion.dart';
 import '../engine/events.dart';
 import '../engine/game_engine.dart';
-import 'block_component.dart';
+import 'board_blocks_component.dart';
 import 'board_frame.dart';
 import 'fall_animator.dart';
 import 'pending_row_component.dart';
 import 'piece_component.dart';
 import 'shatter_layer.dart';
+import 'tile_cache.dart';
 
 class BoardComponent extends PositionComponent with HasGameReference {
   BoardComponent({
@@ -30,8 +31,7 @@ class BoardComponent extends PositionComponent with HasGameReference {
   late final FallAnimator fallAnimator;
   late final PendingRowComponent pendingRowComponent;
   late final ShatterLayer shatterLayer;
-
-  final List<List<BlockComponent>> _blocks = [];
+  late final BoardBlocksComponent blocksComponent;
 
   double get cellSize => frame.cellSize;
 
@@ -65,20 +65,18 @@ class BoardComponent extends PositionComponent with HasGameReference {
     _contentLayer = PositionComponent();
     await _clip.add(_contentLayer);
 
-    for (var r = 0; r < BoardConfig.rows; r++) {
-      final row = <BlockComponent>[];
-      for (var c = 0; c < BoardConfig.cols; c++) {
-        final block = BlockComponent(theme: theme);
-        row.add(block);
-        await _contentLayer.add(block);
-      }
-      _blocks.add(row);
-    }
+    fallAnimator = FallAnimator(theme: theme);
+
+    blocksComponent = BoardBlocksComponent(
+      engine: engine,
+      theme: theme,
+      fallAnimator: fallAnimator,
+    );
+    await _contentLayer.add(blocksComponent);
 
     pieceComponent = PieceComponent(engine: engine, theme: theme);
     await _contentLayer.add(pieceComponent);
 
-    fallAnimator = FallAnimator(theme: theme);
     await _contentLayer.add(fallAnimator);
 
     pendingRowComponent = PendingRowComponent(theme: theme);
@@ -117,6 +115,11 @@ class BoardComponent extends PositionComponent with HasGameReference {
     final heightCellSize = gameSize.y / BoardConfig.rows;
 
     final newCellSize = math.min(widthCellSize, heightCellSize);
+
+    // Rebake the tinted tile for the new cell size before anything renders
+    // at it, so the flat-fill fallback is never visible on a resize.
+    TileCache.ensure(theme, newCellSize);
+
     frame.cellSize = newCellSize;
     _clip.size = frame.size;
 
@@ -128,12 +131,7 @@ class BoardComponent extends PositionComponent with HasGameReference {
     fallAnimator.cellSize = newCellSize;
     pendingRowComponent.updateLayout(newCellSize);
     shatterLayer.cellSize = newCellSize;
-
-    for (var r = 0; r < BoardConfig.rows; r++) {
-      for (var c = 0; c < BoardConfig.cols; c++) {
-        _blocks[r][c].setLayout(cellSize: newCellSize, row: r, col: c);
-      }
-    }
+    blocksComponent.cellSize = newCellSize;
   }
 
   @override
@@ -155,16 +153,5 @@ class BoardComponent extends PositionComponent with HasGameReference {
       }
     }
     frame.warning = warn;
-
-    for (var r = 0; r < BoardConfig.rows; r++) {
-      for (var c = 0; c < BoardConfig.cols; c++) {
-        final block = _blocks[r][c];
-        if (fallAnimator.activeTargets.contains((r, c))) {
-          block.blockVisible = false;
-          continue;
-        }
-        block.blockVisible = grid.at(r, c) != null;
-      }
-    }
   }
 }
