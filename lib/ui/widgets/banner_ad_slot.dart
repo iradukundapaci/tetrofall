@@ -4,6 +4,9 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../services/ad_unit_ids.dart';
 import '../../services/ads_service.dart';
 
+/// Bottom banner slot that always occupies the same height, so the play
+/// area above it never resizes when an ad loads late, fails to load, or
+/// isn't requested at all.
 class BannerAdSlot extends StatefulWidget {
   const BannerAdSlot({super.key, required this.ads});
 
@@ -15,6 +18,7 @@ class BannerAdSlot extends StatefulWidget {
 
 class _BannerAdSlotState extends State<BannerAdSlot> {
   BannerAd? _bannerAd;
+  double _slotHeight = 0;
   bool _requested = false;
 
   @override
@@ -22,15 +26,19 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
     super.didChangeDependencies();
     if (_requested) return;
     _requested = true;
-    _load();
+
+    final width = MediaQuery.sizeOf(context).width.truncate();
+    // Locked in for the lifetime of this slot: even if the measured size
+    // arrives later and differs, the layout must not shift mid-run.
+    _slotHeight = widget.ads.reservedBannerHeight(width);
+    _load(width);
   }
 
-  Future<void> _load() async {
+  Future<void> _load(int width) async {
     await widget.ads.init();
     if (!mounted || !widget.ads.canRequestAds) return;
 
-    final width = MediaQuery.sizeOf(context).width.truncate();
-    final size = await AdSize.getLargeAnchoredAdaptiveBannerAdSize(width);
+    final size = await widget.ads.resolveBannerSize(width);
     if (!mounted || size == null) return;
 
     final ad = BannerAd(
@@ -60,11 +68,18 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
   @override
   Widget build(BuildContext context) {
     final ad = _bannerAd;
-    if (ad == null) return const SizedBox.shrink();
     return SizedBox(
-      width: ad.size.width.toDouble(),
-      height: ad.size.height.toDouble(),
-      child: AdWidget(ad: ad),
+      width: double.infinity,
+      height: _slotHeight,
+      child: ad == null
+          ? null
+          : Center(
+              child: SizedBox(
+                width: ad.size.width.toDouble(),
+                height: ad.size.height.toDouble(),
+                child: AdWidget(ad: ad),
+              ),
+            ),
     );
   }
 }

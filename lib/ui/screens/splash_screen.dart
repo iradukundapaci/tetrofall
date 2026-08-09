@@ -68,6 +68,12 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _preloadAssets() async {
+    // Measured here rather than in gameplay so the banner slot's height is
+    // already known on the play screen's first frame and the board never
+    // resizes once the ad shows up.
+    unawaited(
+      widget.ads.resolveBannerSize(MediaQuery.sizeOf(context).width.truncate()),
+    );
     await precacheImage(
       const AssetImage('assets/images/textures/bg_wood.png'),
       context,

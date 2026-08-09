@@ -13,6 +13,8 @@ class StorageService {
   static const _playSecondsSinceLastInterstitialKey =
       'ads_play_seconds_since_interstitial';
   static const _lastAppOpenAdEpochMsKey = 'ads_last_app_open_epoch_ms';
+  static const _bannerAdWidthKey = 'ads_banner_width';
+  static const _bannerAdHeightKey = 'ads_banner_height';
 
   final SharedPreferences _prefs;
 
@@ -52,7 +54,24 @@ class StorageService {
         : DateTime.fromMillisecondsSinceEpoch(epochMs);
   }
 
+  /// Last measured anchored-adaptive banner height for a screen [width] in
+  /// logical pixels, or null if this device hasn't measured one yet. Lets
+  /// gameplay reserve the banner slot on the very first frame of a cold
+  /// start instead of resizing the board when the ad arrives.
+  int? bannerAdHeightForWidth(int width) =>
+      _prefs.getInt(_bannerAdWidthKey) == width
+      ? _prefs.getInt(_bannerAdHeightKey)
+      : null;
+
   Future<void> saveBestScore(int value) => _prefs.setInt(_bestScoreKey, value);
+
+  Future<void> saveBannerAdSize({
+    required int width,
+    required int height,
+  }) async {
+    await _prefs.setInt(_bannerAdWidthKey, width);
+    await _prefs.setInt(_bannerAdHeightKey, height);
+  }
 
   Future<void> saveAdaptiveStartSpeedEnabled(bool value) =>
       _prefs.setBool(_adaptiveStartSpeedKey, value);
