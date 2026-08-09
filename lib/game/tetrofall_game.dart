@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../models/theme_definition.dart';
+import '../services/audio_service.dart';
+import '../services/haptics_service.dart';
 import '../services/storage_service.dart';
 import 'config/difficulty.dart';
+import 'config/motion.dart';
 import 'engine/events.dart';
 import 'engine/game_engine.dart';
 import 'input/gesture_handler.dart';
@@ -14,14 +18,30 @@ class TetrofallGame extends FlameGame {
   TetrofallGame({
     this.theme = ThemeDefinition.classicWood,
     required this.storage,
+    this.feedbackEnabled = true,
   }) : engine = GameEngine() {
-    gestureHandler = GestureHandler(engine, () => _board?.cellSize ?? 0);
-    engine.addEventListener(_onHapticEvent);
+    gestureHandler = GestureHandler(
+      engine,
+      () => _board?.cellSize ?? 0,
+      haptics: feedbackEnabled ? _haptics : null,
+    );
+    engine.addEventListener(_onFeedbackEvent);
   }
 
   final ThemeDefinition theme;
 
   final StorageService storage;
+
+  /// Whether this game may reach the player's senses at all.
+  ///
+  /// The menu's attract-mode demo runs a full engine behind the buttons and
+  /// is decoration rather than play: it stays silent so the main menu isn't
+  /// a drum solo, and — the reason this covers haptics too — it must not
+  /// sit there buzzing a phone nobody is touching.
+  final bool feedbackEnabled;
+
+  late final AudioService _audio = AudioService(storage);
+  late final HapticsService _haptics = HapticsService(storage);
 
   final GameEngine engine;
   late final GestureHandler gestureHandler;
@@ -50,6 +70,9 @@ class TetrofallGame extends FlameGame {
   void restart() {
     board.resetForRestart();
     gestureHandler.reset();
+    // `resetForRestart` wipes the shards mid-flight, so a crush still waiting
+    // on its crack delay would land over an empty board.
+    _cancelPendingSfx();
     if (paused) resumeEngine();
     engine.start(initialElapsed: _adaptiveStartElapsed);
   }
@@ -58,6 +81,7 @@ class TetrofallGame extends FlameGame {
   void continueAfterAd() {
     board.resetForRestart();
     gestureHandler.reset();
+    _cancelPendingSfx();
     if (paused) resumeEngine();
     engine.continueAfterAd();
   }
@@ -66,12 +90,48 @@ class TetrofallGame extends FlameGame {
       ? Difficulty.adaptiveStartElapsed(storage.bestScore)
       : Duration.zero;
 
-  void _onHapticEvent(GameEvent event) {
-    if (event is PieceLockedEvent) {
-      HapticFeedback.lightImpact();
+  final Set<Timer> _pendingSfx = {};
+
+  void _onFeedbackEvent(GameEvent event) {
+    if (event is PieceSpawnedEvent) {
+      _playSfx(Sfx.blockSpawn);
+    } else if (event is PieceLockedEvent) {
+      if (feedbackEnabled) _haptics.light();
+      _playSfx(Sfx.blockSettle);
     } else if (event is RowsClearedEvent) {
-      HapticFeedback.mediumImpact();
+      if (feedbackEnabled) _haptics.medium();
+      // The row cracks for `crackHold` before it actually bursts apart, so
+      // the crush lands with the shards rather than with the cracks.
+      _playSfx(Sfx.woodCrush, after: Motion.crackHold);
     }
+  }
+
+  void _playSfx(Sfx sfx, {Duration? after}) {
+    if (!feedbackEnabled) return;
+    if (after == null) {
+      _audio.play(sfx);
+      return;
+    }
+    late final Timer timer;
+    timer = Timer(after, () {
+      _pendingSfx.remove(timer);
+      _audio.play(sfx);
+    });
+    _pendingSfx.add(timer);
+  }
+
+  void _cancelPendingSfx() {
+    for (final timer in _pendingSfx) {
+      timer.cancel();
+    }
+    _pendingSfx.clear();
+  }
+
+  @override
+  void onRemove() {
+    _cancelPendingSfx();
+    engine.removeEventListener(_onFeedbackEvent);
+    super.onRemove();
   }
 
   @override

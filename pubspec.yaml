@@ -29,6 +29,9 @@ flutter:
     - assets/images/icons/
     - assets/images/blocks/
     - assets/images/textures/
+    - assets/audio/sfx/
+    # Registered ahead of the loops themselves — see the README in there.
+    - assets/audio/music/
   fonts:
     - family: Baloo 2
       fonts:

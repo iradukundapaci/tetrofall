@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../game/tetrofall_game.dart';
+import '../../services/audio_service.dart';
+import '../../services/haptics_service.dart';
+import '../../services/music_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
@@ -35,14 +38,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _adaptiveStartSpeed = widget.storage.adaptiveStartSpeedEnabled;
   late bool _vibrate = widget.storage.vibrateEnabled;
 
+  late final MusicService _music = MusicService(widget.storage);
+  late final AudioService _audio = AudioService(widget.storage);
+  late final HapticsService _haptics = HapticsService(widget.storage);
+
   void _onMusicChanged(double value) {
     setState(() => _musicVolume = value);
     widget.storage.saveMusicVolume(value);
+    // Rides the drag: the loop changes level rather than restarting.
+    _music.setVolume(value);
   }
 
   void _onSfxChanged(double value) {
     setState(() => _sfxVolume = value);
     widget.storage.saveSfxVolume(value);
+  }
+
+  /// Effects are one-shots, so unlike music there is nothing to hear while
+  /// dragging — a settle click on release is what makes the level audible.
+  void _previewSfx(double value) {
+    _audio.play(Sfx.blockSettle, volumeOverride: value);
   }
 
   void _onGhostPieceChanged(bool value) {
@@ -59,6 +74,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _onVibrateChanged(bool value) {
     setState(() => _vibrate = value);
     widget.storage.saveVibrateEnabled(value);
+    // Confirm the switch with the thing it controls; gated by the switch
+    // itself, so turning it off is silent.
+    _haptics.selection();
   }
 
   @override
@@ -90,6 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: 'Sound Effects',
                 value: _sfxVolume,
                 onChanged: _onSfxChanged,
+                onSettled: _previewSfx,
               ),
               const SizedBox(height: Tokens.spaceLg),
               const _SectionTitle('GAMEPLAY'),
@@ -260,12 +279,16 @@ class _VolumeRow extends StatefulWidget {
     required this.label,
     required this.value,
     required this.onChanged,
+    this.onSettled,
   });
 
   final String icon;
   final String label;
   final double value;
   final ValueChanged<double> onChanged;
+
+  /// Fired once the level is chosen — end of a drag, or an un-mute tap.
+  final ValueChanged<double>? onSettled;
 
   @override
   State<_VolumeRow> createState() => _VolumeRowState();
@@ -278,7 +301,9 @@ class _VolumeRowState extends State<_VolumeRow> {
 
   void _toggleMute() {
     if (_muted) {
-      widget.onChanged(_lastNonZero > 0 ? _lastNonZero : 0.7);
+      final restored = _lastNonZero > 0 ? _lastNonZero : 0.7;
+      widget.onChanged(restored);
+      widget.onSettled?.call(restored);
     } else {
       _lastNonZero = widget.value;
       widget.onChanged(0);
@@ -349,6 +374,7 @@ class _VolumeRowState extends State<_VolumeRow> {
             child: Slider(
               value: widget.value,
               onChanged: widget.onChanged,
+              onChangeEnd: widget.onSettled,
             ),
           ),
         ],

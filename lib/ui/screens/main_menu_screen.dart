@@ -12,6 +12,7 @@ import '../../game/engine/grid.dart';
 import '../../game/engine/tetromino.dart';
 import '../../game/tetrofall_game.dart';
 import '../../services/ads_service.dart';
+import '../../services/music_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
@@ -52,10 +53,13 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   RotationState _targetRotation = RotationState.spawn;
   int _targetCol = 0;
 
+  late final MusicService _music = MusicService(widget.storage);
+
   @override
   void initState() {
     super.initState();
     _startDemo();
+    _music.play(MusicTrack.menu);
   }
 
   @override
@@ -65,7 +69,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 
   void _startDemo() {
-    final game = TetrofallGame(storage: widget.storage);
+    final game = TetrofallGame(storage: widget.storage, feedbackEnabled: false);
     _demoGame = game;
     game.engine.addEventListener(_onDemoEvent);
     _autoplayTimer = Timer.periodic(
@@ -91,7 +95,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             GameplayScreen(storage: widget.storage, ads: widget.ads),
       ),
     );
-    if (mounted) setState(_startDemo);
+    if (mounted) {
+      setState(_startDemo);
+      _music.play(MusicTrack.menu);
+    }
   }
 
   void _onDemoEvent(GameEvent event) {

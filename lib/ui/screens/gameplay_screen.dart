@@ -8,6 +8,7 @@ import '../../game/engine/events.dart';
 import '../../game/render/score_hud.dart';
 import '../../game/tetrofall_game.dart';
 import '../../services/ads_service.dart';
+import '../../services/music_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/banner_ad_slot.dart';
@@ -41,6 +42,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
   void initState() {
     super.initState();
     _game.engine.addEventListener(_onEngineEvent);
+    // The menu loop keeps playing if there's no gameplay track to swap to.
+    MusicService(widget.storage).play(MusicTrack.gameplay);
   }
 
   @override

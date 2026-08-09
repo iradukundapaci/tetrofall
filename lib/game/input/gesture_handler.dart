@@ -1,15 +1,20 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/services.dart' show HapticFeedback;
 
+import '../../services/haptics_service.dart';
 import '../engine/game_engine.dart';
 import 'input_tuning.dart';
 
 class GestureHandler {
-  GestureHandler(this.engine, this.cellSizeProvider);
+  GestureHandler(this.engine, this.cellSizeProvider, {this.haptics});
 
   final GameEngine engine;
 
   final double Function() cellSizeProvider;
+
+  /// Null in tests and for the menu's demo, which never sees a pointer. A
+  /// real run passes one so move and rotate ticks obey the Settings
+  /// vibration switch.
+  final HapticsService? haptics;
 
   double _resolvedCellSize() {
     final size = cellSizeProvider();
@@ -209,7 +214,7 @@ class GestureHandler {
           !_movedBeyondSlop &&
           duration <= InputTuning.tapMaxDuration) {
         engine.enqueueIntent(GameIntentType.rotateCW);
-        HapticFeedback.selectionClick();
+        haptics?.selection();
       }
     }
     _clearGesture();
@@ -252,7 +257,7 @@ class GestureHandler {
     final last = _lastHaptic;
     if (last == null || now.difference(last) >= InputTuning.hapticMinInterval) {
       _lastHaptic = now;
-      HapticFeedback.selectionClick();
+      haptics?.selection();
     }
   }
 }
