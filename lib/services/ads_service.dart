@@ -110,31 +110,37 @@ class AdsService {
     );
   }
 
+  /// Shows the continue ad and reports whether the reward was earned, but
+  /// only once the ad has actually left the screen. The reward callback
+  /// fires while the ad is still up (often several seconds before the user
+  /// can close it), and the caller resumes the run on this future — so
+  /// completing early would play the board wipe behind the ad.
   Future<bool> showRewardedContinue() async {
     final ad = _rewardedAd;
     if (ad == null) return false;
     _rewardedAd = null;
 
-    final result = Completer<bool>();
+    var earned = false;
+    final closed = Completer<bool>();
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _loadRewarded();
-        if (!result.isCompleted) result.complete(false);
+        if (!closed.isCompleted) closed.complete(earned);
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
         ad.dispose();
         _loadRewarded();
-        if (!result.isCompleted) result.complete(false);
+        if (!closed.isCompleted) closed.complete(false);
       },
     );
     ad.show(
       onUserEarnedReward: (_, _) {
+        earned = true;
         _justWatchedRewardedContinue = true;
-        if (!result.isCompleted) result.complete(true);
       },
     );
-    return result.future;
+    return closed.future;
   }
 
   void _loadInterstitial() {
