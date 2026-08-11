@@ -7,6 +7,8 @@ class StorageService {
   static const _adaptiveStartSpeedKey = 'adaptive_start_speed_enabled';
   static const _musicVolumeKey = 'music_volume';
   static const _sfxVolumeKey = 'sfx_volume';
+  static const _musicRestoreLevelKey = 'music_restore_level';
+  static const _sfxRestoreLevelKey = 'sfx_restore_level';
   static const _vibrateEnabledKey = 'vibrate_enabled';
   static const _ghostPieceEnabledKey = 'ghost_piece_enabled';
   static const _runsSinceLastInterstitialKey = 'ads_runs_since_interstitial';
@@ -31,6 +33,14 @@ class StorageService {
   double get musicVolume => _prefs.getDouble(_musicVolumeKey) ?? 0.70;
 
   double get sfxVolume => _prefs.getDouble(_sfxVolumeKey) ?? 0.85;
+
+  /// Where the mute button puts the slider back to. Kept out of the volume
+  /// itself because muting has to write a zero there, and remembered across
+  /// screens so leaving Settings doesn't cost the player their level.
+  double get musicRestoreLevel =>
+      _prefs.getDouble(_musicRestoreLevelKey) ?? 0.70;
+
+  double get sfxRestoreLevel => _prefs.getDouble(_sfxRestoreLevelKey) ?? 0.85;
 
   bool get vibrateEnabled => _prefs.getBool(_vibrateEnabledKey) ?? true;
 
@@ -81,6 +91,12 @@ class StorageService {
 
   Future<void> saveSfxVolume(double value) =>
       _prefs.setDouble(_sfxVolumeKey, value);
+
+  Future<void> saveMusicRestoreLevel(double value) =>
+      _prefs.setDouble(_musicRestoreLevelKey, value);
+
+  Future<void> saveSfxRestoreLevel(double value) =>
+      _prefs.setDouble(_sfxRestoreLevelKey, value);
 
   Future<void> saveVibrateEnabled(bool value) =>
       _prefs.setBool(_vibrateEnabledKey, value);

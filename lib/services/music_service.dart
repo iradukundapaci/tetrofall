@@ -1,6 +1,7 @@
 import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 
+import 'audio_service.dart' show logAudioFailure, volumeToAmplitude;
 import 'storage_service.dart';
 
 /// The looping background tracks (game.md §P.7), relative to
@@ -51,8 +52,9 @@ class MusicService {
   static Future<void> _prepare() async {
     try {
       await FlameAudio.bgm.initialize();
-    } catch (_) {
+    } catch (error) {
       // A device that won't hand out a player must not take the boot down.
+      logAudioFailure('initializing the music player', error);
     }
     try {
       final bundled = (await AssetManifest.loadFromAssetBundle(
@@ -63,8 +65,9 @@ class MusicService {
           _available.add(track);
         }
       }
-    } catch (_) {
+    } catch (error) {
       // No manifest, no music.
+      logAudioFailure('probing the bundle for music', error);
     }
     // A screen that asked for a track before the probe finished is waiting.
     _sync();
@@ -92,8 +95,9 @@ class MusicService {
     _queue = _queue.then((_) async {
       try {
         await _apply();
-      } catch (_) {
+      } catch (error) {
         // Music is cosmetic; a failed player call must not break the run.
+        logAudioFailure('applying the music state', error);
       }
     });
   }
@@ -120,12 +124,16 @@ class MusicService {
       return;
     }
 
+    // The slider is a 0–1 loudness knob, not an amplitude — see
+    // [volumeToAmplitude].
+    final amplitude = volumeToAmplitude(volume);
+
     if (_playing == target) {
-      await FlameAudio.bgm.audioPlayer.setVolume(volume);
+      await FlameAudio.bgm.audioPlayer.setVolume(amplitude);
       return;
     }
 
     _playing = target;
-    await FlameAudio.bgm.play(target.asset, volume: volume);
+    await FlameAudio.bgm.play(target.asset, volume: amplitude);
   }
 }

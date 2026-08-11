@@ -127,10 +127,20 @@ class TetrofallGame extends FlameGame {
     _pendingSfx.clear();
   }
 
+  /// Note what is deliberately *not* here: the feedback listener registered in
+  /// the constructor.
+  ///
+  /// Flame runs this whenever a `GameWidget` holding this game is torn down,
+  /// which is not the same thing as the game being finished — the widget can
+  /// be reinflated over a game that is still mid-run, and Flame does not
+  /// re-run `onLoad` (or anything else that could re-register) when it comes
+  /// back. Unhooking here left the run playing on in silence until the player
+  /// started a new one. The listener instead lives as long as the game, which
+  /// leaks nothing: [engine] is built by this game's own constructor and held
+  /// by nothing else, so the pair is collected together.
   @override
   void onRemove() {
     _cancelPendingSfx();
-    engine.removeEventListener(_onFeedbackEvent);
     super.onRemove();
   }
 

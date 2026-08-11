@@ -38,11 +38,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _adaptiveStartSpeed = widget.storage.adaptiveStartSpeedEnabled;
   late bool _vibrate = widget.storage.vibrateEnabled;
 
+  /// Where the mute button puts each slider back to. Captured the moment a
+  /// slider reaches zero — by the button or by a drag to the far left — and
+  /// persisted, so leaving Settings and coming back doesn't cost the player
+  /// the level they had.
+  late double _musicRestore = widget.storage.musicRestoreLevel;
+  late double _sfxRestore = widget.storage.sfxRestoreLevel;
+
   late final MusicService _music = MusicService(widget.storage);
   late final AudioService _audio = AudioService(widget.storage);
   late final HapticsService _haptics = HapticsService(widget.storage);
 
   void _onMusicChanged(double value) {
+    if (value == 0 && _musicVolume > 0) {
+      _musicRestore = _musicVolume;
+      widget.storage.saveMusicRestoreLevel(_musicVolume);
+    }
     setState(() => _musicVolume = value);
     widget.storage.saveMusicVolume(value);
     // Rides the drag: the loop changes level rather than restarting.
@@ -50,13 +61,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _onSfxChanged(double value) {
+    if (value == 0 && _sfxVolume > 0) {
+      _sfxRestore = _sfxVolume;
+      widget.storage.saveSfxRestoreLevel(_sfxVolume);
+    }
     setState(() => _sfxVolume = value);
     widget.storage.saveSfxVolume(value);
   }
 
+  void _toggleMusicMute() {
+    if (_musicVolume > 0) {
+      _onMusicChanged(0);
+      return;
+    }
+    _onMusicChanged(_musicRestore > 0 ? _musicRestore : 0.70);
+  }
+
+  void _toggleSfxMute() {
+    if (_sfxVolume > 0) {
+      _onSfxChanged(0);
+      return;
+    }
+    final restored = _sfxRestore > 0 ? _sfxRestore : 0.85;
+    _onSfxChanged(restored);
+    _previewSfx(restored);
+  }
+
+  DateTime? _lastPreview;
+
   /// Effects are one-shots, so unlike music there is nothing to hear while
   /// dragging — a settle click on release is what makes the level audible.
+  ///
+  /// Throttled because a `Slider` fires `onChangeEnd` on every release *and*
+  /// every tap on the track, and a run of those back-to-back is a burst rather
+  /// than a preview.
   void _previewSfx(double value) {
+    final now = DateTime.now();
+    final last = _lastPreview;
+    if (last != null &&
+        now.difference(last) < const Duration(milliseconds: 150)) {
+      return;
+    }
+    _lastPreview = now;
     _audio.play(Sfx.blockSettle, volumeOverride: value);
   }
 
@@ -101,6 +147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: 'Music',
                 value: _musicVolume,
                 onChanged: _onMusicChanged,
+                onToggleMute: _toggleMusicMute,
               ),
               const SizedBox(height: Tokens.spaceSm),
               _VolumeRow(
@@ -109,6 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: _sfxVolume,
                 onChanged: _onSfxChanged,
                 onSettled: _previewSfx,
+                onToggleMute: _toggleSfxMute,
               ),
               const SizedBox(height: Tokens.spaceLg),
               const _SectionTitle('GAMEPLAY'),
@@ -273,12 +321,17 @@ class _ToggleRow extends StatelessWidget {
   }
 }
 
-class _VolumeRow extends StatefulWidget {
+/// The level to come back to on un-mute is deliberately *not* held here: this
+/// widget is rebuilt from scratch every time Settings is opened, and a
+/// remembered level that only survives one visit is worse than none.
+/// [SettingsScreen] owns it, backed by storage.
+class _VolumeRow extends StatelessWidget {
   const _VolumeRow({
     required this.icon,
     required this.label,
     required this.value,
     required this.onChanged,
+    required this.onToggleMute,
     this.onSettled,
   });
 
@@ -286,29 +339,12 @@ class _VolumeRow extends StatefulWidget {
   final String label;
   final double value;
   final ValueChanged<double> onChanged;
+  final VoidCallback onToggleMute;
 
   /// Fired once the level is chosen — end of a drag, or an un-mute tap.
   final ValueChanged<double>? onSettled;
 
-  @override
-  State<_VolumeRow> createState() => _VolumeRowState();
-}
-
-class _VolumeRowState extends State<_VolumeRow> {
-  double _lastNonZero = 0.7;
-
-  bool get _muted => widget.value == 0;
-
-  void _toggleMute() {
-    if (_muted) {
-      final restored = _lastNonZero > 0 ? _lastNonZero : 0.7;
-      widget.onChanged(restored);
-      widget.onSettled?.call(restored);
-    } else {
-      _lastNonZero = widget.value;
-      widget.onChanged(0);
-    }
-  }
+  bool get _muted => value == 0;
 
   @override
   Widget build(BuildContext context) {
@@ -319,7 +355,7 @@ class _VolumeRowState extends State<_VolumeRow> {
           Row(
             children: [
               SvgPicture.asset(
-                widget.icon,
+                icon,
                 width: 20,
                 height: 20,
                 colorFilter: const ColorFilter.mode(
@@ -330,7 +366,7 @@ class _VolumeRowState extends State<_VolumeRow> {
               const SizedBox(width: Tokens.spaceMd),
               Expanded(
                 child: Text(
-                  widget.label,
+                  label,
                   style: const TextStyle(
                     fontSize: Tokens.fontSizeSm,
                     fontWeight: FontWeight.bold,
@@ -339,7 +375,7 @@ class _VolumeRowState extends State<_VolumeRow> {
                 ),
               ),
               GestureDetector(
-                onTap: _toggleMute,
+                onTap: onToggleMute,
                 child: Container(
                   width: 44,
                   height: 44,
@@ -372,9 +408,9 @@ class _VolumeRowState extends State<_VolumeRow> {
               trackHeight: 8,
             ),
             child: Slider(
-              value: widget.value,
-              onChanged: widget.onChanged,
-              onChangeEnd: widget.onSettled,
+              value: value,
+              onChanged: onChanged,
+              onChangeEnd: onSettled,
             ),
           ),
         ],

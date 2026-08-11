@@ -262,12 +262,19 @@ class _GameplayBody extends StatelessWidget {
       ),
     );
 
-    if (!dimmed) return content;
-
+    // The dim treatment is switched by parameter rather than by wrapping, and
+    // that is load-bearing rather than tidy: returning a different widget
+    // *shape* for the paused frame changes the type of this element's child,
+    // which reinflates everything below it — including the `GameWidget`. That
+    // teardown runs Flame's `onRemove` on the still-live game, which is how
+    // opening the pause menu used to unhook the run from its own sound
+    // effects and haptics for good.
     return IgnorePointer(
+      ignoring: dimmed,
       child: ImageFiltered(
+        enabled: dimmed,
         imageFilter: ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-        child: Opacity(opacity: 0.4, child: content),
+        child: Opacity(opacity: dimmed ? 0.4 : 1.0, child: content),
       ),
     );
   }
