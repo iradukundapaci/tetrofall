@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../game/tetrofall_game.dart';
+import '../../services/ads_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/panel.dart';
@@ -12,6 +13,7 @@ class PauseOverlay extends StatelessWidget {
   const PauseOverlay({
     super.key,
     required this.storage,
+    required this.ads,
     required this.liveGame,
     required this.onResume,
     required this.onRestart,
@@ -19,6 +21,9 @@ class PauseOverlay extends StatelessWidget {
   });
 
   final StorageService storage;
+
+  /// Passed straight through to [SettingsScreen] for its Privacy row.
+  final AdsService ads;
   final TetrofallGame liveGame;
   final VoidCallback onResume;
   final VoidCallback onRestart;
@@ -65,6 +70,7 @@ class PauseOverlay extends StatelessWidget {
                       MaterialPageRoute(
                         builder: (_) => SettingsScreen(
                           storage: storage,
+                          ads: ads,
                           liveGame: liveGame,
                         ),
                       ),

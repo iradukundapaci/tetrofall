@@ -192,7 +192,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) =>
-                                SettingsScreen(storage: widget.storage),
+                                SettingsScreen(
+                                  storage: widget.storage,
+                                  ads: widget.ads,
+                                ),
                           ),
                         ),
                       ),

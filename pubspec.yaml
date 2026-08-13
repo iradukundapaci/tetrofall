@@ -68,6 +68,11 @@ flutter:
     - assets/audio/sfx/
     # Registered ahead of the loops themselves — see the README in there.
     - assets/audio/music/
+    # The OFL requires the licence text to travel with the fonts. `fonts:`
+    # below bundles only the .ttf files, so the licences are listed here as
+    # plain assets and read back at boot by main()'s LicenseRegistry hook.
+    - assets/fonts/Nunito/OFL.txt
+    - assets/fonts/Baloo_2/OFL.txt
   fonts:
     - family: Baloo 2
       fonts:

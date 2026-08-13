@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../game/tetrofall_game.dart';
+import '../../services/ads_service.dart';
 import '../../services/audio_service.dart';
 import '../../services/haptics_service.dart';
 import '../../services/music_service.dart';
@@ -10,17 +11,29 @@ import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
 
 /// 1:1 port of settings.html, scoped to what this MVP actually has behind
-/// it: Sound (music/SFX volume), Gameplay (Ghost Piece, adaptive start
-/// speed, vibration), and About (version only). The mockup also shows
-/// Combo Callouts, push notifications, a daily-reward reminder, and
-/// Restore Purchases / Privacy / Terms links — those all belong to
-/// systems this MVP doesn't have (the combo banner and the coin/shop
-/// economy were both cut, and there's no IAP or legal copy yet), so
-/// porting their rows here would just be dead switches.
+/// it: Sound (SFX volume, plus Music when loops are bundled), Gameplay
+/// (Ghost Piece, adaptive start speed, vibration), Privacy & Legal, and
+/// About. The mockup also shows Combo Callouts, push notifications, a
+/// daily-reward reminder and Restore Purchases — those belong to systems
+/// this MVP doesn't have (the combo banner and the coin/shop economy were
+/// both cut, and there's no IAP), so porting their rows would just be dead
+/// switches.
+///
+/// The mockup's Privacy row *is* ported, as of Phase 3.3: consent has to be
+/// withdrawable to satisfy GDPR and several US state laws, so it re-opens the
+/// UMP form rather than linking out. Terms is still absent — there are none.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.storage, this.liveGame});
+  const SettingsScreen({
+    super.key,
+    required this.storage,
+    required this.ads,
+    this.liveGame,
+  });
 
   final StorageService storage;
+
+  /// Needed only for the Privacy row, which re-opens the UMP consent form.
+  final AdsService ads;
 
   /// When Settings is opened from the pause overlay, the game underneath
   /// is still alive and should react immediately to a Ghost Piece toggle
@@ -126,6 +139,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _audio.play(Sfx.blockSettle, volumeOverride: value);
   }
 
+  /// Re-opens the UMP form. Awaited so the row can't be double-tapped into two
+  /// overlapping native forms, and the screen is rebuilt afterwards because a
+  /// withdrawal can flip the row's own visibility.
+  bool _openingPrivacyOptions = false;
+
+  Future<void> _openPrivacyOptions() async {
+    if (_openingPrivacyOptions) return;
+    setState(() => _openingPrivacyOptions = true);
+    try {
+      await widget.ads.showPrivacyOptions();
+    } finally {
+      if (mounted) setState(() => _openingPrivacyOptions = false);
+    }
+  }
+
   void _onGhostPieceChanged(bool value) {
     setState(() => _ghostPiece = value);
     widget.storage.saveGhostPieceEnabled(value);
@@ -202,6 +230,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: 'Vibration',
                 value: _vibrate,
                 onChanged: _onVibrateChanged,
+              ),
+              const SizedBox(height: Tokens.spaceLg),
+              const _SectionTitle('PRIVACY & LEGAL'),
+              const SizedBox(height: Tokens.spaceSm),
+              // Only where UMP actually has a form to show — see
+              // AdsService.privacyOptionsRequired. Elsewhere this row would be
+              // a button that does nothing.
+              if (widget.ads.privacyOptionsRequired) ...[
+                _LinkRow(
+                  icon: AppIcons.shield,
+                  label: 'Privacy Settings',
+                  onTap: _openingPrivacyOptions ? null : _openPrivacyOptions,
+                ),
+                const SizedBox(height: Tokens.spaceSm),
+              ],
+              _LinkRow(
+                icon: AppIcons.document,
+                label: 'Open source licences',
+                onTap: () => showLicensePage(
+                  context: context,
+                  applicationName: 'Tetrofall',
+                  applicationVersion: '1.0.0',
+                  applicationLegalese: '\u00a9 2026 NoSleep Studios',
+                ),
               ),
               const SizedBox(height: Tokens.spaceLg),
               const _SectionTitle('ABOUT'),
@@ -338,6 +390,71 @@ class _ToggleRow extends StatelessWidget {
             activeTrackColor: const Color(0x4DF2B632),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A row that navigates instead of holding a value — the Privacy and Open
+/// source licences entries. Same shell and icon treatment as [_ToggleRow], with
+/// a chevron where the switch would be.
+class _LinkRow extends StatelessWidget {
+  const _LinkRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final String icon;
+  final String label;
+
+  /// Null disables the row — used while a native form this row opened is
+  /// already on screen, so a second tap can't stack another one behind it.
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _RowShell(
+      // Inside the shell rather than around it, so the ripple is clipped to
+      // the panel's corner radius instead of squaring it off.
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(Tokens.radiusSm),
+        child: Row(
+          children: [
+            SvgPicture.asset(
+              icon,
+              width: 20,
+              height: 20,
+              colorFilter: ColorFilter.mode(
+                onTap == null ? Tokens.colorTextMuted : Tokens.colorText,
+                BlendMode.srcIn,
+              ),
+            ),
+            const SizedBox(width: Tokens.spaceMd),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: Tokens.fontSizeSm,
+                  fontWeight: FontWeight.bold,
+                  color: onTap == null
+                      ? Tokens.colorTextMuted
+                      : Tokens.colorText,
+                ),
+              ),
+            ),
+            SvgPicture.asset(
+              AppIcons.chevronRight,
+              width: 18,
+              height: 18,
+              colorFilter: const ColorFilter.mode(
+                Tokens.colorTextMuted,
+                BlendMode.srcIn,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

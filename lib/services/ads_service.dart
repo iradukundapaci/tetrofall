@@ -29,6 +29,18 @@ class AdsService {
 
   bool get canRequestAds => _canRequestAds;
 
+  /// Whether UMP says this user must be given a way back to their consent
+  /// choice — true in the EEA/UK, and in US states whose messages you have
+  /// published. Settings shows its Privacy row only when this is true, because
+  /// outside those jurisdictions there is no form to present and the row would
+  /// be a button that does nothing.
+  bool get privacyOptionsRequired => _privacyOptionsRequired;
+  bool _privacyOptionsRequired = false;
+
+  /// Guards the one-time ad startup, which can now be reached twice: at boot,
+  /// and again if the user grants consent from Settings.
+  bool _adsStarted = false;
+
   /// Height the banner slot falls back to when this device has never
   /// measured an adaptive banner. Sized at the large-anchored ceiling so a
   /// later measurement can only shrink the slot, never overflow it.
@@ -75,13 +87,7 @@ class AdsService {
 
   Future<void> _init() async {
     await _requestConsent();
-    if (!_canRequestAds) return;
-
-    await MobileAds.instance.initialize();
-    _loadRewarded();
-    _loadInterstitial();
-    _loadAppOpen();
-    AppLifecycleListener(onStateChange: _onAppLifecycleStateChange);
+    await _startAdsIfAllowed();
   }
 
   Future<void> _requestConsent() async {
@@ -96,10 +102,66 @@ class AdsService {
       (_) => proceed(),
     );
     await completer.future;
+    await _refreshConsentState();
+  }
+
+  Future<void> _refreshConsentState() async {
     _canRequestAds = await ConsentInformation.instance.canRequestAds();
+    _privacyOptionsRequired =
+        await ConsentInformation.instance
+            .getPrivacyOptionsRequirementStatus() ==
+        PrivacyOptionsRequirementStatus.required;
+  }
+
+  /// Idempotent: safe to call at boot and again after a consent change.
+  Future<void> _startAdsIfAllowed() async {
+    if (!_canRequestAds || _adsStarted) return;
+    _adsStarted = true;
+
+    await MobileAds.instance.initialize();
+    _loadRewarded();
+    _loadInterstitial();
+    _loadAppOpen();
+    AppLifecycleListener(onStateChange: _onAppLifecycleStateChange);
+  }
+
+  /// Re-presents the UMP privacy options form so a user can change or withdraw
+  /// the consent they gave at first launch — a requirement under GDPR and
+  /// several US state laws, and the reason Settings has a Privacy row.
+  ///
+  /// If consent is granted here by someone who declined at boot, ads start for
+  /// the first time this session. Going the other way, `canRequestAds` flips
+  /// false and every load path stops: already-cached ads are dropped rather
+  /// than shown, because they were fetched under the old choice.
+  Future<void> showPrivacyOptions() async {
+    await ConsentForm.showPrivacyOptionsForm((_) {});
+    final wasAllowed = _canRequestAds;
+    await _refreshConsentState();
+
+    if (_canRequestAds) {
+      await _startAdsIfAllowed();
+    } else if (wasAllowed) {
+      _discardCachedAds();
+    }
+  }
+
+  /// Consent was withdrawn, so ads already in hand were fetched under a choice
+  /// the user has since revoked. Drop them; the banner slot collapses on the
+  /// next build and nothing reloads while [_canRequestAds] is false.
+  void _discardCachedAds() {
+    _rewardedAd?.dispose();
+    _rewardedAd = null;
+    _interstitialAd?.dispose();
+    _interstitialAd = null;
+    _appOpenAd?.dispose();
+    _appOpenAd = null;
   }
 
   void _loadRewarded() {
+    // Reachable from the ad-dismissed callbacks too, so it has to
+    // re-check consent rather than assume the boot-time answer holds.
+    if (!_canRequestAds) return;
+
     RewardedAd.load(
       adUnitId: AdUnitIds.rewardedContinue,
       request: const AdRequest(),
@@ -144,6 +206,10 @@ class AdsService {
   }
 
   void _loadInterstitial() {
+    // Reachable from the ad-dismissed callbacks too, so it has to
+    // re-check consent rather than assume the boot-time answer holds.
+    if (!_canRequestAds) return;
+
     InterstitialAd.load(
       adUnitId: AdUnitIds.interstitial,
       request: const AdRequest(),
@@ -194,6 +260,10 @@ class AdsService {
   }
 
   void _loadAppOpen() {
+    // Reachable from the ad-dismissed callbacks too, so it has to
+    // re-check consent rather than assume the boot-time answer holds.
+    if (!_canRequestAds) return;
+
     AppOpenAd.load(
       adUnitId: AdUnitIds.appOpen,
       request: const AdRequest(),

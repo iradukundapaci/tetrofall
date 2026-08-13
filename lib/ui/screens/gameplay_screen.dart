@@ -149,6 +149,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
                 if (showPause)
                   PauseOverlay(
                     storage: widget.storage,
+                    ads: widget.ads,
                     liveGame: _game,
                     onResume: _game.resumeEngine,
                     onRestart: _restart,

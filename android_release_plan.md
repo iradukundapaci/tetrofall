@@ -575,23 +575,84 @@ Play-required API level ✅, with the correct app name ✅ and no white splash �
 
 ---
 
-## Phase 3 — Legal, privacy & policy compliance
+## Phase 3 — Legal, privacy & policy compliance ⚠️ code done 2026-08-13, 2 blockers
 
-### 3.1 Privacy policy content check
-`website/privacy.html` exists. Confirm it explicitly covers, because AdMob makes
-all of these true:
-- [ ] That the app uses **Google AdMob** and links to
+> **Status.** Everything implementable is implemented: the privacy policy is
+> rewritten, the UMP form is re-openable from Settings, and OFL attribution is
+> live and covered by a test. The console work (3.2) cannot be done from here,
+> so it is written up as a derived answer sheet instead:
+> **`branding/store/play-console-answers.md`**. 3.5 is reviewed in
+> **`branding/store/trademark-review.md`**.
+>
+> **Two things block submission and neither is code:**
+> 1. **Audio licensing is unresolved** — `assets/audio/CREDITS.md` (§3.4).
+> 2. **The contact email must be a real mailbox** — it is the data-deletion
+>    route, and a bouncing address is a failed one (§3.1).
+>
+> ⚠️ **A correction to 3.2 below:** the claim that the Data safety form "stays
+> short" because we ship no analytics **is wrong**, and following it would mean
+> under-declaring. See the box in that section.
+
+### 3.1 Privacy policy content check ✅ rewritten
+
+`website/privacy.html` existed but was **inaccurate in the direction that
+matters**, claiming collection the app does not do:
+
+> ⛔ **It declared crash reporting and gameplay analytics. The app has neither.**
+> There is no Firebase, no Crashlytics, no analytics SDK — Phase 8 still lists
+> crash reporting as a *future* consideration. Over-declaring is not the safe
+> side of this: the Data safety form must say "no analytics", Play audits the
+> form against the policy, and a contradiction between them is a rejection
+> cause. Both claims are removed.
+
+It also contradicted a decision made one phase earlier:
+
+> ⛔ **It said data "lives only on your device" and that uninstalling deletes
+> everything.** Phase 2.3 set `android:allowBackup="true"`, so settings and the
+> high score are copied to the user's own Google Drive and survive a reinstall.
+> Now disclosed, with the route to delete the backup.
+
+- [x] Uses **Google AdMob**, and links to
       <https://policies.google.com/technologies/partner-sites>.
-- [ ] That the **Advertising ID (AAID)** is collected and used for ads.
-- [ ] The categories of data collected: device identifiers, approximate location
-      (derived from IP by the ad SDK), app interaction/diagnostics.
-- [ ] How users manage consent — including that the **UMP consent form can be
-      re-shown** (see 3.3).
-- [ ] A contact email for data requests, and a data-deletion route.
-- [ ] Effective date, and the developer name **NoSleep Studios**.
+- [x] **Advertising ID (AAID)** named explicitly, plus App Set ID.
+- [x] Categories now match Google's own SDK disclosure exactly: approximate
+      location (from IP), device/other IDs, app interactions, diagnostics.
+- [x] Consent management points at the real route — *Settings → Privacy
+      Settings* — now that 3.3 has built it.
+- [x] Data-deletion route spelled out concretely: uninstall, delete the Drive
+      backup, reset the ad ID, or email; 30-day written response.
+- [x] Effective date (13 August 2026) and **NoSleep Studios** as developer.
+- [ ] ⛔ **`support@nosleepstudios.com` must be a mailbox that receives mail.**
+      It appears in the policy, the support page and the footer, and it is the
+      declared data-deletion route. If `nosleepstudios.com` will not be
+      registered (§0.3 is still open), change it everywhere to an address that
+      works. A bouncing contact address is a failed deletion route.
 
 ### 3.2 Play Console → App content declarations
 Every one of these is mandatory before production. Budget an afternoon.
+
+> 📋 **Answers written up in `branding/store/play-console-answers.md`** —
+> derived from the release APK's actual permission list and Google's published
+> SDK disclosure, not from memory. Work from that file.
+>
+> ⛔ **Correction to the bullet below: the form does NOT stay short.** "Declare
+> App interactions *if you send any analytics (you currently don't)*" applies the
+> wrong test. Per
+> [Google's Mobile Ads SDK data disclosure](https://developers.google.com/admob/android/privacy/play-data-disclosure),
+> **the ad SDK itself collects** IP address, user product interactions,
+> diagnostics, the Advertising ID and the App Set ID — whether or not you add
+> analytics of your own. Four data types must be declared, not one:
+>
+> | Category → type | Why |
+> | --- | --- |
+> | Location → **Approximate location** | Google derives it from the IP. The app holds no location permission — declare it anyway. |
+> | App activity → **App interactions** | Collected by the ad SDK. |
+> | App info and performance → **Diagnostics** | Collected by the ad SDK. |
+> | Device or other IDs | AAID **and** App Set ID. |
+>
+> All four: collected **and** shared, for advertising + analytics + fraud
+> prevention. Declaring only the Advertising ID would be under-declaring, which
+> is the thing this section warns gets apps pulled.
 - [ ] **Privacy policy URL** — the live `https://<domain>/privacy.html`.
 - [ ] **Ads** — declare "Yes, my app contains ads". Non-negotiable.
 - [ ] **Data safety form** — declare, at minimum:
@@ -627,14 +688,35 @@ Every one of these is mandatory before production. Budget an afternoon.
       goes false, no ads load, and the game is still fully playable — including
       the "continue via rewarded ad" path in `game_over_overlay.dart`, which must
       degrade to a plain game-over rather than hanging.
-- [ ] Add a **"Privacy settings"** entry in `settings_screen.dart` that calls the
-      UMP form again. Several jurisdictions require consent to be withdrawable,
-      and the Settings screen already has the row pattern and a `shield.svg` icon.
+- [x] **"Privacy Settings" row added** to `settings_screen.dart` under a new
+      *PRIVACY & LEGAL* section, using the `shield.svg` icon and a new `_LinkRow`
+      built from the existing row shell. It calls
+      `AdsService.showPrivacyOptions()`, which wraps
+      `ConsentForm.showPrivacyOptionsForm`.
+
+Three things the implementation had to handle that the one-line description
+hides:
+
+- **The row is conditional.** It renders only when UMP reports
+  `PrivacyOptionsRequirementStatus.required` (exposed as
+  `AdsService.privacyOptionsRequired`). Outside the EEA/UK — or before you
+  publish the messages in 3.3's first bullet — there is no form to present, so an
+  unconditional row would be a button that does nothing, the same defect class as
+  the dead music slider closed in 1.4.
+- **Consent can now change mid-session, so `_canRequestAds` is no longer
+  write-once.** `_refreshConsentState()` re-reads it after the form. Granting
+  consent from Settings starts ads for the first time that session
+  (`_startAdsIfAllowed`, now idempotent); withdrawing it disposes every cached
+  ad, because those were fetched under a choice the user has since revoked.
+- **The three `_load*` methods are re-entered from ad-dismissed callbacks**, so
+  each now re-checks `_canRequestAds` rather than trusting the boot-time answer.
+  Without that, withdrawing consent would stop new ads but silently reload one
+  the moment the current ad closed.
 
 ### 3.4 Open-source licence attribution
 Nunito and Baloo 2 ship under the **SIL Open Font License**, which requires
 attribution. `assets/fonts/*/OFL.txt` are in the repo but never surfaced.
-- [ ] Register them at startup so Flutter's built-in licence page shows them:
+- [x] **Registered** in `main()` as `registerFontLicenses()`:
 ```dart
 // in main(), before runApp
 LicenseRegistry.addLicense(() async* {
@@ -648,12 +730,25 @@ LicenseRegistry.addLicense(() async* {
   );
 });
 ```
-- [ ] Add the OFL files to the `assets:` list in `pubspec.yaml` (they aren't
-      currently bundled — only the `.ttf`s are, via the `fonts:` section).
-- [ ] Add an "Open source licences" row in Settings that calls `showLicensePage`.
-- [ ] Confirm audio in `assets/audio/sfx/` is licensed for commercial use and
-      record the source/licence in a `assets/audio/CREDITS.md`. Unlicensed sound
-      effects are the single most common takedown cause for indie games.
+- [x] Both `OFL.txt` files added to `assets:` in `pubspec.yaml` and confirmed
+      present inside the built APK.
+- [x] **"Open source licences"** row added in Settings, calling
+      `showLicensePage` with the app name, version and legalese.
+- [x] **Covered by a test** — `test/font_licenses_test.dart` asserts both files
+      are bundled, contain the OFL text, and actually reach `LicenseRegistry`.
+      This is a legal obligation that otherwise fails **silently**: nothing reads
+      those assets until a user opens the licence page, so a renamed directory
+      would ship as a licence breach with no error. Verified non-vacuous — both
+      families are absent from the registry without the registration call.
+- [ ] ⛔ **BLOCKING — audio licence not yet verified.** See
+      `assets/audio/CREDITS.md`. The route is now known — the three `.wav` files
+      were **AI-generated** from the §P.7 prompts — but the **tool and plan are
+      not recorded**, and with generative audio those decide whether commercial
+      rights exist at all. An ad-supported release is commercial use, and some
+      free tiers (ElevenLabs free) and research licences (Meta AudioCraft) grant
+      no commercial rights whatsoever. Record the tool, plan and date, and save
+      a copy of the terms; if the route turns out not to grant rights,
+      regenerate the same three prompts somewhere that does.
 
 ### 3.5 Trademark sanity check
 - [ ] "Tetris" is an aggressively enforced trademark of the Tetris Company, and
@@ -663,10 +758,22 @@ LicenseRegistry.addLicense(() async* {
       "Tetris", the classic 7-colour tetromino palette on a cyan/black field, the
       "TETRIS" logo styling). The wood-block art direction already differentiates
       you well — keep it and lean into it in the listing copy.
+- [x] **Reviewed in full — see `branding/store/trademark-review.md`.** Verdict:
+      proceed with "Tetrofall". The name is the only real exposure; the
+      mechanics (rising floor, independent-column cascade) and the wood art
+      direction are genuinely differentiating, and the full trade-dress
+      checklist is clear — no 7-colour palette, no neon-on-black field, no
+      Tetris logo styling, no Korobeiniki. Worth knowing: the *package name* is
+      frozen at first upload but the *store display name* is editable any time,
+      so a rebrand under complaint would not require republishing as a new app.
 - [ ] Do not use the word "Tetris" in the title, description, or keyword fields.
+      Including comparative use ("like Tetris but…"), which is both trademark
+      use and a Play keyword-policy violation.
 
-**Exit criteria:** every App content section in Play Console shows green, the
-UMP message is published in AdMob, licences are attributed in-app.
+**Exit criteria:** every App content section in Play Console shows green ⏳
+*(answers ready in `branding/store/play-console-answers.md`; needs an account)*,
+the UMP message is published in AdMob ⏳ *(console work)*, licences are
+attributed in-app ✅ *(fonts done and tested; **audio unresolved**)*.
 
 ---
 
@@ -1131,9 +1238,9 @@ Ordered by blocking severity. Anything ❌ prevents shipping.
 | 8 | No Play Console account / 12-tester gate not started | 0.1, 6.2 | ❌ 14+ day lead time |
 | 9 | ~~`min`/`targetSdk` not pinned~~ | 2.3 | ✅ Done — pinned 24 / 36 |
 | 10 | No consent message published in AdMob (code is ready, config isn't) | 3.3 | ⚠️ Silent revenue loss |
-| 11 | No way to re-open the consent form from Settings | 3.3 | ⚠️ Compliance |
-| 12 | OFL fonts bundled with no attribution surface | 3.4 | ⚠️ Licence breach |
-| 13 | Audio licensing not documented | 3.4 | ⚠️ Takedown risk |
+| 11 | ~~No way to re-open the consent form from Settings~~ | 3.3 | ✅ Done 2026-08-13 |
+| 12 | ~~OFL fonts bundled with no attribution surface~~ | 3.4 | ✅ Done — registered, surfaced, tested |
+| 13 | Audio licensing not documented | 3.4 | ❌ **Blocks submission** — AI-generated; tool + plan still needed, see `assets/audio/CREDITS.md` |
 | 14 | ~~Empty `music/` but a music toggle exists~~ | 1.4 | ✅ Row now hidden until loops ship |
 | 15 | Only one block theme shipped vs. a theme system | 1.4 | ✅ Confirmed intentional — no picker exists |
 | 16 | ~30 unused font files inflating the bundle | 5.2 | ⚠️ Size |
@@ -1142,8 +1249,9 @@ Ordered by blocking severity. Anything ❌ prevents shipping.
 | 19 | No listing copy written (name, short, full description) | 4.3–4.5 | ❌ Blocks listing |
 | 20 | No screenshot capture mode — board states can't be staged | 4.7 | ⚠️ Blocks good screenshots |
 | 21 | ~~Stale `// TODO:` comments in `build.gradle.kts`~~ | 2.2 | ✅ Both deleted |
-| 22 | "Tetrofall" trademark proximity to Tetris unreviewed | 3.5 | ⚠️ Legal |
+| 22 | ~~"Tetrofall" trademark proximity unreviewed~~ | 3.5 | ✅ Reviewed — proceed, see `branding/store/trademark-review.md` |
 | 23 | 2 pre-existing test failures (`widget_test`, `gesture_handler_test`) | 5.1 | ❌ Blocks the release build |
+| 24 | Privacy-policy contact email may not be a real mailbox | 3.1 | ❌ Failed data-deletion route |
 
 ---
 
