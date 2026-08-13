@@ -575,7 +575,7 @@ Play-required API level ✅, with the correct app name ✅ and no white splash �
 
 ---
 
-## Phase 3 — Legal, privacy & policy compliance ⚠️ code done 2026-08-13, 2 blockers
+## Phase 3 — Legal, privacy & policy compliance ⚠️ code done 2026-08-13, 1 blocker
 
 > **Status.** Everything implementable is implemented: the privacy policy is
 > rewritten, the UMP form is re-openable from Settings, and OFL attribution is
@@ -584,10 +584,12 @@ Play-required API level ✅, with the correct app name ✅ and no white splash �
 > **`branding/store/play-console-answers.md`**. 3.5 is reviewed in
 > **`branding/store/trademark-review.md`**.
 >
-> **Two things block submission and neither is code:**
-> 1. **Audio licensing is unresolved** — `assets/audio/CREDITS.md` (§3.4).
-> 2. **The contact email must be a real mailbox** — it is the data-deletion
->    route, and a bouncing address is a failed one (§3.1).
+> **One thing blocks submission and it is not code:** the privacy policy's
+> **contact email must be a real mailbox** — it is the declared data-deletion
+> route, and a bouncing address is a failed one (§3.1, gap 24).
+>
+> *(Audio licensing — §3.4 — is now cleared: Adobe Firefly, commercial use
+> granted on any plan. See `assets/audio/CREDITS.md`.)*
 >
 > ⚠️ **A correction to 3.2 below:** the claim that the Data safety form "stays
 > short" because we ship no analytics **is wrong**, and following it would mean
@@ -740,15 +742,18 @@ LicenseRegistry.addLicense(() async* {
       those assets until a user opens the licence page, so a renamed directory
       would ship as a licence breach with no error. Verified non-vacuous — both
       families are absent from the registry without the registration call.
-- [ ] ⛔ **BLOCKING — audio licence not yet verified.** See
-      `assets/audio/CREDITS.md`. The route is now known — the three `.wav` files
-      were **AI-generated** from the §P.7 prompts — but the **tool and plan are
-      not recorded**, and with generative audio those decide whether commercial
-      rights exist at all. An ad-supported release is commercial use, and some
-      free tiers (ElevenLabs free) and research licences (Meta AudioCraft) grant
-      no commercial rights whatsoever. Record the tool, plan and date, and save
-      a copy of the terms; if the route turns out not to grant rights,
-      regenerate the same three prompts somewhere that does.
+- [x] **Audio licensing cleared** — recorded in `assets/audio/CREDITS.md`. All
+      three `.wav` files were generated with **Adobe Firefly** (Generate Sound
+      Effects) from the §P.7 prompts, committed 2026-08-09 in `c13820e`.
+      Firefly trains only on Adobe Stock, openly licensed and public domain
+      content, and **grants commercial use on the free plan as well as paid** —
+      the tiers differ in credits, not rights — with no attribution required.
+      This is the route that made it clean: ElevenLabs' free tier is
+      non-commercial and Meta's AudioCraft is research-licensed, and either
+      would have been a licence breach in an ad-supported release. The one
+      caveat that could have bitten — Adobe excludes *beta* output from
+      commercial use — does not apply, since Generate Sound Effects was GA well
+      before these were made.
 
 ### 3.5 Trademark sanity check
 - [ ] "Tetris" is an aggressively enforced trademark of the Tetris Company, and
@@ -773,7 +778,7 @@ LicenseRegistry.addLicense(() async* {
 **Exit criteria:** every App content section in Play Console shows green ⏳
 *(answers ready in `branding/store/play-console-answers.md`; needs an account)*,
 the UMP message is published in AdMob ⏳ *(console work)*, licences are
-attributed in-app ✅ *(fonts done and tested; **audio unresolved**)*.
+attributed in-app ✅ *(fonts registered and tested; audio cleared)*.
 
 ---
 
@@ -1240,7 +1245,7 @@ Ordered by blocking severity. Anything ❌ prevents shipping.
 | 10 | No consent message published in AdMob (code is ready, config isn't) | 3.3 | ⚠️ Silent revenue loss |
 | 11 | ~~No way to re-open the consent form from Settings~~ | 3.3 | ✅ Done 2026-08-13 |
 | 12 | ~~OFL fonts bundled with no attribution surface~~ | 3.4 | ✅ Done — registered, surfaced, tested |
-| 13 | Audio licensing not documented | 3.4 | ❌ **Blocks submission** — AI-generated; tool + plan still needed, see `assets/audio/CREDITS.md` |
+| 13 | ~~Audio licensing not documented~~ | 3.4 | ✅ Cleared — Adobe Firefly, commercial use granted |
 | 14 | ~~Empty `music/` but a music toggle exists~~ | 1.4 | ✅ Row now hidden until loops ship |
 | 15 | Only one block theme shipped vs. a theme system | 1.4 | ✅ Confirmed intentional — no picker exists |
 | 16 | ~30 unused font files inflating the bundle | 5.2 | ⚠️ Size |
