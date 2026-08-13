@@ -1,14 +1,25 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      allowBackup is an explicit choice, not an inherited default
+      (android_release_plan.md 2.3). StorageService keeps the high score and
+      every Settings value in shared_preferences, and Android Auto Backup
+      carrying those to a new device is a feature: a player who changes phones
+      keeps their best score. There is no account, no secret and no server-side
+      state here, so nothing is unsafe to restore. Set this to false only if you
+      decide a fresh install should mean a fresh high score.
+    -->
     <application
-        android:label="tetrofall"
+        android:label="Tetrofall"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
+            android:screenOrientation="portrait"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">

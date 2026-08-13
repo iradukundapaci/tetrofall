@@ -1,0 +1,26 @@
+# Template for android/key.properties — copy, don't rename.
+#
+#   cp android/key.properties.example android/key.properties
+#
+# The real key.properties is gitignored because these are plaintext passwords.
+# THIS file is committed; never put real values in it.
+#
+# Generate the keystore first (android_release_plan.md §2.1). Note it lives
+# OUTSIDE the repo — a keystore inside a git working tree is one `git add -A`
+# away from being public forever:
+#
+#   keytool -genkey -v \
+#     -keystore ~/keystores/tetrofall-upload.jks \
+#     -storetype JKS \
+#     -keyalg RSA -keysize 2048 -validity 10000 \
+#     -alias upload
+#
+# Then store the keystore file and both passwords in a password manager AND on
+# an offline backup. With Play App Signing enabled, Google can reset a lost
+# *upload* key — but losing the keystore before you have enrolled means you can
+# never update this app under com.nosleepstudios.tetrofall again.
+
+storePassword=<the keystore password you chose>
+keyPassword=<the key password you chose>
+keyAlias=upload
+storeFile=/Users/pacifique/keystores/tetrofall-upload.jks

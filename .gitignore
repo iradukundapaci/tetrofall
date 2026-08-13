@@ -43,3 +43,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android signing — never commit. android/.gitignore already covers
+# key.properties and keystores inside android/; these repeat the keystore
+# patterns at the repo root so a .jks dropped anywhere else is caught too.
+# The real keystore lives outside this repo entirely (~/keystores) and is the
+# app's permanent identity on Play. See android/key.properties.example.
+**/*.jks
+**/*.keystore
+
+# Obfuscation symbols for a release build. Archived per release out-of-band
+# (Phase 5.2) rather than committed — large, and regenerated every build.
+/build/symbols/

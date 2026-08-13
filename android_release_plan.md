@@ -13,9 +13,9 @@ next one until the current one's exit criteria pass.
 | Version | `1.0.0+1` in `pubspec.yaml` |
 | Launcher icon | ~~❌ Still the stock Flutter blue logo~~ → ✅ **Phase 1 done.** Gold T on a wood plate, legacy + adaptive + monochrome, all densities. Sources in `branding/`, generator in `tools/branding/`. |
 | Native splash | ~~❌ plain white~~ → ✅ **Phase 1 done.** `#2B1C12` on both the legacy and the Android 12+ path, `NormalTheme` pinned dark too. |
-| App label | ❌ `android:label="tetrofall"` (lowercase) |
-| Release signing | ❌ `signingConfig = signingConfigs.getByName("debug")` — **cannot be uploaded to Play** |
-| minSdk / targetSdk | Inherited from Flutter defaults, not pinned |
+| App label | ~~❌ lowercase~~ → ✅ **Phase 2 done.** `android:label="Tetrofall"`. |
+| Release signing | ~~❌ debug keys~~ → ✅ **Phase 2 done.** Signed `CN=NoSleep Studios` from `~/keystores/tetrofall-upload.jks`; R8 on. Verified on both the APK and the AAB. |
+| minSdk / targetSdk | ~~❌ inherited~~ → ✅ **Phase 2 done.** Pinned to 24 / 36. |
 | AdMob | ✅ App ID in manifest, real unit IDs behind `kReleaseMode`, UMP consent flow implemented in `ads_service.dart` |
 | `app-ads.txt` | ✅ exists at `website/app-ads.txt` — but the site must be publicly live |
 | Privacy policy | ✅ authored at `website/privacy.html` — needs a public URL |
@@ -330,7 +330,17 @@ resources; `flutter analyze` is clean; `branding/contact_sheet.png` answers the
 
 ---
 
-## Phase 2 — Build configuration & app signing
+## Phase 2 — Build configuration & app signing ✅ implemented 2026-08-13
+
+> **Status.** All of 2.1–2.4 implemented and verified against a real
+> `flutter build appbundle --release`, which is now signed with the upload key.
+> **Two manual follow-ups remain and only you can do them:** back up the
+> keystore password to a password manager, and copy the `.jks` to a second
+> offline location (§2.1).
+>
+> One correction worth reading before you trust the old verification step: the
+> `keytool -printcert -jarfile` command this plan gives works on the `.aab` but
+> **prints nothing for the `.apk`**. See "Verifying the signature" in 2.2.
 
 ### 2.1 Generate the upload keystore
 ```bash
@@ -348,69 +358,109 @@ Answer the prompts with real values (CN = NoSleep Studios). Use a strong,
 > reset by Google support, but a lost keystore before enrolment means you can
 > never update the app under this package name.
 
-- [ ] Keystore generated, **outside the repo** (`~/keystores/`, not the project).
-- [ ] Passwords in a password manager.
-- [ ] Second backup on an encrypted drive / separate cloud vault.
+✅ **Generated 2026-08-13.**
+
+- [x] Keystore at `~/keystores/tetrofall-upload.jks`, **outside the repo**,
+      mode `600`, in a `700` directory. `CN=NoSleep Studios, O=NoSleep Studios`,
+      RSA 2048, alias `upload`, valid until 2053-12-29.
+- [x] `android/key.properties` written (mode `600`) and confirmed gitignored and
+      untracked. `git ls-files` shows no `.jks` and no `key.properties`.
+- [ ] **YOURS TO DO — passwords in a password manager.** A single 32-character
+      random alphanumeric password is used for both the store and the key. It
+      was printed once in the terminal at generation time and is stored nowhere
+      else except `android/key.properties` on this machine.
+- [ ] **YOURS TO DO — second backup** of the `.jks` on an encrypted drive or a
+      separate cloud vault.
+
+> Two deviations from the command above, both deliberate:
+>
+> - **`-storetype PKCS12`, not `JKS`.** JKS is Sun's proprietary legacy format;
+>   keytool now emits a migration warning on every use of it. PKCS12 is the
+>   standard, is keytool's default since JDK 9, and is handled identically by
+>   AGP and by Play. The `.jks` file extension is kept so it matches every path
+>   already written down here.
+> - **The DN is `CN=NoSleep Studios, O=NoSleep Studios` only** — no locality,
+>   state or country. Those fields are baked into the certificate permanently
+>   and Play does not check them, so inventing a city and a country code to fill
+>   them would be putting fabricated identity data into the app's permanent
+>   signature. Omitting them is valid.
+>
+> Since nothing has been uploaded to Play yet, this keystore is still
+> disposable: if you would rather own a password that never passed through a
+> terminal, delete `~/keystores/tetrofall-upload.jks` and
+> `android/key.properties` and re-run the `keytool` command yourself
+> interactively. After the first upload it is permanent.
 
 ### 2.2 Wire signing into Gradle
-Create `android/key.properties` (**never commit**):
-```properties
-storePassword=<store password>
-keyPassword=<key password>
-keyAlias=upload
-storeFile=/Users/pacifique/keystores/tetrofall-upload.jks
+✅ **Implemented.** `android/app/build.gradle.kts` now loads
+`android/key.properties`, and `.gitignore` was extended *before* any secret
+could exist. Both stale `// TODO:` comments are gone.
+
+`android/key.properties` is gitignored, so it is not in the repo — copy the
+committed template instead, which carries the keytool command and the backup
+warning with it:
+
+```bash
+cp android/key.properties.example android/key.properties
+# then edit in the real passwords
 ```
 
-Append to `.gitignore` — **do this before creating the file above**:
-```gitignore
-# Android signing — never commit
-android/key.properties
-**/*.jks
-**/*.keystore
+**Deviation — a documented fallback instead of a hard failure.** The draft
+config assigns the release `signingConfig` unconditionally, which breaks
+`flutter run --release` for anyone without the keystore (and breaks it
+confusingly, deep in a Gradle stack trace). Instead the release config is only
+created when `key.properties` exists; without it the build falls back to the
+debug key **and prints a boxed warning** saying the artifact cannot be uploaded
+to Play. The risk this trades against — silently shipping a debug-signed
+bundle — is closed by the verification step below, which you must run before
+every upload.
+
+- [x] Both stale `// TODO:` comments deleted (the applicationId one and the
+      signing one).
+- [x] `android/app/proguard-rules.pro` created — deliberately empty, with a note
+      on which packages to suspect first if R8 breaks something at runtime.
+- [x] R8 enabled (`isMinifyEnabled` + `isShrinkResources`) and **verified to
+      build**: `flutter build apk --release` and `flutter build appbundle
+      --release` both succeed, and `build/app/outputs/mapping/release/` contains
+      the mapping. R8 breaking things at *runtime* still needs a device (5.2).
+
+#### Verifying the signature
+
+> ⛔ **`keytool -printcert -jarfile` prints nothing here, and that is not a
+> failure — it is the wrong tool.** AGP disables v1/JAR signing when
+> `minSdk >= 24`, so this APK is signed with **v2 only** and has no JAR
+> signature for `keytool` to read. Trusting its silence would mean shipping
+> unverified. Use `apksigner` (Android SDK build-tools) instead:
+
+```bash
+$ANDROID_HOME/build-tools/36.0.0/apksigner verify -v --print-certs \
+  build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Edit `android/app/build.gradle.kts`. Above the `android { }` block:
-```kotlin
-import java.util.Properties
-import java.io.FileInputStream
+Verified today against the current build, with no keystore present:
 
-val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-}
 ```
-Inside `android { }`, replace the existing `buildTypes` block and add
-`signingConfigs`:
-```kotlin
-    signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = (keystoreProperties["storeFile"] as String?)?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String?
-        }
-    }
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Signer #1 certificate DN: C=US, O=Android, CN=Android Debug   <-- the fallback
+```
 
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
-        }
-    }
+- [x] The check itself works and correctly identifies the debug key.
+- [x] **Re-run after 2.1 — gap 1 is closed.** Both artifacts now carry the
+      upload key, and the fallback warning no longer prints:
+
 ```
-- [ ] Delete both stale `// TODO:` comments in that file (the applicationID one
-      and the signing one) — they're now resolved.
-- [ ] Create an empty `android/app/proguard-rules.pro`; add rules only if R8
-      breaks something (see 5.2).
-- [ ] Verify: `flutter build apk --release` succeeds, then
-      `keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk`
-      shows **your** certificate, not the Android Debug CN.
+app-release.apk  Signer #1 certificate DN: CN=NoSleep Studios, O=NoSleep Studios
+                 Signer #1 certificate SHA-256 digest: 76f7263325ebd51c…
+app-release.aab  Owner: CN=NoSleep Studios, O=NoSleep Studios
+```
+
+> 🔍 **Why the APK needs `apksigner` but the AAB does not.** An **app bundle is
+> still JAR-signed**, so `keytool -printcert -jarfile` works fine on the `.aab`.
+> The **APK** is v2-only, so the same command prints nothing there. Since the
+> `.aab` is what you upload, `keytool` is enough for the real gate — but check
+> the APK with `apksigner`, because that is the artifact you side-load onto test
+> devices in Phase 5.3.
 
 ### 2.3 Pin SDK levels and harden the manifest
 In `defaultConfig`, replace the inherited values with explicit ones:
@@ -418,17 +468,24 @@ In `defaultConfig`, replace the inherited values with explicit ones:
         minSdk = 24
         targetSdk = 36
 ```
-- [ ] Confirm the current Play **target API requirement** in Play Console →
-      *Policy status*. Google requires new apps and updates to target an API
-      level within one year of the latest major Android release, and the bar
-      moves every August — check it, don't assume 36 is right for your submission
-      date.
-- [ ] `minSdk = 24` (Android 7.0) covers >98% of active devices and is the
-      Flutter default; going lower buys nothing and costs testing.
+- [x] **Confirmed 36 is right for an August 2026 submission.** Google's policy
+      page states new apps and app updates must target **Android 16 (API 36)**
+      from **31 Aug 2026** — 18 days after this was implemented. An extension to
+      1 Nov 2026 can be requested in Play Console if needed. Re-check
+      Play Console → *Policy status* anyway before you actually submit; this bar
+      moves every August.
+      ([policy](https://support.google.com/googleplay/android-developer/answer/11926878?hl=en),
+      [guide](https://developer.android.com/google/play/requirements/target-sdk))
+- [x] `minSdk = 24` (Android 7.0). Verified in the built APK
+      (`aapt2 dump badging` → `minSdkVersion:'24'`, `targetSdkVersion:'36'`).
+      Both are now **pinned literals** rather than `flutter.minSdkVersion` /
+      `flutter.targetSdkVersion`. They happen to equal the Flutter 3.44 defaults
+      today, which is exactly why pinning matters: these are a Play compliance
+      surface, and a Flutter upgrade must not be able to move them silently.
 - [ ] **16 KB page size**: Play requires apps targeting Android 15+ to support
       16 KB memory pages. Flutter 3.44's engine + AGP 8.11 satisfy this, but
       confirm with the Play Console pre-launch report's dedicated check after
-      your first upload.
+      your first upload. *(Nothing to change in code; verification is Phase 6.1.)*
 - [ ] **Edge-to-edge**: targeting API 35+ forces edge-to-edge display. Verify the
       gameplay HUD, the banner ad slot (`banner_ad_slot.dart`), and every overlay
       respect `SafeArea` / display cutouts on a notched and a gesture-nav device.
@@ -442,31 +499,79 @@ In `android/app/src/main/AndroidManifest.xml`:
         android:name=".MainActivity"
         android:screenOrientation="portrait"   <!-- add: matches main.dart, avoids a rotate flash -->
 ```
-- [ ] Fix `android:label` capitalisation.
-- [ ] Add `android:screenOrientation="portrait"` (the Dart side already locks
-      orientation in `main.dart`, but the native window doesn't know that during startup).
-- [ ] Decide on `android:allowBackup`. `shared_preferences` holds high scores +
-      settings via `StorageService`. Auto Backup restoring a high score onto a new
-      device is *good*; if you'd rather not, set `android:allowBackup="false"`.
-      Either way, make it an explicit choice, not a default.
-- [ ] Leave the `INTERNET` / `ACCESS_NETWORK_STATE` permissions — AdMob needs both.
-- [ ] Note that `google_mobile_ads` merges in
-      `com.google.android.gms.permission.AD_ID`. You **must** declare advertising
-      ID usage in the Data safety form (Phase 3.2). Do not try to remove it.
+- [x] `android:label` is now `Tetrofall`. Verified in the built APK
+      (`application-label:'Tetrofall'`).
+- [x] `android:screenOrientation="portrait"` added. Verified in the built APK
+      (`uses-implied-feature: android.hardware.screen.portrait`).
+      Note for later: on Android 16, Play ignores orientation locks on large
+      screens (≥600dp), so a tablet will rotate regardless — relevant only if
+      you claim tablet support in 4.6.
+- [x] **Decided: `android:allowBackup="true"`, stated explicitly** with the
+      reasoning in a manifest comment. A player who changes phones keeps their
+      best score, and there is no account, secret or server state that would be
+      unsafe to restore. It is written out rather than left to the platform
+      default so the next person sees a decision, not an accident.
+- [x] `INTERNET` / `ACCESS_NETWORK_STATE` left alone — AdMob needs both.
+- [x] Confirmed against the built APK: `google_mobile_ads` merges in **six**
+      permissions beyond the two above, not just `AD_ID` —
+      `com.google.android.gms.permission.AD_ID`, `ACCESS_ADSERVICES_AD_ID`,
+      `ACCESS_ADSERVICES_ATTRIBUTION`, `ACCESS_ADSERVICES_TOPICS`, `WAKE_LOCK`
+      and `FOREGROUND_SERVICE`. Do not try to remove any of them. The Privacy
+      Sandbox ones (`ACCESS_ADSERVICES_*`) reinforce the Phase 3.2 point: the
+      Data safety form **must** declare advertising-ID collection.
 
 ### 2.4 Versioning policy
 `pubspec.yaml`'s `version: 1.0.0+1` drives both `versionName` (`1.0.0`) and
 `versionCode` (`1`).
-- [ ] Ship v1.0.0 as `1.0.0+1`.
+- [x] Shipping v1.0.0 as `1.0.0+1`; verified in the built APK
+      (`versionCode='1' versionName='1.0.0'`). Unchanged — `flutter.versionCode`
+      / `flutter.versionName` still drive it from `pubspec.yaml`, which is
+      correct: pinning those would split the version across two files.
 - [ ] **Every** upload to Play — including a re-upload after a rejected internal
       test build — needs a **strictly higher `versionCode`**. Bump the `+N`
       every single time you press upload. Never reuse.
 - [ ] Record the mapping (versionCode → git tag) in a table at the bottom of this
       file as you go.
 
-**Exit criteria:** `flutter build appbundle --release` produces a bundle signed
-with your upload key, targeting the current Play-required API level, with the
-correct app name and no white splash.
+**Exit criteria:** ✅ **all met.** `flutter build appbundle --release` produces
+a bundle signed with your upload key ✅, targeting the current
+Play-required API level ✅, with the correct app name ✅ and no white splash ✅.
+
+### Phase 2 — what a real build produced
+
+`flutter build appbundle --release` succeeds today, R8 and all:
+
+| | |
+| --- | --- |
+| Output | `build/app/outputs/bundle/release/app-release.aab`, **58.9 MB** |
+| Package | `com.nosleepstudios.tetrofall`, versionCode 1, versionName 1.0.0 |
+| SDK | minSdk 24, targetSdk 36, compileSdk 36 |
+| Label | `Tetrofall` |
+| Signature | APK v2-only, AAB JAR-signed; both `CN=NoSleep Studios` ✅ |
+| R8 | ran — `build/app/outputs/mapping/release/mapping.txt` written |
+
+> 📏 **Ignore that 58.9 MB — it is not the download size, and Phase 5.2's "well
+> under 40MB" is measured against the wrong number.** An AAB is a *publishing*
+> container: Play strips the metadata and serves a per-device split. Breaking
+> down what is actually in it:
+>
+> | Inside the AAB | Size | Ships to users? |
+> | --- | --- | --- |
+> | `BUNDLE-METADATA/…/proguard.map` | 39.5 MB | ❌ stripped by Play |
+> | `BUNDLE-METADATA/…/*.so.sym` (3 ABIs) | ~59 MB | ❌ stripped by Play |
+> | `base/lib/arm64-v8a/libflutter.so` | 11.0 MB | ✅ arm64 devices only |
+> | `base/lib/arm64-v8a/libapp.so` | ~5.4 MB | ✅ arm64 devices only |
+> | `base/lib/{x86_64,armeabi-v7a}/…` | ~25 MB | ✅ *other* ABIs only |
+>
+> A real arm64 install is the engine + libapp + assets, compressed — an order of
+> magnitude under the raw figure. **Judge size from the Play Console's own
+> download-size estimate after the first upload (Phase 6.1), not from `ls`.**
+>
+> Gap 16 is still real but smaller than it looks: 8 of 24 bundled `.ttf` files
+> are referenced from `pubspec.yaml`, and `assets/fonts/` is 5.3 MB total, so
+> trimming the unused statics and the variable/italic families saves roughly
+> 3.5 MB pre-compression — worth doing in 5.2, but it is not what makes this
+> number big.
 
 ---
 
@@ -1016,15 +1121,15 @@ Ordered by blocking severity. Anything ❌ prevents shipping.
 
 | # | Gap | Phase | Severity |
 | --- | --- | --- | --- |
-| 1 | Release build signed with **debug** keys | 2.2 | ❌ Blocks upload |
+| 1 | ~~Release build signed with **debug** keys~~ | 2.1 | ✅ Closed 2026-08-13 — signed `CN=NoSleep Studios` |
 | 2 | ~~Launcher icon is the stock Flutter logo~~ | 1.2 | ✅ Done 2026-08-13 |
 | 3 | ~~No adaptive / monochrome icon~~ | 1.2 | ✅ Done — round icon N/A, see 1.2 |
 | 4 | ~~Native splash is white~~ | 1.3 | ✅ Done 2026-08-13 |
 | 5 | ~~No Android 12+ splash-screen config~~ | 1.3 | ✅ Done 2026-08-13 |
-| 6 | `android:label` is lowercase `tetrofall` | 2.3 | ❌ |
+| 6 | ~~`android:label` is lowercase~~ | 2.3 | ✅ Done 2026-08-13 |
 | 7 | Website not publicly hosted → no privacy URL, no `app-ads.txt` | 0.3 | ❌ Blocks listing |
 | 8 | No Play Console account / 12-tester gate not started | 0.1, 6.2 | ❌ 14+ day lead time |
-| 9 | `min`/`targetSdk` not pinned | 2.3 | ⚠️ |
+| 9 | ~~`min`/`targetSdk` not pinned~~ | 2.3 | ✅ Done — pinned 24 / 36 |
 | 10 | No consent message published in AdMob (code is ready, config isn't) | 3.3 | ⚠️ Silent revenue loss |
 | 11 | No way to re-open the consent form from Settings | 3.3 | ⚠️ Compliance |
 | 12 | OFL fonts bundled with no attribution surface | 3.4 | ⚠️ Licence breach |
@@ -1032,11 +1137,11 @@ Ordered by blocking severity. Anything ❌ prevents shipping.
 | 14 | ~~Empty `music/` but a music toggle exists~~ | 1.4 | ✅ Row now hidden until loops ship |
 | 15 | Only one block theme shipped vs. a theme system | 1.4 | ✅ Confirmed intentional — no picker exists |
 | 16 | ~30 unused font files inflating the bundle | 5.2 | ⚠️ Size |
-| 17 | `allowBackup` behaviour undecided | 2.3 | ⚠️ |
+| 17 | ~~`allowBackup` undecided~~ | 2.3 | ✅ Decided — explicit `true` |
 | 18 | No store graphics (icon 512, feature graphic, screenshots) | 4.6 | ❌ Blocks listing |
 | 19 | No listing copy written (name, short, full description) | 4.3–4.5 | ❌ Blocks listing |
 | 20 | No screenshot capture mode — board states can't be staged | 4.7 | ⚠️ Blocks good screenshots |
-| 21 | Stale `// TODO:` comments in `build.gradle.kts` | 2.2 | ℹ️ |
+| 21 | ~~Stale `// TODO:` comments in `build.gradle.kts`~~ | 2.2 | ✅ Both deleted |
 | 22 | "Tetrofall" trademark proximity to Tetris unreviewed | 3.5 | ⚠️ Legal |
 | 23 | 2 pre-existing test failures (`widget_test`, `gesture_handler_test`) | 5.1 | ❌ Blocks the release build |
 
@@ -1057,9 +1162,12 @@ flutter analyze && flutter test
 flutter build appbundle --release \
   --obfuscate --split-debug-info=build/symbols/<version>
 
-# Verify the signature is yours, not the debug key
+# Verify the signature is yours, not the debug key.
+# NOT `keytool -printcert -jarfile` — v1/JAR signing is off (minSdk 24), so
+# keytool prints nothing and silence looks like success. See 2.2.
 flutter build apk --release
-keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk
+$ANDROID_HOME/build-tools/36.0.0/apksigner verify -v --print-certs \
+  build/app/outputs/flutter-apk/app-release.apk
 
 # Install a release build on a connected device
 flutter install --release
