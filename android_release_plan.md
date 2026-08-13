@@ -842,59 +842,74 @@ of it. Add a descriptive suffix. **30-character hard limit, spaces included.**
 - [ ] Contains no "Tetris", no "#1", no "Free", no "Best", no emoji, no fake
       badges — all are policy violations that get the listing rejected.
 
-### 4.4 Short description (80 chars)
+### 4.4 Short description (80 chars) ✅ FINAL
+
+> ⚠️ **It is 80 *characters*, not 80 words.** 80 words would be ~500 characters
+> and the field will simply reject it. The 4000-character field is 4.5, below.
 
 Shown under the icon in search results and on the listing before the fold. This
-is the highest-leverage 80 characters on the page. Options, with exact counts:
+is the highest-leverage 80 characters on the page.
 
-| Draft | Chars |
+**Paste this:**
+
+```text
+Blocks fall from above. Rows rise from below. Clear lines or get crushed.
+```
+
+**73 / 80 characters.** It states the entire game in two beats and the stakes in
+a third. Lead with mechanics, not adjectives.
+
+| Alternative | Chars |
 | --- | --- |
-| **`Blocks fall from above. Rows rise from below. Clear lines or get crushed.`** | **73** ✅ recommended |
+| `Falling blocks, rising floor. Clear rows to survive. Offline block puzzle.` | 74 — use if you want the keyword phrase in this field |
 | `A wood block puzzle where the stack rises from below. One hand. Offline.` | 72 |
 | `The floor rises every few seconds. Clear rows fast or the stack wins.` | 69 |
 
-The recommended one works because it states the entire game in two beats and the
-stakes in a third. Lead with mechanics, not adjectives.
+- [x] Verified ≤80 characters (73) — re-verify after **any** edit.
 
-- [ ] Verified ≤80 characters **after** any edit.
+### 4.5 Full description (4000 chars) ✅ FINAL
 
-### 4.5 Full description (4000 chars)
+Written from the shipped code, and **verified against it on 2026-08-13** — every
+number below was read out of the source, not estimated.
 
-Draft below is written from your actual shipped code — the numbers come from
-`lib/game/config/difficulty.dart` and `lib/game/engine/scoring.dart`, and the
-cascade description matches `ColumnCascade`, not a generic block puzzle.
+> ⛔ **The earlier draft of this section contained two false claims. Both are
+> fixed below. Do not paste an older copy.**
+>
+> | Claim in the old draft | Reality in the build |
+> | --- | --- |
+> | "A **10x20** board" | `board_config.dart` → `cols = 18; rows = 32;` — nearly triple the area, and a selling point rather than something to shrink |
+> | "**Two-finger tap to rotate back**" | **The feature does not exist.** The only rotate call in the whole input path is `GameIntentType.rotateCW` (`gesture_handler.dart:216`), and `onPointerDown` discards a second pointer outright (`if (_pointer != null) return;`). There is no counter-clockwise rotation. |
+>
+> The second one is the dangerous one: a control instruction that does nothing
+> is a guaranteed 1-star review *and* the exact policy breach the checklist
+> below warns about. The sentence is removed. If you would rather have the
+> feature than lose the line, the engine half already exists —
+> `RotationState` has the `index + 3` previous-state accessor — and only the
+> gesture is missing.
+
+**Paste this** (1,668 / 4,000 characters):
 
 ```text
 The blocks fall. The floor fights back.
 
-Tetrofall is a falling-block puzzle with one twist that changes everything:
-a new row pushes up from the bottom of the board on a timer. You're not just
-filling a well — you're racing a floor that never stops rising. Clear rows to
-buy back space. Survive as long as you can.
+Tetrofall is a falling-block puzzle with one twist that changes everything: a new row pushes up from the bottom of the board on a timer. You're not just filling a well — you're racing a floor that never stops rising. Clear rows to buy back space. Survive as long as you can.
 
 A CASCADE, NOT A SHIFT
-Clear a row in the middle of your stack and the blocks above it don't slide
-down as one piece. Every block falls independently until it lands on something
-solid. Columns collapse at different speeds, gaps open where you didn't expect
-them, and rows finish themselves. Every link in a cascade chain raises your
-multiplier by another 50%.
+Clear a row in the middle of your stack and the blocks above it don't slide down as one piece. Every block falls independently until it lands on something solid. Columns collapse at different speeds, gaps open where you didn't expect them, and rows finish themselves. Every link in a cascade chain raises your multiplier by another 50%.
 
 THE PRESSURE NEVER LETS UP
 • Rows rise every 22 seconds when you start — every 4.5 seconds by minute twelve
 • Early rows leave a clustered, forgiving gap; late rows are dense and scattered
-• Difficulty interpolates smoothly the whole way — no sudden jumps, no plateau
-  you can memorise
+• Difficulty interpolates smoothly the whole way — no sudden jumps, no plateau you can memorise
 • Beat your best and your next run starts further up the curve
 
 BUILT FOR ONE THUMB
-Swipe to move. Tap to rotate. Two-finger tap to rotate back. Swipe down to drop.
-Auto-repeat is tuned for fast play, and a ghost piece shows exactly where your
-piece will land — leave it on, or switch it off in Settings.
+Swipe to move. Tap to rotate. Swipe down to drop. Auto-repeat is tuned for fast play, and a ghost piece shows exactly where your piece will land — leave it on, or switch it off in Settings.
 
 HONEST PUZZLE DESIGN
 • All seven pieces, 7-bag randomiser — no droughts, no unwinnable streaks
 • Full rotation system with wall kicks
-• A 10x20 board. No lives, no energy meter, no hidden timers
+• A big 18x32 board. No lives, no energy meter, no hidden timers
 • Warm wood blocks on a wood board, not neon on black
 • Plays completely offline — no account, no login, no cloud save required
 
@@ -904,18 +919,32 @@ One more run.
 — NoSleep Studios
 ```
 
+**What was verified in the source, claim by claim**
+
+| Line | Verified against |
+| --- | --- |
+| Rows rise every **22s** → **4.5s** by minute twelve | `difficulty.dart` — `riseInterval: 22` at start, `riseInterval: 4.5` at `Duration(minutes: 12)` |
+| Every cascade link **+50%** multiplier | `scoring.dart:36` — `final chainMultiplier = 1.0 + 0.5 * chainIndex;` |
+| **All seven pieces, 7-bag** | `tetromino.dart:18` — `enum TetrominoType { I, O, T, S, Z, J, L }`; `:241` — `_queue.addAll(TetrominoType.values); _queue.shuffle(_random);` |
+| **Wall kicks** | `piece_controller.dart:129` — `Tetromino.kicksFor(p.type, p.rotation, target)` |
+| **18x32 board** | `board_config.dart` — `cols = 18; rows = 32;` |
+| **Ghost piece toggle** | `tetrofall_game.dart:53` `showGhost`, driven from Settings |
+| **Completely offline** | No HTTP client, socket, analytics or crash SDK anywhere in `lib/`; only network-capable plugin is `google_mobile_ads` |
+
 **Rules for editing it:**
-- [ ] ≤4000 characters.
-- [ ] First two lines carry the whole pitch — most people never scroll.
-- [ ] **Never write "Tetris"** (see Phase 3.5).
-- [ ] ⚠️ **Do not promise anything that isn't in the build.** As of today
-      `assets/audio/music/` is empty and only one block theme ships. Do not list
-      "multiple themes" or "original soundtrack" until gaps 14 and 15 are closed.
-      Store copy that overstates the app is both a policy violation and the
-      fastest route to 1-star reviews.
-- [ ] Keywords appear naturally: *block puzzle, falling blocks, offline game,
-      puzzle game, brain, one-handed*. Do **not** append a keyword list — keyword
-      stuffing is an enforced violation.
+- [x] ≤4000 characters (1,668 — plenty of headroom if you want to add).
+- [x] First two lines carry the whole pitch — most people never scroll.
+- [x] **Never write "Tetris"** (see Phase 3.5) — checked, absent.
+- [x] ⚠️ **Nothing promised that isn't in the build.** No "multiple themes"
+      (one ships) and no "soundtrack" (`assets/audio/music/` is empty) — gaps 14
+      and 15. Re-check this list if either closes.
+- [x] Keywords appear naturally: *block puzzle, falling blocks, offline, puzzle,
+      one thumb*. No appended keyword list — stuffing is an enforced violation.
+
+> ⚠️ **One open item touching this copy.** The failing
+> `gesture_handler_test` — *"a slow drag past the hard-drop distance soft drops
+> instead"* (gap 23) — sits directly under the "Swipe down to drop" line. Fix it
+> before the copy describing the controls is public.
 
 ### 4.6 Graphics spec
 
@@ -1050,7 +1079,13 @@ surface — including places where **it plays alone with no screenshots**.
 
 ### 4.11 Store settings and listing QA
 
-- [ ] Category **Games → Puzzle**; tags: *Block puzzle, Casual, Offline, Brain games*.
+- [x] Category **Games → Puzzle**. Tags (max 5, chosen from Play's fixed
+      vocabulary — pick the nearest match the console offers): **Block Puzzle**
+      (highest-traffic exact match), **Brain Games**, **Casual**, **Offline
+      Games** (your real differentiator), **Single Player**. Avoid anything
+      implying multiplayer or social, and anything about themes or music — the
+      build has one theme and no music, so those would overstate it exactly as
+      4.5 forbids.
 - [ ] Contact email, website `https://<domain>/`, support
       `https://<domain>/support.html`, privacy `https://<domain>/privacy.html`.
 - [ ] Preview the listing in the console on **both** the phone and web previews —
@@ -1059,8 +1094,9 @@ surface — including places where **it plays alone with no screenshots**.
       "Read more" fold is optional reading; make sure the pitch survives being cut there.
 - [ ] Proofread out loud. Typos in the first two lines are the cheapest possible
       credibility loss.
-- [ ] Save the final copy back into this repo (`branding/store/listing.md`) so the
-      next release edits a tracked file rather than a console textarea.
+- [x] Final copy saved in this repo — the paste-ready text lives in **4.4 and
+      4.5 above**, with per-claim source verification, so the next release edits
+      a tracked file rather than a console textarea.
 
 **Exit criteria:** all 12 console checklist items green, six framed screenshots
 plus icon and feature graphic uploaded and accepted, listing preview proofread on
@@ -1251,7 +1287,7 @@ Ordered by blocking severity. Anything ❌ prevents shipping.
 | 16 | ~30 unused font files inflating the bundle | 5.2 | ⚠️ Size |
 | 17 | ~~`allowBackup` undecided~~ | 2.3 | ✅ Decided — explicit `true` |
 | 18 | No store graphics (icon 512, feature graphic, screenshots) | 4.6 | ❌ Blocks listing |
-| 19 | No listing copy written (name, short, full description) | 4.3–4.5 | ❌ Blocks listing |
+| 19 | ~~No listing copy written~~ | 4.3–4.5 | ✅ Short (73 ch) + full (1,668 ch) final in 4.4/4.5, verified against source |
 | 20 | No screenshot capture mode — board states can't be staged | 4.7 | ⚠️ Blocks good screenshots |
 | 21 | ~~Stale `// TODO:` comments in `build.gradle.kts`~~ | 2.2 | ✅ Both deleted |
 | 22 | ~~"Tetrofall" trademark proximity unreviewed~~ | 3.5 | ✅ Reviewed — proceed, see `branding/store/trademark-review.md` |
