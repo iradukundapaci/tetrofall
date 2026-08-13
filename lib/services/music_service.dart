@@ -33,6 +33,13 @@ class MusicService {
   /// no-op rather than an exception per screen transition.
   static final Set<MusicTrack> _available = {};
 
+  /// Whether any loop actually shipped. Settings hides its Music control when
+  /// this is false: a slider that provably has nothing to turn up reads as a
+  /// broken app, not an empty one (android_release_plan.md §1.4).
+  ///
+  /// Only meaningful once [warmUp] has completed — await it first.
+  static bool get hasBundledTracks => _available.isNotEmpty;
+
   static Future<void>? _warmUpFuture;
 
   static MusicTrack? _wanted;

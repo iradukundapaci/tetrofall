@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tokens.colorBg. The app is dark-only and never follows the system
+         light/dark setting, so this is deliberately NOT overridden in
+         values-night: there is nothing to invert. -->
+    <color name="tetrofall_window_background">#2B1C12</color>
+</resources>

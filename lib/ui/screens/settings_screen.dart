@@ -49,6 +49,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final AudioService _audio = AudioService(widget.storage);
   late final HapticsService _haptics = HapticsService(widget.storage);
 
+  /// The Music row only exists if there is music. The loops are still an
+  /// outstanding asset (assets/audio/music/README.md), and a volume slider
+  /// with nothing behind it is a defect a reviewer can see.
+  bool _musicAvailable = MusicService.hasBundledTracks;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_musicAvailable) return;
+    // `main()` fires warmUp() unawaited, so the bundle probe has almost
+    // certainly landed by the time anyone reaches Settings — but if it hasn't,
+    // pick the answer up when it does rather than hiding the row for the life
+    // of the screen.
+    MusicService.warmUp().then((_) {
+      if (mounted && MusicService.hasBundledTracks) {
+        setState(() => _musicAvailable = true);
+      }
+    });
+  }
+
   void _onMusicChanged(double value) {
     if (value == 0 && _musicVolume > 0) {
       _musicRestore = _musicVolume;
@@ -142,14 +162,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: Tokens.spaceLg),
               const _SectionTitle('SOUND'),
               const SizedBox(height: Tokens.spaceSm),
-              _VolumeRow(
-                icon: AppIcons.music,
-                label: 'Music',
-                value: _musicVolume,
-                onChanged: _onMusicChanged,
-                onToggleMute: _toggleMusicMute,
-              ),
-              const SizedBox(height: Tokens.spaceSm),
+              if (_musicAvailable) ...[
+                _VolumeRow(
+                  icon: AppIcons.music,
+                  label: 'Music',
+                  value: _musicVolume,
+                  onChanged: _onMusicChanged,
+                  onToggleMute: _toggleMusicMute,
+                ),
+                const SizedBox(height: Tokens.spaceSm),
+              ],
               _VolumeRow(
                 icon: AppIcons.sound,
                 label: 'Sound Effects',
@@ -380,14 +402,10 @@ class _VolumeRow extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: _muted
-                        ? const Color(0x38D9432E)
-                        : Tokens.colorPanel,
+                    color: _muted ? const Color(0x38D9432E) : Tokens.colorPanel,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: _muted
-                          ? Tokens.colorRed
-                          : Tokens.colorPanelBorder,
+                      color: _muted ? Tokens.colorRed : Tokens.colorPanelBorder,
                     ),
                   ),
                   child: Icon(
