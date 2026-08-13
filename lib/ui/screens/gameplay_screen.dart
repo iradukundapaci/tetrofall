@@ -17,10 +17,23 @@ import 'game_over_overlay.dart';
 import 'pause_overlay.dart';
 
 class GameplayScreen extends StatefulWidget {
-  const GameplayScreen({super.key, required this.storage, required this.ads});
+  const GameplayScreen({
+    super.key,
+    required this.storage,
+    required this.ads,
+    this.onGameCreated,
+  });
 
   final StorageService storage;
   final AdsService ads;
+
+  /// Capture-only seam (android_release_plan.md §4.7). Fires once with the
+  /// live game so `tools/capture/main.dart` can seed a hand-authored board —
+  /// the money-shot states are three frames long and cannot be reached by
+  /// playing. Always null in the shipped app: nothing in `lib/` passes it, and
+  /// the capture harness is a separate entrypoint that the release build never
+  /// compiles.
+  final void Function(TetrofallGame game)? onGameCreated;
 
   @override
   State<GameplayScreen> createState() => _GameplayScreenState();
@@ -44,6 +57,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
     _game.engine.addEventListener(_onEngineEvent);
     // The menu loop keeps playing if there's no gameplay track to swap to.
     MusicService(widget.storage).play(MusicTrack.gameplay);
+    final onGameCreated = widget.onGameCreated;
+    if (onGameCreated != null) onGameCreated(_game);
   }
 
   @override

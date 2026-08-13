@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show FontLoader, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tetrofall/ui/theme/tokens.dart';
 import 'package:tetrofall/ui/widgets/logo_mark.dart';
+import 'package:tetrofall/ui/widgets/logo_wordmark.dart';
 
 import 'icon_art.dart';
 
@@ -118,6 +119,22 @@ void main() {
     );
   });
 
+  // §4.10. Required by Play, and it appears in promo surfaces where it plays
+  // *alone with no screenshots* — so it has to carry the whole pitch by itself.
+  testWidgets('forge feature graphic', (tester) async {
+    final texture = await _loadTexture(tester);
+    await _loadLabelFont();
+
+    await _capture(
+      tester,
+      // 1024x500 exactly. Play rejects any other ratio for this slot — it is
+      // NOT square, which is the usual mistake.
+      size: const Size(1024, 500),
+      path: '$out/store/feature_graphic.png',
+      child: _FeatureGraphic(texture: texture),
+    );
+  });
+
   // §1.1 asks for two eyeball checks that a 1024px master can't answer: does
   // it read at 48px, and does it hold up on both a white and a black
   // wallpaper. This renders exactly that, masked the way Android masks it.
@@ -168,9 +185,13 @@ Future<ui.Image?> _loadTexture(WidgetTester tester) async {
 /// flutter_test draws every glyph as a filled box unless a real font is
 /// registered, which would make the sheet's labels unreadable.
 Future<void> _loadLabelFont() async {
-  final loader = FontLoader(Tokens.fontBody)
+  final body = FontLoader(Tokens.fontBody)
     ..addFont(rootBundle.load('assets/fonts/Nunito/static/Nunito-Bold.ttf'));
-  await loader.load();
+  final display = FontLoader(Tokens.fontDisplay)
+    ..addFont(
+      rootBundle.load('assets/fonts/Baloo_2/static/Baloo2-ExtraBold.ttf'),
+    );
+  await Future.wait([body.load(), display.load()]);
 }
 
 /// Renders [child] at [size] logical pixels with a 1.0 device pixel ratio —
@@ -370,4 +391,152 @@ class _ContactSheet extends StatelessWidget {
       child: Center(child: LogoMark(cellSize: size * 0.54 / 3.25)),
     ),
   );
+}
+
+
+/// The 1024x500 Play feature graphic (§4.10).
+///
+/// Composition per the spec: wood plate, the T-mark left of centre, the
+/// wordmark in Baloo 2 ExtraBold, and a few falling blocks over one rising row
+/// as visual shorthand for the mechanic. No screenshots, no device frames, no
+/// call to action and no store badges — all four are policy violations here.
+class _FeatureGraphic extends StatelessWidget {
+  const _FeatureGraphic({required this.texture});
+
+  final ui.Image? texture;
+
+  /// Play crops the outer margins in some placements, so the mark and every
+  /// glyph stay inside the centre 80%. The decorative blocks may bleed past it;
+  /// nothing that carries meaning does.
+  static const _safeInsetX = 1024 * 0.1;
+  static const _safeInsetY = 500 * 0.1;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        WoodPlate(texture: texture),
+
+        // The mechanic, stated in one picture: blocks coming down, a row
+        // coming up. Deliberately low-contrast so it reads as texture at
+        // 250px wide rather than competing with the wordmark.
+        const Positioned(
+          left: 726,
+          top: 34,
+          child: _WoodBlock(size: 46, tilt: -0.18, opacity: 0.85),
+        ),
+        const Positioned(
+          left: 848,
+          top: 96,
+          child: _WoodBlock(size: 62, tilt: 0.12, opacity: 0.7),
+        ),
+        const Positioned(
+          left: 782,
+          top: 186,
+          child: _WoodBlock(size: 38, tilt: 0.3, opacity: 0.5),
+        ),
+        const Positioned(
+          left: 0,
+          right: 0,
+          bottom: -26,
+          child: _RisingRow(),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: _safeInsetX,
+            vertical: _safeInsetY,
+          ),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 190,
+                height: 190,
+                child: MarkArt(style: MarkStyle.gold, markWidthFraction: 1.0),
+              ),
+              const SizedBox(width: 34),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const LogoWordmark(fontSize: 86),
+                  const SizedBox(height: 10),
+                  Text(
+                    'The floor rises. Clear rows or get crushed.',
+                    style: TextStyle(
+                      fontFamily: Tokens.fontBody,
+                      fontSize: 25,
+                      fontWeight: FontWeight.bold,
+                      color: Tokens.colorText.withValues(alpha: 0.92),
+                      shadows: const [
+                        Shadow(color: Color(0x99000000), offset: Offset(0, 2), blurRadius: 5),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A single wood cell, matching `LogoMark`'s block treatment.
+class _WoodBlock extends StatelessWidget {
+  const _WoodBlock({required this.size, this.tilt = 0, this.opacity = 1});
+
+  final double size;
+  final double tilt;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: opacity,
+      child: Transform.rotate(
+        angle: tilt,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(size * 0.2),
+            border: Border.all(color: const Color(0x59000000)),
+            gradient: const LinearGradient(
+              begin: Alignment(-0.6, -1),
+              end: Alignment(0.6, 1),
+              colors: [
+                Tokens.colorWoodLight,
+                Tokens.colorWoodMid,
+                Tokens.colorWoodDark,
+              ],
+              stops: [0, 0.55, 1],
+            ),
+            boxShadow: const [Tokens.shadowSoft],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The row pushing up from the bottom — the thing that makes this game
+/// different, drawn as a partial row cut off by the canvas edge.
+class _RisingRow extends StatelessWidget {
+  const _RisingRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < 14; i++) ...[
+          _WoodBlock(size: 64, opacity: i.isEven ? 0.55 : 0.4),
+          const SizedBox(width: 8),
+        ],
+      ],
+    );
+  }
 }
