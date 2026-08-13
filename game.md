@@ -115,11 +115,11 @@ gap placement early game: gaps adjacent, forming an easy well
               late game:  gaps scattered, and shifted ≥2 columns from the previous row's gaps
 ```
 
-**Rise pausing.** The rise timer is frozen during `RESOLVING` (clear + cascade). It is *not* frozen while a piece is merely falling — the two pressures must overlap.
+**Rise pausing.** The rise timer is frozen during `RESOLVING` (clear + ripple gravity). It is *not* frozen while a piece is merely falling — the two pressures must overlap.
 
 ## 1.5 Line clear
 
-After a lock (or after any cascade settle), scan for full rows.
+After a lock, and again after every single row gravity releases (§1.6), scan for full rows.
 
 - A row is full when all `COLS` cells are occupied.
 - Multiple simultaneous full rows are cleared as one group, in one animation.
@@ -150,7 +150,33 @@ There is no third case. In the diagram above, the lone block in column 1 falls a
 
 **Interaction with the rise.** The `pendingRow` is *not* part of the grid until `commitRise()` runs, so it is not a landing surface. A block falling while a row is halfway risen settles on the **current** floor, row `ROWS-1` — it never lands on, or sinks into, the partially-emerged row. When that row later commits, it pushes the settled block up along with everything else (§1.4), which keeps the two systems fully independent: cascade resolves against the committed grid only.
 
-**Default resolver: `ColumnCascade`.**
+**Gravity travels as a wave, one row at a time (`RippleCascade`).** The final resting position is the column rule above, but the stack does not get there in a single step. Gravity releases the bottom-most row that has empty space beneath it; every other row stays frozen exactly where it stands. Once that row is on its way down, the next row up is released, and so on until the wave reaches the top of the stack.
+
+```dart
+// engine side, one step per animation beat
+int? row = RippleCascade.nextFloatingRow(grid, fromRow: cursor);
+final falls = RippleCascade.settleRow(grid, row);   // this row only
+cursor = row - 1;                                   // wave moves up
+```
+
+`settleRow` drops each cell in that row to its own column's resting position, so a released row lands on an uneven surface and **disintegrates into the holes below it**. That is the point: its cells merge with the partial rows underneath, and a merge can complete a row.
+
+**Chain loop.** After every release, rescan for full rows. If any are full, the wave stops, the rows clear (shatter and all), the chain counter increments, and the wave **restarts from the bottom** — the clear has reopened a gap beneath everything still frozen above. Repeat until nothing is floating and nothing is full. Each chain link raises the score multiplier (§1.7), capped at 5.0x.
+
+Because merges clear as they happen rather than after one big collapse, chains run several links longer than a single-step cascade would produce.
+
+**Falls overlap.** The step interval is much shorter than a one-cell fall (~183 ms), so three or four rows are in the air at once and the wave reads as continuous rather than as a queue of separate drops. Nothing may *clear* while blocks are still in flight, though — the engine waits out the longest open flight first, because shattering a cell the fall animator is mid-way through drawing would tear the frame.
+
+**Pacing.** A row-at-a-time cascade takes far longer than a single collapse, so every duration in the resolve — shatter, step interval, flight time — is multiplied by:
+
+```text
+resolveTimeScale = clamp(dropIntervalNow / dropIntervalAtStart, 0.35, 1.0)
+chainTimeScale   = resolveTimeScale * max(0.45, 1 - 0.35 * chainIndex)
+```
+
+Clearing therefore speeds up at exactly the rate the game does, and later chain links compress further. On top of that the wave has a per-pass time budget (`Motion.rippleBudget`): a tall stack compresses its step interval to fit rather than running proportionally longer. If a resolve still exceeds `Motion.resolveHardCap`, the engine stops animating and collapses whatever is left with `ColumnCascade` in one step — an escape hatch so a pathological board can never stall the game.
+
+**`ColumnCascade`** remains as that escape hatch and as the reference implementation the ripple is tested against: repeatedly releasing rows bottom-up converges on the same board it produces in one pass.
 
 ```dart
 for (final col in columns) {
@@ -166,11 +192,9 @@ for (final col in columns) {
 }
 ```
 
-Each column resolves independently, so a block only falls as far as the next block *in its own column* — exactly "falls until it collides with another block in the rows below."
+**Alternate resolver: `StickyGroup`** — flood-fill 4-connected components and drop each as a rigid body. Implemented behind the same `GravityResolver` interface and swappable via a debug flag, so both can be play-tested.
 
-**Alternate resolver: `StickyGroup`** — flood-fill 4-connected components and drop each as a rigid body. Implemented behind the same `GravityResolver` interface and swappable via a debug flag, so both can be play-tested. `ColumnCascade` is the shipping default: it produces more clears, more chains, and reads more clearly in motion.
-
-**Chain loop.** After a cascade settles, rescan for full rows. If any exist, clear them too and increment the chain counter. Repeat until stable. Each chain link raises the score multiplier (§1.7).
+**Gravity only runs as part of a clear.** A plain lock keeps its overhangs — an S-piece resting with one cell hanging over a hole stays there. The wave starts only once a row has been cleared.
 
 ## 1.7 Scoring & combos
 
@@ -186,7 +210,7 @@ Base line score:
 Multipliers, applied in order:
 
 ```text
-chainMultiplier   = 1.0 + (0.5 * chainIndex)     cascade chains, chainIndex starts at 0
+chainMultiplier   = 1.0 + (0.5 * min(chainIndex, 8))   capped at 5.0x; chainIndex starts at 0
 levelMultiplier   = 1.0 + (elapsedMinutes * 0.1)
 ```
 
@@ -260,18 +284,21 @@ frame 0.00   frame 0.33   frame 0.66   frame 1.00 → commit
 
 ## 2.2 Cascading fall — visible travel
 
-When `ColumnCascade` moves a block from `fromRow` to `toRow`, the logical grid updates immediately, but the sprite animates.
+When a released row moves a block from `fromRow` to `toRow`, the logical grid updates immediately, but the sprite animates.
 
 ```dart
 final distance = toRow - fromRow;                       // in cells
-final duration = sqrt(2 * distance / GRAVITY_CELLS_S2); // real free-fall timing
-// GRAVITY_CELLS_S2 = 60.0  → 1 cell ≈ 180ms, 8 cells ≈ 520ms
+final duration = sqrt(2 * distance / GRAVITY_CELLS_S2) * chainTimeScale;
+// GRAVITY_CELLS_S2 = 60.0  → 1 cell ≈ 180ms, 8 cells ≈ 520ms (at scale 1.0)
 ```
+
+The engine owns resolve timing, so it computes the flight time and ships it on `BlockFallEvent.durationSeconds`; the animator plays what it is given rather than re-deriving it and drifting out of sync with the pacing.
 
 - Easing: **`Curves.easeInQuad`** on the way down (accelerating), then a 60 ms squash-and-stretch on impact (scale Y ×0.85 → ×1.0).
 - Blocks in different columns start together but land at different times, because travel distance differs. This staggering is the effect — do not normalize durations.
+- Rows released on consecutive steps overlap in the air, which is what makes the wave read as continuous. Several rows may be falling at once.
 - A small dust puff spawns at each landing point.
-- The state machine does not leave `RESOLVING` until the **longest** fall completes, then the chain rescan runs.
+- The state machine does not leave `RESOLVING`, and no row may clear, until the **longest** open flight completes.
 
 ## 2.3 Shatter clear — center-out
 
@@ -463,11 +490,11 @@ See **Phase P** for the full asset list, formats, and generation prompts.
    │    └────┬─────┘
    │         ↓ lock
    │    ┌───────────┐
-   │    │ RESOLVING │◀──┐  clear → shatter → cascade → rescan
-   │    └────┬──────┘   │  (chain loop; rise frozen throughout)
+   │    │ RESOLVING │◀──┐  clear → shatter → ripple one row → settle
+   │    └────┬──────┘   │  (rescan after every row; rise frozen throughout)
    │         │          │
-   │         └──────────┘  chain found
-   │         ↓ stable
+   │         └──────────┘  row full again → clear, restart wave from bottom
+   │         ↓ nothing floating, nothing full
    └─────────┘
 
    PAUSED is an orthogonal sub-state that suspends both gravity
@@ -1008,7 +1035,7 @@ Note the native splash (the OS-level one, shown before Flutter boots) is a **thi
 
 - `ShatterLayer` with a pooled particle allocator (600 shards pre-allocated).
 - Center-out delay scheduling; shard colors resolved per block — theme tint for plain blocks, the type's own palette for specials.
-- `RESOLVING` gating: cascade waits for the sequence, particles do not.
+- `RESOLVING` gating: the gravity wave waits for the sequence, particles do not.
 
 - **Debug helper:** a global time-scale slider (0.1×–1×) for inspecting the sequence frame by frame.
 

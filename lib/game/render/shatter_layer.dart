@@ -232,10 +232,18 @@ class ShatterLayer extends PositionComponent {
     return image;
   }
 
-  void addClear(List<ClearedCell> cells, int cols, {int linesCleared = 1}) {
+  void addClear(
+    List<ClearedCell> cells,
+    int cols, {
+    int linesCleared = 1,
+    double timeScale = 1.0,
+  }) {
     final center = (cols - 1) / 2.0;
-    final stepSeconds = Motion.shatterStep.inMilliseconds / 1000;
-    final crackSeconds = Motion.crackHold.inMilliseconds / 1000;
+    // The engine compresses the shatter as the game speeds up and as a chain
+    // deepens; the crack sequence has to run on the same clock or it would
+    // still be spreading when gravity takes over.
+    final stepSeconds = Motion.shatterStep.inMilliseconds / 1000 * timeScale;
+    final crackSeconds = Motion.crackHold.inMilliseconds / 1000 * timeScale;
 
     _addShatter(
       cells,

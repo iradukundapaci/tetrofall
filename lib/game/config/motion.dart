@@ -44,6 +44,33 @@ abstract final class Motion {
   static const gravityCellsPerS2 = 60.0;
   static const impactSquash = Duration(milliseconds: 60);
 
+  /// Ripple cascade: gravity releases one row per step, walking up the stack.
+  /// The step interval is deliberately far shorter than a one-cell fall
+  /// (~183ms), so three or four rows are in flight at once and the wave reads
+  /// as continuous rather than as a queue of separate drops.
+  static const rippleStepBase = Duration(milliseconds: 55);
+  static const rippleStepMin = Duration(milliseconds: 14);
+
+  /// Time the wave is allowed to take for one pass at full scale. A tall stack
+  /// compresses its step interval to fit rather than running proportionally
+  /// longer.
+  static const rippleBudget = Duration(milliseconds: 900);
+
+  /// Ceiling on an entire resolve, chains included. Blowing it drops the
+  /// remaining work into a single [ColumnCascade] collapse — an escape hatch so
+  /// a pathological board can never stall the game.
+  static const resolveHardCap = Duration(milliseconds: 3500);
+
+  /// Floor on the difficulty-derived resolve speed scale. The drop interval
+  /// falls to 0.25x of its opening value by the last checkpoint; clearing that
+  /// fast reads as a glitch, so the resolve stops speeding up at 0.35x.
+  static const resolveMinTimeScale = 0.35;
+
+  /// Later links in a chain shatter faster, so a four-deep chain does not cost
+  /// four full shatter sequences.
+  static const chainShatterFalloff = 0.35;
+  static const chainShatterFloor = 0.45;
+
   static const lockDelay = Duration(milliseconds: 500);
   static const lockResetLimit = 15;
   static const softDropDivisor = 7;

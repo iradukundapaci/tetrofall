@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../config/difficulty.dart';
 import '../config/motion.dart';
 import 'clear_detector.dart';
 import 'column_cascade.dart';
@@ -8,6 +9,7 @@ import 'gravity_resolver.dart';
 import 'grid.dart';
 import 'piece_controller.dart';
 import 'rise_controller.dart';
+import 'ripple_cascade.dart';
 import 'scoring.dart';
 import 'tetromino.dart';
 
@@ -23,7 +25,11 @@ enum GameIntentType {
   hardDrop,
 }
 
-enum _ResolveStage { shatter, cascade }
+/// A resolve alternates between shattering the rows it just completed and
+/// rippling gravity up the stack one row at a time. `settle` is the pause that
+/// lets blocks already in flight finish landing before anything else touches
+/// the grid they are landing into.
+enum _ResolveStage { shatter, ripple, settle }
 
 enum _ContinueStage { filling, clearing }
 
@@ -63,13 +69,30 @@ class GameEngine {
   double _resolveTimer = 0;
   _ResolveStage _resolveStage = _ResolveStage.shatter;
 
+  /// Row gravity is releasing next. Walks upward; everything above it is
+  /// frozen where it stands until its turn comes.
+  int _rippleRow = 0;
+
+  /// Rows still holding blocks at or above [_rippleRow], used to pace the wave
+  /// against [Motion.rippleBudget].
+  int _rippleRowsRemaining = 0;
+
+  /// Longest flight still in the air, counted down alongside [_resolveTimer].
+  /// Nothing may clear a row until this reaches zero.
+  double _flightRemaining = 0;
+
+  /// Whole-resolve clock, against [Motion.resolveHardCap].
+  double _resolveElapsed = 0;
+  bool _flushed = false;
+
   _ContinueStage _continueStage = _ContinueStage.filling;
   int _continueRow = 0;
 
   /// How long a move or rotation survives while the board is busy resolving
   /// a clear. The shatter sequence runs close to a second on an 18-wide
   /// board, and swipes made during it used to be thrown away outright.
-  static const inputBufferWindow = Duration(milliseconds: 150);
+  /// Ripple gravity stretched resolves further still, hence the wider window.
+  static const inputBufferWindow = Duration(milliseconds: 250);
 
   final _intentQueue = <_BufferedIntent>[];
   final _eventListeners = <void Function(GameEvent)>[];
@@ -134,13 +157,21 @@ class GameEngine {
         }
       case GamePhase.resolving:
         riseController.tickElapsedOnly(dt);
-        if (_resolveTimer > 0) {
+        _resolveElapsed += dt;
+        _flightRemaining = max(0, _flightRemaining - dt);
+        if (!_flushed && _resolveElapsed > _hardCapSeconds) {
+          // Checked every frame rather than only between stages, so a long
+          // chain cannot overshoot by a whole shatter before bailing out.
+          _flushResolve();
+        } else if (_resolveTimer > 0) {
           _resolveTimer -= dt;
           if (_resolveTimer <= 0) {
             switch (_resolveStage) {
               case _ResolveStage.shatter:
-                _runCascade();
-              case _ResolveStage.cascade:
+                _beginRipple();
+              case _ResolveStage.ripple:
+                _rippleStep();
+              case _ResolveStage.settle:
                 _resolvePass();
             }
           }
@@ -266,26 +297,44 @@ class GameEngine {
   void _beginResolve() {
     phase = GamePhase.resolving;
     chainIndex = 0;
+    _resolveElapsed = 0;
+    _flightRemaining = 0;
+    _flushed = false;
     scoring.startResolve();
+  }
+
+  /// How much the whole resolve is compressed, tracked to the difficulty
+  /// curve's drop interval. Clearing gets faster at exactly the rate the game
+  /// does, so a row-by-row cascade never feels like it is holding the player
+  /// back at pace.
+  double get resolveTimeScale {
+    final base = Difficulty.checkpoints.first.dropInterval.inMicroseconds;
+    final now = riseController.difficultyNow.dropInterval.inMicroseconds;
+    return (now / base).clamp(Motion.resolveMinTimeScale, 1.0);
+  }
+
+  /// Arms the resolve timer, guaranteeing it survives at least one more tick
+  /// so a zero-length stage can never leave the phase without a wake-up.
+  void _schedule(_ResolveStage stage, double seconds) {
+    _resolveStage = stage;
+    _resolveTimer = max(seconds, 1e-6);
   }
 
   void _resolvePass() {
     final fullRows = ClearDetector.findFullRows(grid);
     if (fullRows.isEmpty) {
-      _resolveTimer = 0;
-      phase = GamePhase.spawning;
+      // Gravity only runs as part of a clear. On a plain lock the stack keeps
+      // its overhangs — dropping those would rewrite how the game stacks.
+      if (chainIndex == 0) {
+        _resolveTimer = 0;
+        phase = GamePhase.spawning;
+        return;
+      }
+      _beginRipple();
       return;
     }
 
-    final removedCells = <ClearedCell>[];
-    for (final r in fullRows) {
-      for (var c = 0; c < grid.cols; c++) {
-        final cell = grid.at(r, c);
-        if (cell == null) continue;
-        removedCells.add(ClearedCell(row: r, col: c, type: cell.type));
-        grid.set(r, c, null);
-      }
-    }
+    final removedCells = _stripRows(fullRows);
 
     scoring.addDestroyed(removedCells.length);
     scoring.awardLineClear(
@@ -293,21 +342,71 @@ class GameEngine {
       chainIndex: chainIndex,
       elapsedSeconds: riseController.elapsed,
     );
-    _startShatterThenCascade(fullRows, removedCells);
+
+    final scale = _chainTimeScale();
+    _emit(RowsClearedEvent(fullRows, removedCells, timeScale: scale));
+    _emit(ChainAdvancedEvent(chainIndex));
+    chainIndex++;
+
+    _schedule(
+      _ResolveStage.shatter,
+      Motion.shatterSequenceSeconds(grid.cols) * scale,
+    );
   }
 
-  void _startShatterThenCascade(
-    List<int> rows,
-    List<ClearedCell> removedCells,
-  ) {
-    _emit(RowsClearedEvent(rows, removedCells));
-    _resolveStage = _ResolveStage.shatter;
-    _resolveTimer = Motion.shatterSequenceSeconds(grid.cols);
+  List<ClearedCell> _stripRows(List<int> rows) {
+    final removedCells = <ClearedCell>[];
+    for (final r in rows) {
+      for (var c = 0; c < grid.cols; c++) {
+        final cell = grid.at(r, c);
+        if (cell == null) continue;
+        removedCells.add(ClearedCell(row: r, col: c, type: cell.type));
+        grid.set(r, c, null);
+      }
+    }
+    return removedCells;
   }
 
-  void _runCascade() {
-    final falls = resolver.resolve(grid);
+  /// [resolveTimeScale], tightened further as a chain deepens. The player has
+  /// already watched the first shatter and the first wave; replaying both at
+  /// full length for every link would be a very long time to sit through.
+  double _chainTimeScale() {
+    final falloff = max(
+      Motion.chainShatterFloor,
+      1 - Motion.chainShatterFalloff * chainIndex,
+    );
+    return resolveTimeScale * falloff;
+  }
+
+  /// When the engine gives up on animating and collapses the rest at once.
+  /// The final settle still plays out past this point.
+  double get _hardCapSeconds =>
+      Motion.resolveHardCap.inMilliseconds / 1000 * resolveTimeScale;
+
+  /// Starts the gravity wave at the bottom of the stack. Every clear restarts
+  /// it here, because a cleared row reopens a gap below whatever is still
+  /// frozen higher up.
+  void _beginRipple() {
+    final row = RippleCascade.nextFloatingRow(grid, fromRow: grid.maxRow - 1);
+    if (row == null) {
+      _resolveTimer = 0;
+      phase = GamePhase.spawning;
+      return;
+    }
+    _rippleRow = row;
+    _rippleRowsRemaining = RippleCascade.rowsRemaining(grid, fromRow: row);
+    _schedule(_ResolveStage.ripple, 0);
+  }
+
+  /// Releases one row: its blocks drop to rest, everything above stays put.
+  void _rippleStep() {
+    final falls = RippleCascade.settleRow(grid, _rippleRow);
     if (falls.isNotEmpty) {
+      final maxDistance = falls
+          .map((f) => (f.toRow - f.fromRow).abs())
+          .reduce(max);
+      final fallSeconds =
+          sqrt(2 * maxDistance / Motion.gravityCellsPerS2) * _chainTimeScale();
       _emit(
         BlocksFellEvent([
           for (final f in falls)
@@ -316,27 +415,99 @@ class GameEngine {
               toRow: f.toRow,
               col: f.col,
               type: f.type,
+              durationSeconds: fallSeconds,
             ),
         ]),
       );
+      _flightRemaining = max(
+        _flightRemaining,
+        fallSeconds + Motion.impactSquash.inMilliseconds / 1000,
+      );
     }
-    _emit(ChainAdvancedEvent(chainIndex));
-    chainIndex++;
-    _resolveStage = _ResolveStage.cascade;
-    _resolveTimer = _settleDuration(falls);
-    if (_resolveTimer <= 0) {
-      _resolvePass();
+    if (_rippleRowsRemaining > 0) _rippleRowsRemaining--;
+
+    // Blocks landing in the holes below can complete rows that were partial.
+    // Those clear, but only once everything in the air has landed — shattering
+    // a cell the fall animator is still drawing would tear the frame.
+    if (ClearDetector.findFullRows(grid).isNotEmpty) {
+      _schedule(_ResolveStage.settle, _flightRemaining);
+      return;
     }
+
+    final next = RippleCascade.nextFloatingRow(grid, fromRow: _rippleRow - 1);
+    if (next == null) {
+      _schedule(_ResolveStage.settle, _flightRemaining);
+      return;
+    }
+    _rippleRow = next;
+    _schedule(_ResolveStage.ripple, _stepInterval());
   }
 
-  double _settleDuration(List<BlockFall> falls) {
-    if (falls.isEmpty) return 0;
-    final maxDistance = falls
-        .map((f) => (f.toRow - f.fromRow).abs())
-        .reduce(max);
-    if (maxDistance == 0) return 0;
-    final fallSeconds = sqrt(2 * maxDistance / Motion.gravityCellsPerS2);
-    return fallSeconds + Motion.impactSquash.inMilliseconds / 1000;
+  /// Gap between releasing one row and the next. Shorter than a one-cell fall,
+  /// so several rows are in the air at once and the wave reads as continuous;
+  /// compressed further when a tall stack would otherwise overrun the budget.
+  double _stepInterval() {
+    final scale = _chainTimeScale();
+    final budget = Motion.rippleBudget.inMilliseconds / 1000 * scale;
+    final paced = budget / max(1, _rippleRowsRemaining);
+    final base = Motion.rippleStepBase.inMilliseconds / 1000 * scale;
+    return max(Motion.rippleStepMin.inMilliseconds / 1000, min(base, paced));
+  }
+
+  /// Escape hatch for a resolve that has outrun [Motion.resolveHardCap]:
+  /// collapse everything left in one [ColumnCascade] pass and sweep out any
+  /// rows that completes. Only the final settle animates — intermediate
+  /// movement snaps — because correctness of pace matters more here than
+  /// polish on a case that should almost never fire.
+  void _flushResolve() {
+    _flushed = true;
+    var falls = resolver.resolve(grid);
+    for (var guard = 0; guard <= grid.visibleRows; guard++) {
+      final fullRows = ClearDetector.findFullRows(grid);
+      if (fullRows.isEmpty) break;
+      final removedCells = _stripRows(fullRows);
+      scoring.addDestroyed(removedCells.length);
+      scoring.awardLineClear(
+        lines: fullRows.length,
+        chainIndex: chainIndex,
+        elapsedSeconds: riseController.elapsed,
+      );
+      _emit(
+        RowsClearedEvent(fullRows, removedCells, timeScale: _chainTimeScale()),
+      );
+      _emit(ChainAdvancedEvent(chainIndex));
+      chainIndex++;
+      falls = resolver.resolve(grid);
+    }
+
+    if (falls.isNotEmpty) {
+      final maxDistance = falls
+          .map((f) => (f.toRow - f.fromRow).abs())
+          .reduce(max);
+      final fallSeconds =
+          sqrt(2 * maxDistance / Motion.gravityCellsPerS2) * _chainTimeScale();
+      _emit(
+        BlocksFellEvent([
+          for (final f in falls)
+            BlockFallEvent(
+              fromRow: f.fromRow,
+              toRow: f.toRow,
+              col: f.col,
+              type: f.type,
+              durationSeconds: fallSeconds,
+            ),
+        ]),
+      );
+      _flightRemaining =
+          fallSeconds + Motion.impactSquash.inMilliseconds / 1000;
+    }
+    _schedule(
+      _ResolveStage.settle,
+      max(
+        _flightRemaining,
+        Motion.shatterSequenceSeconds(grid.cols) * _chainTimeScale(),
+      ),
+    );
   }
 
   void _advanceContinue() {

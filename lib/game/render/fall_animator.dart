@@ -64,13 +64,13 @@ class FallAnimator extends PositionComponent {
     for (final f in falls) {
       final distance = (f.toRow - f.fromRow).abs();
       if (distance == 0) continue;
-      final duration = math.sqrt(2 * distance / Motion.gravityCellsPerS2);
       _falls.add(
         _FallingBlock(
           col: f.col,
           fromRow: f.fromRow,
           toRow: f.toRow,
-          fallDuration: duration,
+          // The engine paces the resolve, so it owns the flight time too.
+          fallDuration: math.max(f.durationSeconds, 1e-6),
         ),
       );
       _activeTargets.add(_targetKey(f.toRow, f.col));

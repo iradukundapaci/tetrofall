@@ -1,5 +1,10 @@
 const _lineBaseScore = {1: 100, 2: 300, 3: 500, 4: 800};
 
+/// Ripple gravity clears each merge as it happens instead of after one big
+/// collapse, so chains run several links longer than they used to. The
+/// multiplier stops climbing here (5.0x) rather than compounding without end.
+const _maxChainMultiplierSteps = 8;
+
 class Scoring {
   final _listeners = <void Function()>[];
 
@@ -33,7 +38,10 @@ class Scoring {
     required double elapsedSeconds,
   }) {
     final base = _lineScoreFor(lines);
-    final chainMultiplier = 1.0 + 0.5 * chainIndex;
+    final cappedChain = chainIndex < _maxChainMultiplierSteps
+        ? chainIndex
+        : _maxChainMultiplierSteps;
+    final chainMultiplier = 1.0 + 0.5 * cappedChain;
     final levelMultiplier = 1.0 + (elapsedSeconds / 60) * 0.1;
     score += (base * chainMultiplier * levelMultiplier).round();
     final chainLength = chainIndex + 1;
