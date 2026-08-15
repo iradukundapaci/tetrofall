@@ -125,7 +125,7 @@ rating obtained by omitting it is invalidated later.
 | **Financial features** | **None of the above** |
 | **Health apps** | No |
 | **Data deletion** | Provide the contact email. There is no account to delete; the policy explains uninstall + Auto Backup removal + ad-ID reset. |
-| **Privacy policy URL** | `https://<domain>/privacy.html` — **blocked on §0.3** |
+| **Privacy policy URL** | `https://tetrofall.vercel.app/privacy.html` — live. The same URL is linked in-app from Settings → Privacy & Legal → Privacy Policy. |
 | **Store settings → category** | Games → **Puzzle** |
 | **Store settings → tags** | Block puzzle, Casual, Offline, Brain games |
 
@@ -149,13 +149,16 @@ automatic rejection.
 
 ## Blocked on Phase 0
 
-Two answers cannot be finalised until the website is live and the domain chosen
-(§0.3), because both are URLs on a domain that does not exist yet:
+The site is live on `https://tetrofall.vercel.app`, which unblocks both URL
+answers (§0.3):
 
-- Privacy policy URL
-- Support / developer website URL
+- Privacy policy URL — `https://tetrofall.vercel.app/privacy.html`
+- Support / developer website URL — `https://tetrofall.vercel.app/support.html`
 
-`support@nosleepstudios.com` — the contact address in `website/privacy.html` and
+Swap both for a custom domain if one is registered later; the in-app link in
+`lib/ui/screens/settings_screen.dart` has to move with them.
+
+What remains blocked is the mailbox. `support@nosleepstudios.com` — the contact address in `website/privacy.html` and
 the data-deletion route — **must be a mailbox that actually receives mail before
 submission.** A privacy policy whose contact address bounces is a failed data
 deletion route. If `nosleepstudios.com` is not going to be registered, change the

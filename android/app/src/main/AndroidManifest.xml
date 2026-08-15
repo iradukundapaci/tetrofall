@@ -60,5 +60,13 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Package visibility for url_launcher, which Settings → Privacy
+             Policy uses to hand the hosted policy to a browser. Without this,
+             Android 11+ hides every browser from the app and the launch is
+             reported as failed rather than opening anything. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

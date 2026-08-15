@@ -17,6 +17,7 @@ dependencies:
   flame_audio: ^2.10.0
   shared_preferences: ^2.2.3
   google_mobile_ads: ^9.0.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -70,7 +71,13 @@ flutter:
     - assets/audio/music/
     # The OFL requires the licence text to travel with the fonts. `fonts:`
     # below bundles only the .ttf files, so the licences are listed here as
-    # plain assets and read back at boot by main()'s LicenseRegistry hook.
+    # plain assets to keep the text inside the APK.
+    #
+    # Nothing reads them at runtime any more: the Settings row that displayed
+    # them, and main()'s LicenseRegistry hook that fed it, were both removed by
+    # decision. Keep these two entries anyway — they are what still puts the
+    # notice in each distributed copy, they cost ~8 KB, and dropping them
+    # removes the last part of the OFL that this build satisfies.
     - assets/fonts/Nunito/OFL.txt
     - assets/fonts/Baloo_2/OFL.txt
   fonts:

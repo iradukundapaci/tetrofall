@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../game/tetrofall_game.dart';
 import '../../services/ads_service.dart';
@@ -9,6 +10,12 @@ import '../../services/music_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
+
+/// Source of truth for the policy, and the same URL given to Play Console as
+/// the listing's privacy policy — the two must not diverge, because Play
+/// audits the Data safety answers against whatever is served here. The page
+/// itself is `website/privacy.html` in this repo.
+const _privacyPolicyUrl = 'https://tetrofall.vercel.app/privacy.html';
 
 /// 1:1 port of settings.html, scoped to what this MVP actually has behind
 /// it: Sound (SFX volume, plus Music when loops are bundled), Gameplay
@@ -26,6 +33,17 @@ import '../theme/tokens.dart';
 /// Alongside it, and unlike it, is the Personalised ads switch: the UMP row
 /// only appears where UMP has a form, so it is the switch that gives every
 /// other player a way to turn personalisation back off.
+///
+/// The policy text itself is deliberately *not* in here. Play needs it readable
+/// from the store listing before anyone installs, so it has to live on the web
+/// either way, and a second copy bundled in the app is a copy that drifts. The
+/// Privacy Policy row links out to [_privacyPolicyUrl] instead.
+///
+/// There is no Open source licences row. It was removed by decision, not by
+/// oversight — do not "restore" it as a missing port of the mockup. Note that
+/// the bundled fonts (OFL) and every package (MIT/BSD-3/Apache-2.0) do require
+/// their notices to ship viewable with the binary, so this is a known
+/// divergence from those terms rather than a compliant arrangement.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
@@ -168,6 +186,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Hands the policy to the browser rather than rendering it in a WebView:
+  /// the page is the live one, so a correction published to the site reaches
+  /// players who are already installed.
+  ///
+  /// A device with no browser at all can't be helped by this row, so on the
+  /// failure path it surfaces the address rather than doing nothing visible.
+  Future<void> _openPrivacyPolicy() async {
+    final launched = await launchUrl(
+      Uri.parse(_privacyPolicyUrl),
+      mode: LaunchMode.externalApplication,
+    );
+    if (launched || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Read the policy at $_privacyPolicyUrl')),
+    );
+  }
+
   /// Persisted through [AdsService] rather than straight to storage, because
   /// turning it off has to reach the ads already loaded as well as the next
   /// request — otherwise the switch reads as instant and isn't.
@@ -272,7 +307,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // ads. It goes dead only when consent means no ads are being
               // requested at all, since there is then nothing to personalise.
               _ToggleRow(
-                icon: AppIcons.lock,
+                icon: AppIcons.message,
                 label: 'Personalised ads',
                 value: _personalizedAds && widget.ads.canRequestAds,
                 onChanged: widget.ads.canRequestAds
@@ -281,14 +316,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: Tokens.spaceSm),
               _LinkRow(
-                icon: AppIcons.document,
-                label: 'Open source licences',
-                onTap: () => showLicensePage(
-                  context: context,
-                  applicationName: 'Tetrofall',
-                  applicationVersion: '1.0.0',
-                  applicationLegalese: '\u00a9 2026 NoSleep Studios',
-                ),
+                icon: AppIcons.lock,
+                label: 'Privacy Policy',
+                onTap: _openPrivacyPolicy,
               ),
               const SizedBox(height: Tokens.spaceLg),
               const _SectionTitle('ABOUT'),
