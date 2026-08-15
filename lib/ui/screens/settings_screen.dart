@@ -22,6 +22,10 @@ import '../theme/tokens.dart';
 /// The mockup's Privacy row *is* ported, as of Phase 3.3: consent has to be
 /// withdrawable to satisfy GDPR and several US state laws, so it re-opens the
 /// UMP form rather than linking out. Terms is still absent — there are none.
+///
+/// Alongside it, and unlike it, is the Personalised ads switch: the UMP row
+/// only appears where UMP has a form, so it is the switch that gives every
+/// other player a way to turn personalisation back off.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
@@ -50,6 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _ghostPiece = widget.storage.ghostPieceEnabled;
   late bool _adaptiveStartSpeed = widget.storage.adaptiveStartSpeedEnabled;
   late bool _vibrate = widget.storage.vibrateEnabled;
+  late bool _personalizedAds = widget.ads.personalizedAds;
 
   /// Where the mute button puts each slider back to. Captured the moment a
   /// slider reaches zero — by the button or by a drag to the far left — and
@@ -70,6 +75,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Both Privacy rows are drawn from answers that only exist once UMP has
+    // replied, and `main()` fires that off unawaited — so Settings reached
+    // early in a cold start would otherwise render as if consent had been
+    // refused and stay that way for the visit.
+    widget.ads.init().then((_) {
+      if (mounted) setState(() {});
+    });
+
     if (_musicAvailable) return;
     // `main()` fires warmUp() unawaited, so the bundle probe has almost
     // certainly landed by the time anyone reaches Settings — but if it hasn't,
@@ -152,6 +166,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _openingPrivacyOptions = false);
     }
+  }
+
+  /// Persisted through [AdsService] rather than straight to storage, because
+  /// turning it off has to reach the ads already loaded as well as the next
+  /// request — otherwise the switch reads as instant and isn't.
+  void _onPersonalizedAdsChanged(bool value) {
+    setState(() => _personalizedAds = value);
+    widget.ads.setPersonalizedAds(value);
   }
 
   void _onGhostPieceChanged(bool value) {
@@ -245,6 +267,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: Tokens.spaceSm),
               ],
+              // Unconditional, unlike the row above: everywhere UMP declines to
+              // show a form, this is the player's only say over personalised
+              // ads. It goes dead only when consent means no ads are being
+              // requested at all, since there is then nothing to personalise.
+              _ToggleRow(
+                icon: AppIcons.lock,
+                label: 'Personalised ads',
+                value: _personalizedAds && widget.ads.canRequestAds,
+                onChanged: widget.ads.canRequestAds
+                    ? _onPersonalizedAdsChanged
+                    : null,
+              ),
+              const SizedBox(height: Tokens.spaceSm),
               _LinkRow(
                 icon: AppIcons.document,
                 label: 'Open source licences',
@@ -356,10 +391,14 @@ class _ToggleRow extends StatelessWidget {
   final String icon;
   final String label;
   final bool value;
-  final ValueChanged<bool> onChanged;
+
+  /// Null greys the row out and kills the switch — used where the setting
+  /// exists but nothing downstream of it is running.
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final color = onChanged == null ? Tokens.colorTextMuted : Tokens.colorText;
     return _RowShell(
       child: Row(
         children: [
@@ -367,19 +406,16 @@ class _ToggleRow extends StatelessWidget {
             icon,
             width: 20,
             height: 20,
-            colorFilter: const ColorFilter.mode(
-              Tokens.colorText,
-              BlendMode.srcIn,
-            ),
+            colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
           ),
           const SizedBox(width: Tokens.spaceMd),
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: Tokens.fontSizeSm,
                 fontWeight: FontWeight.bold,
-                color: Tokens.colorText,
+                color: color,
               ),
             ),
           ),

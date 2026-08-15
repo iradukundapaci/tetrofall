@@ -18,6 +18,7 @@ class StorageService {
   static const _lastAppOpenAdEpochMsKey = 'ads_last_app_open_epoch_ms';
   static const _bannerAdWidthKey = 'ads_banner_width';
   static const _bannerAdHeightKey = 'ads_banner_height';
+  static const _personalizedAdsKey = 'ads_personalized_enabled';
 
   final SharedPreferences _prefs;
 
@@ -84,6 +85,16 @@ class StorageService {
       ? _prefs.getInt(_bannerAdHeightKey)
       : null;
 
+  /// Whether the player lets their ads be personalised. On by default, and
+  /// that default is not a decision this switch makes on anyone's behalf:
+  /// where UMP governs (the EEA/UK and the regulated US states) the consent
+  /// form is still the gate, and this can only narrow what it allowed;
+  /// everywhere else personalised is what the AdMob SDK does anyway. The
+  /// switch exists so there is a way to turn it off — see
+  /// `AdsService.setPersonalizedAds`.
+  bool get personalizedAdsEnabled =>
+      _prefs.getBool(_personalizedAdsKey) ?? true;
+
   Future<void> saveBestScore(int value) => _prefs.setInt(_bestScoreKey, value);
 
   Future<void> saveBannerAdSize({
@@ -126,4 +137,7 @@ class StorageService {
 
   Future<void> saveLastAppOpenAdShownAt(DateTime value) =>
       _prefs.setInt(_lastAppOpenAdEpochMsKey, value.millisecondsSinceEpoch);
+
+  Future<void> savePersonalizedAdsEnabled(bool value) =>
+      _prefs.setBool(_personalizedAdsKey, value);
 }

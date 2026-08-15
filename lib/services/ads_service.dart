@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -29,6 +30,29 @@ class AdsService {
 
   bool get canRequestAds => _canRequestAds;
 
+  /// Whether ads may be personalised, as the player last left it in Settings.
+  /// Read straight from storage so it is right on the very first request of a
+  /// cold start, before [init] has finished talking to UMP.
+  bool get personalizedAds => _personalizedAds;
+  late bool _personalizedAds = _storage.personalizedAdsEnabled;
+
+  /// The request every format goes out with, so one switch covers all four.
+  ///
+  /// Off sends `npa=1`, which forces non-personalised ads no matter what else
+  /// the SDK knows. On leaves the field *null* rather than false — false is
+  /// not "personalise this", it is only the absence of the restriction, and
+  /// leaving it unset is what keeps the UMP consent answer authoritative in
+  /// the regions that have one.
+  AdRequest get adRequest =>
+      AdRequest(nonPersonalizedAds: _personalizedAds ? null : true);
+
+  /// Bumped whenever what an ad request *means* changes — the personalisation
+  /// switch, or a trip through the consent form. The banner is the one format
+  /// that can already be on screen when that happens, so it listens here and
+  /// replaces itself; the rest are re-fetched from cache before they're shown.
+  ValueListenable<int> get adConfigRevision => _adConfigRevision;
+  final ValueNotifier<int> _adConfigRevision = ValueNotifier(0);
+
   /// Whether UMP says this user must be given a way back to their consent
   /// choice — true in the EEA/UK, and in US states whose messages you have
   /// published. Settings shows its Privacy row only when this is true, because
@@ -37,8 +61,9 @@ class AdsService {
   bool get privacyOptionsRequired => _privacyOptionsRequired;
   bool _privacyOptionsRequired = false;
 
-  /// Guards the one-time ad startup, which can now be reached twice: at boot,
-  /// and again if the user grants consent from Settings.
+  /// Guards the parts of startup that must happen exactly once — the SDK
+  /// handshake and the lifecycle hook — from the paths that reach startup
+  /// again later, when consent or personalisation changes from Settings.
   bool _adsStarted = false;
 
   /// Height the banner slot falls back to when this device has never
@@ -90,6 +115,27 @@ class AdsService {
     await _startAdsIfAllowed();
   }
 
+  /// Device IDs that UMP should treat as if they were in [_debugGeography].
+  ///
+  /// Without this the consent form only appears to someone physically in a
+  /// regulated region, so the accept path — and the withdraw path behind
+  /// Settings → Privacy Settings — cannot be exercised from anywhere else.
+  /// Run the app once and copy the hashed ID the UMP SDK logs
+  /// ("Use new ConsentDebugSettings.Builder().addTestDeviceHashedId(...)")
+  /// in here. Empty means debug settings are inert, which is why this is safe
+  /// to leave as it ships; it is compiled out of release builds regardless.
+  static const _debugTestDeviceIds = <String>[];
+
+  static const _debugGeography = DebugGeography.debugGeographyEea;
+
+  ConsentDebugSettings? get _debugConsentSettings =>
+      kReleaseMode || _debugTestDeviceIds.isEmpty
+      ? null
+      : ConsentDebugSettings(
+          debugGeography: _debugGeography,
+          testIdentifiers: _debugTestDeviceIds,
+        );
+
   Future<void> _requestConsent() async {
     final completer = Completer<void>();
     void proceed() {
@@ -97,7 +143,7 @@ class AdsService {
     }
 
     ConsentInformation.instance.requestConsentInfoUpdate(
-      ConsentRequestParameters(),
+      ConsentRequestParameters(consentDebugSettings: _debugConsentSettings),
       () => ConsentForm.loadAndShowConsentFormIfRequired((_) => proceed()),
       (_) => proceed(),
     );
@@ -114,40 +160,76 @@ class AdsService {
   }
 
   /// Idempotent: safe to call at boot and again after a consent change.
+  ///
+  /// The SDK is only started once, but the caches are refilled every time —
+  /// a player who withdraws consent and then grants it again in the same
+  /// session had every cached ad dropped in between, and would otherwise sit
+  /// out the rest of the session with empty slots. The loaders below no-op
+  /// on the formats that are already stocked.
   Future<void> _startAdsIfAllowed() async {
-    if (!_canRequestAds || _adsStarted) return;
-    _adsStarted = true;
+    if (!_canRequestAds) return;
 
-    await MobileAds.instance.initialize();
+    if (!_adsStarted) {
+      _adsStarted = true;
+      await MobileAds.instance.initialize();
+      AppLifecycleListener(onStateChange: _onAppLifecycleStateChange);
+    }
+
     _loadRewarded();
     _loadInterstitial();
     _loadAppOpen();
-    AppLifecycleListener(onStateChange: _onAppLifecycleStateChange);
   }
 
   /// Re-presents the UMP privacy options form so a user can change or withdraw
   /// the consent they gave at first launch — a requirement under GDPR and
   /// several US state laws, and the reason Settings has a Privacy row.
   ///
-  /// If consent is granted here by someone who declined at boot, ads start for
-  /// the first time this session. Going the other way, `canRequestAds` flips
-  /// false and every load path stops: already-cached ads are dropped rather
-  /// than shown, because they were fetched under the old choice.
+  /// Whatever the player does in there, the ads in hand were fetched under the
+  /// answer they just replaced, so they are dropped either way. If consent is
+  /// granted here by someone who declined at boot, ads start for the first
+  /// time this session; if it is withdrawn, `canRequestAds` flips false and
+  /// every load path stops until it is granted again.
   Future<void> showPrivacyOptions() async {
     await ConsentForm.showPrivacyOptionsForm((_) {});
-    final wasAllowed = _canRequestAds;
     await _refreshConsentState();
 
-    if (_canRequestAds) {
-      await _startAdsIfAllowed();
-    } else if (wasAllowed) {
-      _discardCachedAds();
-    }
+    // Bumped unconditionally, and before the reload: the form can change
+    // *which* purposes are consented to without changing whether ads may be
+    // requested at all, and that still makes every ad in hand — and every one
+    // mid-flight — one fetched under the old answer.
+    _adConfigRevision.value++;
+    _discardCachedAds();
+    if (_canRequestAds) await _startAdsIfAllowed();
   }
 
-  /// Consent was withdrawn, so ads already in hand were fetched under a choice
-  /// the user has since revoked. Drop them; the banner slot collapses on the
-  /// next build and nothing reloads while [_canRequestAds] is false.
+  /// Turns ad personalisation on or off, from the Settings switch.
+  ///
+  /// This is the control that exists everywhere. In the regions UMP covers it
+  /// sits *behind* the consent form and can only narrow what that form
+  /// allowed; everywhere else it is the only say the player gets, which is
+  /// why it isn't hidden outside the EEA the way the Privacy row is.
+  Future<void> setPersonalizedAds(bool value) async {
+    if (value == _personalizedAds) return;
+    _personalizedAds = value;
+    await _storage.savePersonalizedAdsEnabled(value);
+
+    // Every cached ad was fetched under the previous answer, so showing one
+    // now would be a personalised ad served after the switch went off. Bump
+    // first — that invalidates the loads already in flight as well — then drop
+    // what's cached and refill under the new request.
+    _adConfigRevision.value++;
+    _discardCachedAds();
+    _loadRewarded();
+    _loadInterstitial();
+    _loadAppOpen();
+  }
+
+  /// Drops every ad in hand, because the answer it was fetched under is no
+  /// longer the current one — consent withdrawn, consent re-stated, or the
+  /// personalisation switch flipped. Callers bump [adConfigRevision] alongside
+  /// this, which is what stops an in-flight load from refilling the slots with
+  /// ads from the same stale answer, and what tells the banner to replace the
+  /// one it is already showing.
   void _discardCachedAds() {
     _rewardedAd?.dispose();
     _rewardedAd = null;
@@ -157,17 +239,51 @@ class AdsService {
     _appOpenAd = null;
   }
 
+  /// Whether an ad requested at [revision] is still one this app is allowed to
+  /// show: consent must still permit ads, and nothing may have changed what a
+  /// request means since it went out. A load that fails this was fetched under
+  /// an answer the player has since replaced, so it is dropped rather than
+  /// cached — the whole point of the personalisation switch is that it applies
+  /// to the next ad, not the one after the queue drains.
+  bool _isCurrent(int revision) =>
+      _canRequestAds && revision == _adConfigRevision.value;
+
+  /// Non-null while a load is in flight, holding the revision it went out
+  /// under. Doubles as the guard against a second overlapping load, which
+  /// would strand the first ad undisposed when the later one overwrote it.
+  int? _rewardedLoadRevision;
+
   void _loadRewarded() {
-    // Reachable from the ad-dismissed callbacks too, so it has to
-    // re-check consent rather than assume the boot-time answer holds.
-    if (!_canRequestAds) return;
+    // Reachable from the ad-dismissed callbacks and from both consent paths,
+    // so it has to re-check consent rather than assume the boot-time answer
+    // still holds.
+    if (!_canRequestAds ||
+        _rewardedAd != null ||
+        _rewardedLoadRevision != null) {
+      return;
+    }
+    final revision = _adConfigRevision.value;
+    _rewardedLoadRevision = revision;
 
     RewardedAd.load(
       adUnitId: AdUnitIds.rewardedContinue,
-      request: const AdRequest(),
+      request: adRequest,
       rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) => _rewardedAd = ad,
-        onAdFailedToLoad: (_) => _rewardedAd = null,
+        onAdLoaded: (ad) {
+          _rewardedLoadRevision = null;
+          if (!_isCurrent(revision)) {
+            ad.dispose();
+            // The change that stranded this one found the slot in flight and
+            // couldn't refill it, so that job lands here.
+            _loadRewarded();
+            return;
+          }
+          _rewardedAd = ad;
+        },
+        onAdFailedToLoad: (_) {
+          _rewardedLoadRevision = null;
+          _rewardedAd = null;
+        },
       ),
     );
   }
@@ -205,17 +321,36 @@ class AdsService {
     return closed.future;
   }
 
+  int? _interstitialLoadRevision;
+
   void _loadInterstitial() {
     // Reachable from the ad-dismissed callbacks too, so it has to
     // re-check consent rather than assume the boot-time answer holds.
-    if (!_canRequestAds) return;
+    if (!_canRequestAds ||
+        _interstitialAd != null ||
+        _interstitialLoadRevision != null) {
+      return;
+    }
+    final revision = _adConfigRevision.value;
+    _interstitialLoadRevision = revision;
 
     InterstitialAd.load(
       adUnitId: AdUnitIds.interstitial,
-      request: const AdRequest(),
+      request: adRequest,
       adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) => _interstitialAd = ad,
-        onAdFailedToLoad: (_) => _interstitialAd = null,
+        onAdLoaded: (ad) {
+          _interstitialLoadRevision = null;
+          if (!_isCurrent(revision)) {
+            ad.dispose();
+            _loadInterstitial();
+            return;
+          }
+          _interstitialAd = ad;
+        },
+        onAdFailedToLoad: (_) {
+          _interstitialLoadRevision = null;
+          _interstitialAd = null;
+        },
       ),
     );
   }
@@ -259,17 +394,36 @@ class AdsService {
     await _storage.savePlaySecondsSinceLastInterstitial(seconds);
   }
 
+  int? _appOpenLoadRevision;
+
   void _loadAppOpen() {
     // Reachable from the ad-dismissed callbacks too, so it has to
     // re-check consent rather than assume the boot-time answer holds.
-    if (!_canRequestAds) return;
+    if (!_canRequestAds ||
+        _appOpenAd != null ||
+        _appOpenLoadRevision != null) {
+      return;
+    }
+    final revision = _adConfigRevision.value;
+    _appOpenLoadRevision = revision;
 
     AppOpenAd.load(
       adUnitId: AdUnitIds.appOpen,
-      request: const AdRequest(),
+      request: adRequest,
       adLoadCallback: AppOpenAdLoadCallback(
-        onAdLoaded: (ad) => _appOpenAd = ad,
-        onAdFailedToLoad: (_) => _appOpenAd = null,
+        onAdLoaded: (ad) {
+          _appOpenLoadRevision = null;
+          if (!_isCurrent(revision)) {
+            ad.dispose();
+            _loadAppOpen();
+            return;
+          }
+          _appOpenAd = ad;
+        },
+        onAdFailedToLoad: (_) {
+          _appOpenLoadRevision = null;
+          _appOpenAd = null;
+        },
       ),
     );
   }
