@@ -91,8 +91,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     setState(_stopDemo);
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            GameplayScreen(storage: widget.storage, ads: widget.ads),
+        builder: (_) => GameplayScreen(
+          storage: widget.storage,
+          ads: widget.ads,
+          startTutorial: !widget.storage.tutorialSeen,
+        ),
       ),
     );
     if (mounted) {

@@ -15,17 +15,24 @@ import '../widgets/banner_ad_slot.dart';
 import 'confirm_quit_overlay.dart';
 import 'game_over_overlay.dart';
 import 'pause_overlay.dart';
+import 'tutorial/tutorial_controller.dart';
+import 'tutorial/tutorial_overlay.dart';
 
 class GameplayScreen extends StatefulWidget {
   const GameplayScreen({
     super.key,
     required this.storage,
     required this.ads,
+    this.startTutorial = false,
     this.onGameCreated,
   });
 
   final StorageService storage;
   final AdsService ads;
+
+  /// Runs the first-run coached tutorial over this screen before handing off
+  /// to a normal scored run. Set by the main menu on the very first PLAY.
+  final bool startTutorial;
 
   /// Capture-only seam (android_release_plan.md §4.7). Fires once with the
   /// live game so `tools/capture/main.dart` can seed a hand-authored board —
@@ -46,6 +53,14 @@ class _GameplayScreenState extends State<GameplayScreen> {
   Duration _runElapsedAtGameOver = Duration.zero;
   bool _confirmingQuit = false;
 
+  /// Non-null only for the duration of the first-run tutorial.
+  TutorialController? _tutorial;
+
+  /// Lets [TutorialOverlay] read the board's real on-screen rect so its
+  /// caption stays inside the board — clear of the HUD above and, more to the
+  /// point, clear of the banner ad below.
+  final GlobalKey _boardKey = GlobalKey();
+
   /// Whether the run was already paused when the quit prompt opened, so
   /// "Keep Playing" returns to the pause modal instead of resuming a game
   /// the player deliberately paused.
@@ -57,6 +72,13 @@ class _GameplayScreenState extends State<GameplayScreen> {
     _game.engine.addEventListener(_onEngineEvent);
     // The menu loop keeps playing if there's no gameplay track to swap to.
     MusicService(widget.storage).play(MusicTrack.gameplay);
+    if (widget.startTutorial) {
+      _tutorial = TutorialController(
+        game: _game,
+        storage: widget.storage,
+        onFinished: _finishTutorial,
+      )..addListener(_onTutorialChanged);
+    }
     final onGameCreated = widget.onGameCreated;
     if (onGameCreated != null) onGameCreated(_game);
   }
@@ -64,7 +86,39 @@ class _GameplayScreenState extends State<GameplayScreen> {
   @override
   void dispose() {
     _game.engine.removeEventListener(_onEngineEvent);
+    _tutorial?.dispose();
     super.dispose();
+  }
+
+  /// Hands off from the tutorial into the real run. The board is restarted so
+  /// neither the rigged row nor the practice drops can leak into a scored
+  /// game — and pointedly *without* [AdsService.notifyRunEnded], because the
+  /// tutorial is not a run the interstitial cadence should count.
+  /// The whole screen rebuilds on a step change, not just the overlay: the
+  /// `dimmed` flag below is derived from the step, and a stale one would leave
+  /// the board blurred and `IgnorePointer`-ed under a card asking for a swipe.
+  void _onTutorialChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _finishTutorial() {
+    final tutorial = _tutorial;
+    if (tutorial == null) return;
+    _dropTutorial(tutorial);
+    _game.restart();
+  }
+
+  /// Detaches the controller and schedules its disposal for after the frame
+  /// that drops it from the tree, so the overlay is never left listening to a
+  /// dead notifier mid-build.
+  void _dropTutorial(TutorialController tutorial) {
+    tutorial.removeListener(_onTutorialChanged);
+    if (mounted) {
+      setState(() => _tutorial = null);
+    } else {
+      _tutorial = null;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => tutorial.dispose());
   }
 
   void _onEngineEvent(GameEvent event) {
@@ -72,6 +126,14 @@ class _GameplayScreenState extends State<GameplayScreen> {
       _runElapsedAtGameOver = Duration(
         milliseconds: (_game.engine.riseController.elapsed * 1000).round(),
       );
+      // A run that ends under the tutorial hands the screen straight to the
+      // game-over overlay; the controller releases the engine on its way out
+      // rather than asking for the usual hand-off restart.
+      final tutorial = _tutorial;
+      if (tutorial != null) {
+        tutorial.abandon();
+        _dropTutorial(tutorial);
+      }
       setState(() {
         _gameOverReason = event.reason;
         _confirmingQuit = false;
@@ -110,13 +172,18 @@ class _GameplayScreenState extends State<GameplayScreen> {
 
   void _goHome() {
     // Quitting mid-run still counts toward the interstitial cadence, so use
-    // the live clock when the run never reached game over.
-    final elapsed = _gameOverReason != null
-        ? _runElapsedAtGameOver
-        : Duration(
-            milliseconds: (_game.engine.riseController.elapsed * 1000).round(),
-          );
-    widget.ads.notifyRunEnded(elapsed);
+    // the live clock when the run never reached game over. Quitting mid-
+    // *tutorial* does not: coaching is not a run, and burning a slot in the
+    // frequency cap on it would bring an interstitial forward for free.
+    if (_tutorial == null) {
+      final elapsed = _gameOverReason != null
+          ? _runElapsedAtGameOver
+          : Duration(
+              milliseconds: (_game.engine.riseController.elapsed * 1000)
+                  .round(),
+            );
+      widget.ads.notifyRunEnded(elapsed);
+    }
     Navigator.of(context).pop();
   }
 
@@ -151,6 +218,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
         body: ValueListenableBuilder<bool>(
           valueListenable: _game.pausedNotifier,
           builder: (context, paused, _) {
+            final tutorial = _tutorial;
             final showPause =
                 paused && _gameOverReason == null && !_confirmingQuit;
             return Stack(
@@ -159,8 +227,20 @@ class _GameplayScreenState extends State<GameplayScreen> {
                   game: _game,
                   storage: widget.storage,
                   ads: widget.ads,
-                  dimmed: showPause || _confirmingQuit,
+                  boardKey: _boardKey,
+                  // A coach step must never dim: the dim treatment applies
+                  // `IgnorePointer`, which would swallow the very gestures the
+                  // step is teaching.
+                  dimmed:
+                      showPause ||
+                      _confirmingQuit ||
+                      (tutorial?.dimsBoard ?? false),
                 ),
+                if (tutorial != null &&
+                    !showPause &&
+                    !_confirmingQuit &&
+                    _gameOverReason == null)
+                  TutorialOverlay(controller: tutorial, boardKey: _boardKey),
                 if (showPause)
                   PauseOverlay(
                     storage: widget.storage,
@@ -203,12 +283,14 @@ class _GameplayBody extends StatelessWidget {
     required this.storage,
     required this.ads,
     required this.dimmed,
+    required this.boardKey,
   });
 
   final TetrofallGame game;
   final StorageService storage;
   final AdsService ads;
   final bool dimmed;
+  final GlobalKey boardKey;
 
   @override
   Widget build(BuildContext context) {
@@ -231,6 +313,7 @@ class _GameplayBody extends StatelessWidget {
                   child: AspectRatio(
                     aspectRatio: BoardConfig.cols / BoardConfig.rows,
                     child: DecoratedBox(
+                      key: boardKey,
                       decoration: BoxDecoration(
                         color: const Color(0x47000000),
                         border: Border.all(

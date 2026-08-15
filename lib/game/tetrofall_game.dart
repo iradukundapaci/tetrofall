@@ -50,6 +50,11 @@ class TetrofallGame extends FlameGame {
 
   BoardComponent get board => _board!;
 
+  /// The board if Flame has loaded one yet. Callers that can run before
+  /// [onLoad] — the tutorial rigs a board from the widget's `initState` — use
+  /// this rather than asserting one into existence.
+  BoardComponent? get boardOrNull => _board;
+
   bool showGhost = true;
 
   final ValueNotifier<bool> pausedNotifier = ValueNotifier(false);

@@ -118,6 +118,24 @@ class PieceController {
     return true;
   }
 
+  /// Slides the piece straight down towards [targetRow], stopping early if
+  /// anything is in the way. Returns the row it came to rest on.
+  ///
+  /// Pieces spawn at `grid.minRow`, entirely inside the hidden spawn buffer,
+  /// and only ordinary gravity carries them into view. The tutorial freezes
+  /// gravity, so without this its very first coached step would ask the
+  /// player to steer a piece they cannot see.
+  int lowerTo(int targetRow) {
+    final p = _piece;
+    if (p == null) return 0;
+    while (p.anchorRow < targetRow &&
+        !_collides(p.cells, p.anchorRow + 1, p.anchorCol)) {
+      p.anchorRow++;
+    }
+    _updateGrounded();
+    return p.anchorRow;
+  }
+
   bool rotateCW() => _rotate(clockwise: true);
   bool rotateCCW() => _rotate(clockwise: false);
 

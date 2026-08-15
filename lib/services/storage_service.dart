@@ -11,6 +11,7 @@ class StorageService {
   static const _sfxRestoreLevelKey = 'sfx_restore_level';
   static const _vibrateEnabledKey = 'vibrate_enabled';
   static const _ghostPieceEnabledKey = 'ghost_piece_enabled';
+  static const _tutorialSeenKey = 'tutorial_seen';
   static const _runsSinceLastInterstitialKey = 'ads_runs_since_interstitial';
   static const _playSecondsSinceLastInterstitialKey =
       'ads_play_seconds_since_interstitial';
@@ -46,6 +47,16 @@ class StorageService {
 
   /// Enabled by default per game.md §1.2.
   bool get ghostPieceEnabled => _prefs.getBool(_ghostPieceEnabledKey) ?? true;
+
+  /// Whether the first-run tutorial has already been shown. Written the moment
+  /// it starts rather than when it ends, so quitting or force-killing halfway
+  /// through does not queue it up all over again.
+  ///
+  /// The fallback covers players updating into this build: anyone who already
+  /// has a score has already learned the game the hard way, and must not be
+  /// dragged back through a tutorial for it.
+  bool get tutorialSeen =>
+      _prefs.getBool(_tutorialSeenKey) ?? (_prefs.getInt(_bestScoreKey) ?? 0) > 0;
 
   /// Interstitial frequency cap (phase11_monetization_plan.md §3) — number
   /// of completed runs since the last interstitial was shown.
@@ -103,6 +114,9 @@ class StorageService {
 
   Future<void> saveGhostPieceEnabled(bool value) =>
       _prefs.setBool(_ghostPieceEnabledKey, value);
+
+  Future<void> saveTutorialSeen(bool value) =>
+      _prefs.setBool(_tutorialSeenKey, value);
 
   Future<void> saveRunsSinceLastInterstitial(int value) =>
       _prefs.setInt(_runsSinceLastInterstitialKey, value);

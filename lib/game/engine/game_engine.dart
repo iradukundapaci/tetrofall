@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math';
 
 import '../config/difficulty.dart';
@@ -66,6 +67,25 @@ class GameEngine {
 
   int chainIndex = 0;
 
+  /// Tutorial hold. While set, the run's clocks stop — the rise neither
+  /// advances nor ages the difficulty curve, and the active piece stops
+  /// falling and stops accumulating lock delay.
+  ///
+  /// Intents are deliberately unaffected, and that is the whole point:
+  /// [_drainIntents] runs before the phase switch, so a frozen board still
+  /// answers every swipe, tap and rotation. It lets the tutorial teach one
+  /// gesture at a time against a board that is standing perfectly still.
+  bool freezeRise = false;
+  bool freezeGravity = false;
+
+  /// Pieces to deal before falling back to the bag, used by the tutorial to
+  /// hand the player the exact piece its rigged board needs. Empty in a real
+  /// run, and cleared by [start] so a restart can never inherit one.
+  final _scriptedPieces = Queue<TetrominoType>();
+
+  void queuePieces(Iterable<TetrominoType> types) =>
+      _scriptedPieces.addAll(types);
+
   double _resolveTimer = 0;
   _ResolveStage _resolveStage = _ResolveStage.shatter;
 
@@ -128,11 +148,22 @@ class GameEngine {
   void start({Duration initialElapsed = Duration.zero}) {
     grid.clearAll();
     _intentQueue.clear();
+    _scriptedPieces.clear();
     riseController.reset(initialElapsed: initialElapsed);
     scoring.reset();
     hasUsedContinueThisRun = false;
     phase = GamePhase.spawning;
     _trySpawn();
+  }
+
+  /// Abandons the active piece and deals the next one, without going through
+  /// [start] — which would also wipe the grid and reset the score and the rise
+  /// clock. The tutorial uses it to swap in a rigged board mid-run.
+  void respawnPiece() {
+    _intentQueue.clear();
+    pieceController.softDropActive = false;
+    chainIndex = 0;
+    phase = GamePhase.spawning;
   }
 
   void tick(double dt) {
@@ -144,10 +175,10 @@ class GameEngine {
       case GamePhase.spawning:
         _trySpawn();
       case GamePhase.playing:
-        if (riseController.tick(dt)) {
+        if (!freezeRise && riseController.tick(dt)) {
           _handleRiseCommit();
         }
-        if (phase == GamePhase.playing) {
+        if (phase == GamePhase.playing && !freezeGravity) {
           pieceController.dropInterval =
               riseController.difficultyNow.dropInterval;
           final result = pieceController.tick(dt);
@@ -198,18 +229,29 @@ class GameEngine {
       if (phase != GamePhase.playing) break;
       switch (buffered.type) {
         case GameIntentType.moveLeft:
-          pieceController.moveLeft();
+          if (pieceController.moveLeft()) {
+            _emit(const PlayerActionEvent(PlayerAction.moveLeft));
+          }
         case GameIntentType.moveRight:
-          pieceController.moveRight();
+          if (pieceController.moveRight()) {
+            _emit(const PlayerActionEvent(PlayerAction.moveRight));
+          }
         case GameIntentType.rotateCW:
+          // Emitted whether or not the piece turned: an O rotates onto itself
+          // and a kick can fail against a wall, but the player did the thing
+          // they were asked to do either way.
           pieceController.rotateCW();
+          _emit(const PlayerActionEvent(PlayerAction.rotate));
         case GameIntentType.rotateCCW:
           pieceController.rotateCCW();
+          _emit(const PlayerActionEvent(PlayerAction.rotate));
         case GameIntentType.softDropStart:
           pieceController.softDropActive = true;
+          _emit(const PlayerActionEvent(PlayerAction.softDrop));
         case GameIntentType.softDropEnd:
           pieceController.softDropActive = false;
         case GameIntentType.hardDrop:
+          _emit(const PlayerActionEvent(PlayerAction.hardDrop));
           pieceController.hardDrop();
           _lockAndResolve();
       }
@@ -274,7 +316,9 @@ class GameEngine {
   }
 
   void _trySpawn() {
-    final type = bag.next();
+    final type = _scriptedPieces.isNotEmpty
+        ? _scriptedPieces.removeFirst()
+        : bag.next();
     final spawned = pieceController.spawn(type);
     if (!spawned) {
       phase = GamePhase.gameOver;

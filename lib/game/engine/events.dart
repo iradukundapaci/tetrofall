@@ -12,6 +12,16 @@ class PieceLockedEvent extends GameEvent {
   const PieceLockedEvent();
 }
 
+enum PlayerAction { moveLeft, moveRight, rotate, softDrop, hardDrop }
+
+/// A player intent that actually took effect. Emitted only for input the
+/// engine acted on — a swipe into a wall moves nothing and says nothing — so
+/// the tutorial can tell "they tried" from "they did it".
+class PlayerActionEvent extends GameEvent {
+  const PlayerActionEvent(this.action);
+  final PlayerAction action;
+}
+
 class ClearedCell {
   const ClearedCell({required this.row, required this.col, required this.type});
   final int row;
