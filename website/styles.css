@@ -3,16 +3,21 @@
   Palette, type scale and shadows are ported from the game's own
   screens/tokens.css so the site matches the in-app wood/gold look
   instead of a generic web theme.
+
+  Webfonts are requested from each page's <head> (preconnect + stylesheet
+  link) rather than with an @import here, which would delay the request
+  until this file has parsed.
 */
 
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap');
-
 :root {
+  color-scheme: dark;
+
   --color-wood-dark: #4a2f1c;
   --color-wood-mid: #7a5230;
   --color-wood-light: #c89b6a;
   --color-bg: #2b1c12;
   --color-panel: rgba(255, 255, 255, 0.06);
+  --color-panel-strong: rgba(255, 255, 255, 0.09);
   --color-panel-border: rgba(255, 255, 255, 0.1);
   --color-gold: #f2b632;
   --color-red: #d9432e;
@@ -23,6 +28,15 @@
   --font-display: 'Baloo 2', 'Trebuchet MS', ui-rounded, system-ui, sans-serif;
   --font-body: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
+  /* Fluid type scale. Every step interpolates between a 320px phone and a
+     1200px desktop, so nothing jumps at a breakpoint. */
+  --step--1: clamp(0.82rem, 0.79rem + 0.15vw, 0.9rem);
+  --step-0: clamp(1rem, 0.96rem + 0.2vw, 1.075rem);
+  --step-1: clamp(1.1rem, 1.03rem + 0.35vw, 1.3rem);
+  --step-2: clamp(1.3rem, 1.16rem + 0.7vw, 1.7rem);
+  --step-3: clamp(1.7rem, 1.4rem + 1.5vw, 2.5rem);
+  --step-4: clamp(2.1rem, 1.6rem + 2.6vw, 3.4rem);
+
   --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.35);
   --shadow-lift: 0 8px 20px rgba(0, 0, 0, 0.45);
 
@@ -31,7 +45,14 @@
   --radius-lg: 24px;
   --radius-pill: 999px;
 
-  --max-width: 780px;
+  /* Two content widths: the marketing pages breathe, the legal and support
+     prose stays at a readable measure. */
+  --width-wide: 1080px;
+  --width-prose: 68ch;
+  --gutter: clamp(1rem, 4vw, 2rem);
+
+  /* Height of the sticky header, used to keep anchored headings clear of it. */
+  --header-height: 4.5rem;
 
   --bg-wood-texture:
     repeating-linear-gradient(
@@ -50,6 +71,9 @@
 
 html {
   scroll-behavior: smooth;
+  /* Anchors land below the sticky header instead of underneath it. */
+  scroll-padding-top: calc(var(--header-height) + 1rem);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -57,11 +81,34 @@ body {
   min-height: 100%;
   background-color: var(--color-bg);
   background-image: var(--bg-wood-texture);
-  background-attachment: fixed;
+  /* Not `fixed`: a fixed attachment repaints the whole viewport on every
+     scroll frame on mobile Safari and Chrome Android. */
+  background-repeat: no-repeat;
+  background-size: 100% 100vh;
   color: var(--color-text);
   font-family: var(--font-body);
+  font-size: var(--step-0);
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
+  overflow-wrap: break-word;
+}
+
+/* Shared page container. Header, main and footer all sit on the same
+   gutters, and `env()` keeps content out of the notch in landscape. */
+.container {
+  width: 100%;
+  max-width: var(--width-wide);
+  margin: 0 auto;
+  padding-inline: max(var(--gutter), env(safe-area-inset-left), env(safe-area-inset-right));
+}
+
+.container-prose {
+  max-width: var(--width-prose);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
 }
 
 .skip-link {
@@ -84,9 +131,16 @@ a {
   color: var(--color-gold);
 }
 
+:focus-visible {
+  outline: 3px solid var(--color-gold);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
 h1, h2, h3, .font-display {
   font-family: var(--font-display);
   margin: 0;
+  line-height: 1.2;
 }
 
 /* Header */
@@ -96,17 +150,16 @@ header {
   position: sticky;
   top: 0;
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 10;
 }
 
 .nav-inner {
-  max-width: var(--max-width);
-  margin: 0 auto;
-  padding: 0.85rem 1.25rem;
+  min-height: var(--header-height);
+  padding-block: 0.6rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
   gap: 0.75rem;
 }
 
@@ -116,6 +169,7 @@ header {
   gap: 0.6rem;
   text-decoration: none;
   color: var(--color-text);
+  flex-shrink: 0;
 }
 
 .brand img {
@@ -131,84 +185,137 @@ header {
   letter-spacing: 0.01em;
 }
 
-nav ul {
-  list-style: none;
+/* One row that scrolls sideways on a narrow phone rather than wrapping
+   under the brand and doubling the header height. `min-width: 0` is what
+   lets the flex item shrink far enough for the scroll to engage; without
+   it the row simply pushes the page wider than the viewport. */
+header nav {
+  min-width: 0;
   display: flex;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
+  justify-content: flex-end;
 }
 
-nav a {
+header nav ul {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+header nav ul::-webkit-scrollbar {
+  display: none;
+}
+
+header nav a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  white-space: nowrap;
   color: var(--color-text-muted);
   text-decoration: none;
   font-weight: 700;
-  font-size: 0.92rem;
+  font-size: var(--step--1);
   padding: 0.5rem 0.85rem;
   border-radius: var(--radius-pill);
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-nav a:hover,
-nav a:focus-visible {
+header nav a:hover,
+header nav a:focus-visible {
   color: var(--color-text);
   background: var(--color-panel);
 }
 
-nav a[aria-current="page"] {
+header nav a[aria-current="page"] {
   color: var(--color-wood-dark);
   background: var(--color-gold);
 }
 
 /* Main content */
 main {
-  max-width: var(--max-width);
-  margin: 0 auto;
-  padding: 0 1.25rem 3rem;
+  padding-bottom: clamp(2.5rem, 6vw, 4rem);
+}
+
+/* Keep any anchored element clear of the sticky header when linked to. */
+[id] {
+  scroll-margin-top: calc(var(--header-height) + 1rem);
 }
 
 .hero {
   text-align: center;
-  padding: 3rem 0 2.5rem;
+  padding: clamp(2rem, 7vw, 4rem) 0 clamp(1.5rem, 5vw, 3rem);
 }
 
 .hero img {
-  width: 128px;
-  height: 128px;
+  width: clamp(96px, 22vw, 144px);
+  height: auto;
   filter: drop-shadow(var(--shadow-lift));
   margin-bottom: 1rem;
 }
 
 .hero h1 {
-  font-size: clamp(2rem, 5vw, 2.75rem);
+  font-size: var(--step-4);
   letter-spacing: 0.01em;
+}
+
+.hero-lead {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--step-2);
+  color: var(--color-text);
+  max-width: 22ch;
+  margin: 0.9rem auto 0;
+  text-wrap: balance;
 }
 
 .tagline {
   color: var(--color-text-muted);
-  font-size: 1.1rem;
-  max-width: 46ch;
+  font-size: var(--step-1);
+  max-width: 52ch;
   margin: 0.75rem auto 0;
+  text-wrap: pretty;
+}
+
+/* Same lead paragraph, flush left, for the document pages. */
+.tagline-start {
+  margin-inline: 0;
 }
 
 h1.page-title {
-  font-size: clamp(1.8rem, 4vw, 2.25rem);
-  padding-top: 2.5rem;
+  font-size: var(--step-3);
+  padding-top: clamp(1.75rem, 5vw, 3rem);
 }
 
 .updated {
+  display: inline-block;
   color: var(--color-text-muted);
-  font-size: 0.9rem;
-  margin: 0.5rem 0 1.75rem;
+  background: var(--color-panel);
+  border: 1px solid var(--color-panel-border);
+  border-radius: var(--radius-pill);
+  padding: 0.3rem 0.9rem;
+  font-size: var(--step--1);
+  margin: 0.75rem 0 1.75rem;
 }
 
 section {
-  margin-top: 2.5rem;
+  margin-top: clamp(2rem, 5vw, 3.25rem);
 }
 
 section h2 {
-  font-size: 1.35rem;
+  font-size: var(--step-2);
   margin-bottom: 1rem;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 /* Buttons */
@@ -218,6 +325,7 @@ section h2 {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  min-height: 44px;
   border-radius: var(--radius-lg);
   font-family: var(--font-display);
   font-weight: 700;
@@ -231,7 +339,7 @@ section h2 {
   border: none;
   background: linear-gradient(180deg, var(--color-gold) 0%, #d99a1f 100%);
   color: var(--color-wood-dark);
-  font-size: 1.05rem;
+  font-size: var(--step-0);
   box-shadow: var(--shadow-soft);
 }
 
@@ -245,7 +353,7 @@ section h2 {
   border: 2px solid var(--color-panel-border);
   background: var(--color-panel);
   color: var(--color-text);
-  font-size: 0.95rem;
+  font-size: var(--step--1);
 }
 
 .btn-secondary:hover {
@@ -254,23 +362,41 @@ section h2 {
 
 .cta-row {
   display: flex;
+  align-items: center;
   justify-content: center;
   gap: 0.85rem;
   flex-wrap: wrap;
-  margin-top: 1.75rem;
+  margin-top: clamp(1.25rem, 4vw, 2rem);
 }
 
+/* Status chip, not a button: nothing here is clickable yet. */
 .badge-soon {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-lg);
-  border: 2px dashed var(--color-panel-border);
-  color: var(--color-text-muted);
+  gap: 0.55rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(242, 182, 50, 0.35);
+  background: rgba(242, 182, 50, 0.1);
+  color: var(--color-gold);
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: var(--step--1);
+  letter-spacing: 0.02em;
+}
+
+.badge-soon::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-gold);
+  box-shadow: 0 0 0 4px rgba(242, 182, 50, 0.18);
+}
+
+.cta-note {
+  color: var(--color-text-muted);
+  font-size: var(--step--1);
 }
 
 /* Cards / panels */
@@ -279,12 +405,20 @@ section h2 {
   border: 1px solid var(--color-panel-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
-  padding: 1.5rem 1.6rem;
+  padding: clamp(1.1rem, 3vw, 1.75rem);
+}
+
+.panel > :first-child {
+  margin-top: 0;
+}
+
+.panel > :last-child {
+  margin-bottom: 0;
 }
 
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: 1fr;
   gap: 1rem;
 }
 
@@ -292,7 +426,7 @@ section h2 {
   background: var(--color-panel);
   border: 1px solid var(--color-panel-border);
   border-radius: var(--radius-md);
-  padding: 1.25rem;
+  padding: clamp(1.1rem, 2.5vw, 1.4rem);
   box-shadow: var(--shadow-soft);
 }
 
@@ -310,14 +444,61 @@ section h2 {
 }
 
 .feature-card h3 {
-  font-size: 1.05rem;
+  font-size: var(--step-1);
   margin-bottom: 0.4rem;
 }
 
 .feature-card p {
   color: var(--color-text-muted);
-  font-size: 0.95rem;
+  font-size: var(--step--1);
   margin: 0;
+}
+
+/* How to play */
+.steps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: step;
+}
+
+.steps li {
+  counter-increment: step;
+  position: relative;
+  background: var(--color-panel);
+  border: 1px solid var(--color-panel-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.25rem 1.25rem 3.75rem;
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 1.25rem;
+  top: 1.15rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: rgba(242, 182, 50, 0.15);
+  color: var(--color-gold);
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.steps strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+}
+
+.steps span {
+  color: var(--color-text-muted);
+  font-size: var(--step--1);
 }
 
 /* Lists */
@@ -330,11 +511,61 @@ ul.plain li {
   margin-bottom: 0.55rem;
 }
 
+ul.plain li:last-child {
+  margin-bottom: 0;
+}
+
 ul.plain li strong {
   color: var(--color-text);
 }
 
-/* Table of contents (privacy page) */
+ol.plain {
+  padding-left: 1.35rem;
+  margin: 0;
+}
+
+ol.plain li {
+  margin-bottom: 0.4rem;
+}
+
+ol.plain li:last-child {
+  margin-bottom: 0;
+}
+
+/* Term/definition blocks: the AdMob data disclosure and the third-party list */
+.data-list {
+  margin: 0;
+}
+
+.data-list dt {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-text);
+  margin-top: 1.1rem;
+}
+
+.data-list dt:first-child {
+  margin-top: 0;
+}
+
+.data-list dd {
+  margin: 0.15rem 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--step--1);
+}
+
+/* Privacy page: table of contents */
+.privacy-layout {
+  display: block;
+}
+
+/* Long-form body copy keeps a readable measure even when the page
+   container around it is wide. */
+.prose {
+  max-width: var(--width-prose);
+  min-width: 0;
+}
+
 .toc {
   display: flex;
   flex-wrap: wrap;
@@ -352,13 +583,51 @@ ul.plain li strong {
   border: 1px solid var(--color-panel-border);
   color: var(--color-text-muted);
   text-decoration: none;
-  font-size: 0.85rem;
+  font-size: var(--step--1);
   font-weight: 700;
 }
 
 .toc a:hover {
   color: var(--color-gold);
   border-color: var(--color-gold);
+}
+
+.toc-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 0.75rem;
+}
+
+/* A linked section marks itself so you can see where you landed. */
+section:target > h2 {
+  color: var(--color-gold);
+}
+
+section:target > h2::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 1em;
+  margin-right: 0.55rem;
+  vertical-align: -0.1em;
+  border-radius: 2px;
+  background: var(--color-gold);
+}
+
+.to-top {
+  display: none;
+  margin-top: 1rem;
+  font-size: var(--step--1);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.to-top:hover {
+  color: var(--color-gold);
 }
 
 /* Support page */
@@ -375,27 +644,90 @@ ul.plain li strong {
   color: var(--color-text-muted);
 }
 
-.faq dt {
+/* FAQ accordions */
+.faq details {
+  border-bottom: 1px solid var(--color-panel-border);
+}
+
+.faq details:last-of-type {
+  border-bottom: none;
+}
+
+.faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.9rem 0;
   font-family: var(--font-display);
   font-weight: 700;
-  margin-top: 1.1rem;
+  font-size: var(--step-1);
   color: var(--color-text);
 }
 
-.faq dd {
-  margin: 0.3rem 0 0;
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq summary::after {
+  content: "+";
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: rgba(242, 182, 50, 0.15);
+  color: var(--color-gold);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.faq details[open] summary::after {
+  content: "\2013";
+}
+
+.faq summary:hover {
+  color: var(--color-gold);
+}
+
+.faq .answer {
   color: var(--color-text-muted);
+  font-size: var(--step--1);
+  padding: 0 0 1rem;
+  margin: 0;
+  max-width: 62ch;
+}
+
+.faq .answer + .answer {
+  padding-top: 0;
+  margin-top: -0.5rem;
+}
+
+/* Centred pages (404) */
+.page-center {
+  text-align: center;
+  padding-top: clamp(2.5rem, 8vw, 5rem);
+}
+
+.page-center img {
+  width: clamp(80px, 20vw, 112px);
+  filter: drop-shadow(var(--shadow-lift));
+}
+
+.page-center h1 {
+  padding-top: 1rem;
 }
 
 /* Footer */
 footer {
   border-top: 1px solid var(--color-panel-border);
-  padding: 2rem 1.25rem 2.5rem;
+  padding-block: 2rem 2.5rem;
 }
 
 .footer-inner {
-  max-width: var(--max-width);
-  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -409,7 +741,7 @@ footer {
   gap: 0.6rem;
   color: var(--color-text-muted);
   text-decoration: none;
-  font-size: 0.85rem;
+  font-size: var(--step--1);
 }
 
 .footer-studio img {
@@ -420,14 +752,18 @@ footer {
 
 .footer-links {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
   list-style: none;
   padding: 0;
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--step--1);
 }
 
 .footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
   color: var(--color-text-muted);
   text-decoration: none;
 }
@@ -436,9 +772,174 @@ footer {
   color: var(--color-gold);
 }
 
-@media (max-width: 480px) {
-  .footer-inner {
+/* ---- Breakpoints ---------------------------------------------------- */
+
+@media (min-width: 40em) {
+  .feature-grid,
+  .steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 56em) {
+  .feature-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* The table of contents becomes a sticky sidebar once there is room
+     for one beside the prose. */
+  .privacy-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 15rem;
+    gap: clamp(2rem, 4vw, 3.5rem);
+    align-items: start;
+  }
+
+  .privacy-layout .toc-wrap {
+    position: sticky;
+    top: calc(var(--header-height) + 1.5rem);
+    order: 2;
+  }
+
+  .privacy-layout .prose {
+    order: 1;
+    min-width: 0;
+  }
+
+  .toc {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0.15rem;
+    margin-bottom: 0;
+  }
+
+  .toc a {
+    display: block;
+    background: none;
+    border: none;
+    border-left: 2px solid var(--color-panel-border);
+    border-radius: 0;
+    padding: 0.4rem 0.85rem;
+  }
+
+  .toc a:hover {
+    border-left-color: var(--color-gold);
+  }
+
+  .to-top {
+    display: inline-block;
+  }
+}
+
+@media (max-width: 30em) {
+  .footer-inner,
+  .contact-card {
     flex-direction: column;
     text-align: center;
+  }
+
+  /* Buy back enough width for all three links to sit in the row. */
+  header nav a {
+    padding-inline: 0.6rem;
+  }
+
+  .brand span {
+    font-size: 1.05rem;
+  }
+}
+
+/* Below this the row genuinely has to scroll, so fade its right edge to
+   show there is more to reach. */
+@media (max-width: 22.5em) {
+  header nav ul {
+    mask-image: linear-gradient(90deg, #000 calc(100% - 1.5rem), transparent);
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 1.5rem), transparent);
+  }
+}
+
+/* ---- Accessibility and print ---------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .btn-primary:hover {
+    transform: none;
+  }
+}
+
+/* The privacy policy is a document people print or save as a PDF. */
+@media print {
+  html,
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  header,
+  footer,
+  .toc-wrap,
+  .skip-link,
+  .to-top,
+  .contact-card .btn-secondary {
+    display: none !important;
+  }
+
+  .container {
+    max-width: none;
+    padding: 0;
+  }
+
+  .privacy-layout {
+    display: block;
+  }
+
+  .panel,
+  .feature-card {
+    border: 1px solid #999;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .updated,
+  .tagline,
+  .data-list dd,
+  .feature-card p,
+  .faq .answer {
+    color: #333;
+  }
+
+  a {
+    color: #000;
+    text-decoration: underline;
+  }
+
+  main a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    word-break: break-all;
+  }
+
+  .faq details {
+    /* Print every answer, opened or not. */
+    display: block;
+  }
+
+  .faq .answer {
+    display: block;
   }
 }

@@ -3,19 +3,58 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Page not found — Tetrofall</title>
+  <title>Page not found | Tetrofall</title>
+  <meta name="description" content="That page does not exist on the Tetrofall site." />
+  <meta name="robots" content="noindex" />
   <meta name="theme-color" content="#2b1c12" />
+
   <link rel="icon" type="image/png" href="/assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito:wght@400;600;700&display=swap" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main id="main" style="text-align:center; padding-top: 4rem;">
-    <img src="assets/logo.png" alt="" width="96" height="96" style="filter: drop-shadow(var(--shadow-lift));" />
-    <h1 class="page-title" style="padding-top:1rem;">Piece not found</h1>
-    <p class="tagline">That page doesn't exist — it might have been cleared off the board.</p>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header>
+    <div class="container nav-inner">
+      <a class="brand" href="/">
+        <img src="assets/logo.png" alt="" width="32" height="32" decoding="async" />
+        <span>Tetrofall</span>
+      </a>
+      <nav aria-label="Primary">
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/privacy.html">Privacy Policy</a></li>
+          <li><a href="/support.html">Support</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="container page-center">
+    <img src="assets/logo.png" alt="" width="112" height="112" decoding="async" />
+    <h1 class="page-title">Piece not found</h1>
+    <p class="tagline">That page doesn't exist. It may have been cleared off the board.</p>
     <div class="cta-row">
-      <a class="btn-primary" href="/">Back to Home</a>
+      <a class="btn-primary" href="/">Back to home</a>
+      <a class="btn-secondary" href="/support.html">Get support</a>
     </div>
   </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <a class="footer-studio" href="mailto:support@nosleepstudios.com">
+        <img src="assets/studio-logo.png" alt="" width="28" height="28" loading="lazy" decoding="async" />
+        <span>NoSleep Studios &middot; support@nosleepstudios.com</span>
+      </a>
+      <ul class="footer-links">
+        <li><a href="/privacy.html">Privacy Policy</a></li>
+        <li><a href="/support.html">Support</a></li>
+      </ul>
+    </div>
+  </footer>
 </body>
 </html>

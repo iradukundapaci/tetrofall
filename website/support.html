@@ -3,23 +3,32 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Support — Tetrofall</title>
-  <meta name="description" content="Get help with Tetrofall by NoSleep Studios." />
+  <title>Support | Tetrofall</title>
+  <meta name="description" content="Get help with Tetrofall by NoSleep Studios. Answers on controls, offline play, ads and stored data, plus how to reach us." />
   <meta name="theme-color" content="#2b1c12" />
-  <link rel="canonical" href="/support.html" />
+  <link rel="canonical" href="https://tetrofall.vercel.app/support.html" />
+
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="Support — Tetrofall" />
-  <meta property="og:image" content="/assets/og-image.png" />
+  <meta property="og:title" content="Support | Tetrofall" />
+  <meta property="og:description" content="Answers on controls, offline play, ads and stored data, plus how to reach NoSleep Studios." />
+  <meta property="og:url" content="https://tetrofall.vercel.app/support.html" />
+  <meta property="og:image" content="https://tetrofall.vercel.app/assets/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
   <link rel="icon" type="image/png" href="/assets/favicon-32.png" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito:wght@400;600;700&display=swap" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header>
-    <div class="nav-inner">
+    <div class="container nav-inner">
       <a class="brand" href="/">
-        <img src="assets/logo.png" alt="" width="32" height="32" />
+        <img src="assets/logo.png" alt="" width="32" height="32" decoding="async" />
         <span>Tetrofall</span>
       </a>
       <nav aria-label="Primary">
@@ -32,60 +41,126 @@
     </div>
   </header>
 
-  <main id="main">
+  <main id="main" class="container container-prose">
     <h1 class="page-title">Support</h1>
-    <p class="tagline" style="margin-top:0.5rem">Need help with Tetrofall? We're happy to help.</p>
+    <p class="tagline tagline-start">
+      Something broken, confusing, or missing? Write to us and a person will
+      read it.
+    </p>
 
     <div class="panel contact-card">
       <p>Email us directly at:</p>
       <a class="btn-primary" href="mailto:support@nosleepstudios.com">support@nosleepstudios.com</a>
     </div>
 
-    <section>
-      <h2>What to include</h2>
+    <section aria-labelledby="include-heading">
+      <h2 id="include-heading">What to include</h2>
       <div class="panel">
-        <p style="margin-top:0">To help us solve your issue as quickly as possible, please include:</p>
-        <ul class="plain" style="margin-bottom:0">
+        <p>The more of this you can tell us, the faster we can fix it:</p>
+        <ol class="plain">
           <li>Device model</li>
           <li>Android version</li>
-          <li>Game version</li>
-          <li>Description of the issue</li>
-          <li>Screenshot (if applicable)</li>
-        </ul>
+          <li>Game version, shown under About at the bottom of the Settings screen</li>
+          <li>What happened, and what you expected instead</li>
+          <li>A screenshot or screen recording, if you can catch it</li>
+        </ol>
       </div>
     </section>
 
-    <section>
-      <h2>Frequently asked questions</h2>
-      <div class="panel">
-        <dl class="faq">
-          <dt>Why do I see an ad?</dt>
-          <dd>
-            Tetrofall is free to play and supported by ads. Some ads (like the
-            continue option) are entirely optional and only shown if you choose to
-            watch them.
-          </dd>
+    <section aria-labelledby="faq-heading">
+      <h2 id="faq-heading">Frequently asked questions</h2>
+      <div class="panel faq">
+        <details>
+          <summary>How do the controls work?</summary>
+          <p class="answer">
+            Swipe left or right to move the falling piece, tap to rotate it, and
+            swipe down to drop it. Everything is reachable with one thumb.
+          </p>
+        </details>
 
-          <dt>Does Tetrofall work offline?</dt>
-          <dd>
-            Yes — core gameplay works without an internet connection. Ads require
-            an internet connection to load.
-          </dd>
+        <details>
+          <summary>How is my high score tracked?</summary>
+          <p class="answer">
+            Your best score is saved on your device and nowhere else. There is
+            no account, no sign-in and no online leaderboard, so nothing about
+            your play leaves the phone.
+          </p>
+          <p class="answer">
+            If you switch on <em>Adjust start speed to my best score</em> in
+            Settings, beating your best also raises the speed the next run
+            starts at. That setting is off until you turn it on.
+          </p>
+        </details>
 
-          <dt>How is my high score tracked?</dt>
-          <dd>
-            Your best score is saved on your device and compared against the
-            global high-score challenge when you're connected to the internet.
-          </dd>
-        </dl>
+        <details>
+          <summary>Can I turn off the ghost piece?</summary>
+          <p class="answer">
+            Yes. <em>Settings &rarr; Gameplay &rarr; Ghost Piece</em> switches
+            off the outline that shows where the current piece will land.
+          </p>
+        </details>
+
+        <details>
+          <summary>Does Tetrofall work offline?</summary>
+          <p class="answer">
+            Yes. Core gameplay works with no internet connection at all. Ads are
+            the only part that needs one, so offline you simply see fewer of
+            them.
+          </p>
+        </details>
+
+        <details>
+          <summary>Why do I see an ad?</summary>
+          <p class="answer">
+            Tetrofall is free, and ads are what pay for it. There are no in-app
+            purchases. Rewarded ads, like the one that buys you a second chance
+            after a run ends, are entirely optional and only play if you ask for
+            them.
+          </p>
+        </details>
+
+        <details>
+          <summary>How do I turn off personalised ads?</summary>
+          <p class="answer">
+            Use the <em>Personalised ads</em> switch in
+            <em>Settings &rarr; Privacy &amp; Legal</em>. It is available to
+            every player in every region, and takes effect straight away. Ads
+            keep appearing, but they are no longer chosen from your interests.
+          </p>
+          <p class="answer">
+            Where the law requires a consent form, that form is also reachable
+            from <em>Settings &rarr; Privacy Settings</em>. Full detail is in the
+            <a href="/privacy.html#choices">Privacy Policy</a>.
+          </p>
+        </details>
+
+        <details>
+          <summary>How do I delete what the game has stored?</summary>
+          <p class="answer">
+            Uninstalling removes the local save. If Android Auto Backup is on,
+            delete the backup too from
+            <em>Google Drive &rarr; Manage backups</em>, or reinstalling will
+            restore your old settings. We hold no copy of any of it, because we
+            run no server.
+          </p>
+        </details>
+
+        <details>
+          <summary>The game crashed or froze. Do you know?</summary>
+          <p class="answer">
+            No. Tetrofall ships with no crash reporting and no analytics, which
+            means nothing reaches us automatically. If you hit a crash, telling
+            us is genuinely the only way we find out.
+          </p>
+        </details>
       </div>
     </section>
   </main>
 
   <footer>
-    <div class="footer-inner">
+    <div class="container footer-inner">
       <a class="footer-studio" href="mailto:support@nosleepstudios.com">
-        <img src="assets/studio-logo.png" alt="" />
+        <img src="assets/studio-logo.png" alt="" width="28" height="28" loading="lazy" decoding="async" />
         <span>NoSleep Studios &middot; support@nosleepstudios.com</span>
       </a>
       <ul class="footer-links">

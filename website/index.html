@@ -3,27 +3,51 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tetrofall — Endless Block Puzzle by NoSleep Studios</title>
-  <meta name="description" content="Tetrofall is an endless block puzzle game by NoSleep Studios. Quick, replayable sessions with a global high-score challenge." />
+  <title>Tetrofall | Endless Block Puzzle by NoSleep Studios</title>
+  <meta name="description" content="Tetrofall is a falling-block puzzle with a floor that rises from below. Clear rows to buy back space and survive as long as you can. Plays offline, from NoSleep Studios." />
   <meta name="theme-color" content="#2b1c12" />
-  <link rel="canonical" href="/" />
+  <link rel="canonical" href="https://tetrofall.vercel.app/" />
 
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="Tetrofall — Endless Block Puzzle by NoSleep Studios" />
-  <meta property="og:description" content="Quick, replayable block-puzzle sessions with a global high-score challenge." />
-  <meta property="og:image" content="/assets/og-image.png" />
+  <meta property="og:title" content="Tetrofall | Endless Block Puzzle by NoSleep Studios" />
+  <meta property="og:description" content="Blocks fall from above. Rows rise from below. Clear lines or get crushed." />
+  <meta property="og:url" content="https://tetrofall.vercel.app/" />
+  <meta property="og:image" content="https://tetrofall.vercel.app/assets/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
 
   <link rel="icon" type="image/png" href="/assets/favicon-32.png" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito:wght@400;600;700&display=swap" />
   <link rel="stylesheet" href="styles.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Tetrofall",
+    "applicationCategory": "GameApplication",
+    "applicationSubCategory": "Puzzle",
+    "operatingSystem": "Android",
+    "url": "https://tetrofall.vercel.app/",
+    "image": "https://tetrofall.vercel.app/assets/icon-512.png",
+    "description": "A falling-block puzzle with a floor that rises from below. Clear rows to buy back space and survive as long as you can.",
+    "author": {
+      "@type": "Organization",
+      "name": "NoSleep Studios",
+      "email": "support@nosleepstudios.com"
+    }
+  }
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header>
-    <div class="nav-inner">
+    <div class="container nav-inner">
       <a class="brand" href="/">
-        <img src="assets/logo.png" alt="" width="32" height="32" />
+        <img src="assets/logo.png" alt="" width="32" height="32" decoding="async" />
         <span>Tetrofall</span>
       </a>
       <nav aria-label="Primary">
@@ -36,56 +60,96 @@
     </div>
   </header>
 
-  <main id="main">
+  <main id="main" class="container">
     <div class="hero">
-      <img src="assets/logo.png" alt="Tetrofall block logo" width="128" height="128" />
+      <img src="assets/logo.png" alt="Tetrofall block logo" width="144" height="144" fetchpriority="high" decoding="async" />
       <h1>Tetrofall</h1>
-      <p class="tagline">An endless block puzzle game by NoSleep Studios. One board, no finish line — just how long you can keep clearing lines.</p>
+      <p class="hero-lead">Blocks fall from above. Rows rise from below.</p>
+      <p class="tagline">
+        A falling-block puzzle by NoSleep Studios, built around one twist: the
+        floor pushes a new row upward on a timer. Clear rows to buy back space
+        and see how long you last.
+      </p>
 
       <div class="cta-row">
         <span class="badge-soon">Coming soon to Google Play</span>
       </div>
+      <p class="cta-note">
+        Want a note when it lands?
+        <a href="mailto:support@nosleepstudios.com?subject=Tell%20me%20when%20Tetrofall%20launches">Email us</a>
+        and we'll tell you.
+      </p>
     </div>
 
     <section aria-labelledby="features-heading">
-      <h2 id="features-heading">Features</h2>
+      <h2 id="features-heading">What makes it different</h2>
       <div class="feature-grid">
         <div class="feature-card">
-          <div class="feature-icon" aria-hidden="true">&#9724;</div>
-          <h3>Endless gameplay</h3>
-          <p>No levels, no lives — one continuous run against the rising board.</p>
+          <div class="feature-icon" aria-hidden="true">&#11014;</div>
+          <h3>The floor rises</h3>
+          <p>A new row pushes up from the bottom every 22 seconds when you start, and every 4.5 seconds by minute twelve. You are not filling a well, you are racing it.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon" aria-hidden="true">&#127942;</div>
-          <h3>Global high scores</h3>
-          <p>See how your best run stacks up against players everywhere.</p>
+          <div class="feature-icon" aria-hidden="true">&#9724;</div>
+          <h3>Clears cascade</h3>
+          <p>Blocks above a cleared row fall independently instead of sliding down as one slab. Columns collapse at different speeds, and rows sometimes finish themselves. Each link in a chain adds another 50% to your multiplier.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">&#9638;</div>
+          <h3>A big board</h3>
+          <p>18 columns by 32 rows of playing space. No lives, no energy meter, no hidden timers between runs.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon" aria-hidden="true">&#9995;</div>
-          <h3>Smooth controls</h3>
-          <p>Responsive touch input tuned for fast decisions under pressure.</p>
+          <h3>Built for one thumb</h3>
+          <p>Swipe to move, tap to rotate, swipe down to drop. Auto-repeat is tuned for fast play, and a ghost piece shows where the piece lands. Leave it on or switch it off in Settings.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">&#127922;</div>
+          <h3>An honest randomiser</h3>
+          <p>All seven pieces, dealt from a shuffled bag, so there are no droughts and no unwinnable streaks. Full rotation system with wall kicks.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon" aria-hidden="true">&#9992;</div>
-          <h3>Offline play</h3>
-          <p>Core gameplay works without a connection; ads require internet to load.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon" aria-hidden="true">&#127916;</div>
-          <h3>Optional rewarded ads</h3>
-          <p>Watch a short ad for a second chance to continue a run — entirely your choice.</p>
+          <h3>Plays offline</h3>
+          <p>No account, no login, no cloud save. The game runs without a connection; only the ads need one. Watching a rewarded ad for a second chance is always your choice.</p>
         </div>
       </div>
+    </section>
+
+    <section aria-labelledby="howto-heading">
+      <h2 id="howto-heading">How to play</h2>
+      <ol class="steps">
+        <li>
+          <strong>Swipe to move</strong>
+          <span>Drag left or right to slide the falling piece across the board.</span>
+        </li>
+        <li>
+          <strong>Tap to rotate</strong>
+          <span>A tap turns the piece, with wall kicks so it still fits against an edge.</span>
+        </li>
+        <li>
+          <strong>Swipe down to drop</strong>
+          <span>Send the piece straight down and take the next one immediately.</span>
+        </li>
+      </ol>
     </section>
 
     <section aria-labelledby="about-heading">
       <h2 id="about-heading">About</h2>
       <div class="panel">
-        <p style="margin:0">
-          Tetrofall is designed for quick, replayable sessions where players
-          continually chip away at their own high score rather than working
-          through a fixed set of levels. Every run is a fresh attempt at
-          beating your last one.
+        <p>
+          Tetrofall is made for short, repeatable sessions. There is no level
+          select and no campaign to work through: one board, one run, and your
+          own best score as the thing to beat.
+        </p>
+        <p>
+          That score can do more than sit on the menu. Switch on
+          <em>Adjust start speed to my best score</em> in Settings and each run
+          begins further along the difficulty curve, so the game keeps pace with
+          you instead of replaying the easy opening every time. Leave it off and
+          every run starts from the same place. Your score and settings live on
+          your device and nowhere else.
         </p>
       </div>
     </section>
@@ -93,16 +157,16 @@
     <section aria-labelledby="contact-heading">
       <h2 id="contact-heading">Contact</h2>
       <div class="panel contact-card">
-        <p>Questions, feedback, or issues? We'd love to hear from you.</p>
+        <p>Questions, feedback, or a bug to report? We read every message.</p>
         <a class="btn-secondary" href="mailto:support@nosleepstudios.com">Email support</a>
       </div>
     </section>
   </main>
 
   <footer>
-    <div class="footer-inner">
+    <div class="container footer-inner">
       <a class="footer-studio" href="mailto:support@nosleepstudios.com">
-        <img src="assets/studio-logo.png" alt="" />
+        <img src="assets/studio-logo.png" alt="" width="28" height="28" loading="lazy" decoding="async" />
         <span>NoSleep Studios &middot; support@nosleepstudios.com</span>
       </a>
       <ul class="footer-links">

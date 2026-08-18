@@ -5,11 +5,14 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://tetrofall.vercel.app/</loc>
+    <lastmod>2026-08-15</lastmod>
   </url>
   <url>
     <loc>https://tetrofall.vercel.app/privacy.html</loc>
+    <lastmod>2026-08-15</lastmod>
   </url>
   <url>
     <loc>https://tetrofall.vercel.app/support.html</loc>
+    <lastmod>2026-08-15</lastmod>
   </url>
 </urlset>
