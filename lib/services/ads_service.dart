@@ -5,10 +5,59 @@ import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'ad_unit_ids.dart';
+import 'connectivity_service.dart';
 import 'storage_service.dart';
 
+/// One retriable slot: the timer that will try a failed load again, and how
+/// long it will wait before doing so.
+///
+/// Backoff rather than a fixed interval because most failures are one of two
+/// things — no network, which can last minutes, or no fill, which is the ad
+/// server saying "not right now" and should not be asked again immediately.
+/// [reset] is the counterweight: the moment something changes that makes a
+/// retry likely to succeed (the network returns, the app is resumed) the wait
+/// collapses back to the first step instead of sitting out a full minute.
+class _AdRetry {
+  static const _first = Duration(seconds: 4);
+  static const _max = Duration(seconds: 60);
+
+  Timer? _timer;
+  Duration _delay = _first;
+
+  /// No-ops while a retry is already pending, so several failures in a row
+  /// can't stack up into several timers racing to reload the same slot.
+  void schedule(void Function() run) {
+    if (_timer != null) return;
+    final delay = _delay;
+    _delay = delay * 2 > _max ? _max : delay * 2;
+    _timer = Timer(delay, () {
+      _timer = null;
+      run();
+    });
+  }
+
+  /// Drops any pending retry and forgets the accumulated wait. Called on a
+  /// successful load and whenever conditions change for the better.
+  void reset() {
+    _timer?.cancel();
+    _timer = null;
+    _delay = _first;
+  }
+
+  /// Drops the pending retry but keeps the accumulated wait — for going into
+  /// the background, where the retry would only fail again.
+  void pause() {
+    _timer?.cancel();
+    _timer = null;
+  }
+}
+
 class AdsService {
-  AdsService(this._storage);
+  /// [connectivity] is optional so tests can build a service that never
+  /// touches a platform channel; when it is absent the network is assumed to
+  /// be up and this class behaves as it did before it was connectivity-aware.
+  AdsService(this._storage, {ConnectivityService? connectivity})
+    : _connectivity = connectivity;
 
   static const _interstitialRunCap = 4;
   static const _interstitialPlaySecondsCap = 6 * 60;
@@ -16,6 +65,7 @@ class AdsService {
   static const _appOpenMinInterval = Duration(hours: 1);
 
   final StorageService _storage;
+  final ConnectivityService? _connectivity;
 
   RewardedAd? _rewardedAd;
   InterstitialAd? _interstitialAd;
@@ -53,6 +103,16 @@ class AdsService {
   ValueListenable<int> get adConfigRevision => _adConfigRevision;
   final ValueNotifier<int> _adConfigRevision = ValueNotifier(0);
 
+  /// Bumped whenever something changes that makes a *previously failed* load
+  /// worth attempting again — the network coming back, the app being resumed,
+  /// consent finally resolving after a start with no internet.
+  ///
+  /// Deliberately separate from [adConfigRevision]: that one means "drop what
+  /// you are holding, it is stale", this one means "try again if you are
+  /// holding nothing". A slot that already has an ad ignores this.
+  ValueListenable<int> get adRetryPulse => _adRetryPulse;
+  final ValueNotifier<int> _adRetryPulse = ValueNotifier(0);
+
   /// Whether UMP says this user must be given a way back to their consent
   /// choice — true in the EEA/UK, and in US states whose messages you have
   /// published. Settings shows its Privacy row only when this is true, because
@@ -61,10 +121,18 @@ class AdsService {
   bool get privacyOptionsRequired => _privacyOptionsRequired;
   bool _privacyOptionsRequired = false;
 
-  /// Guards the parts of startup that must happen exactly once — the SDK
-  /// handshake and the lifecycle hook — from the paths that reach startup
-  /// again later, when consent or personalisation changes from Settings.
+  /// Guards the SDK handshake, which must happen exactly once, from the paths
+  /// that reach startup again later — consent or personalisation changing from
+  /// Settings, or a retry after a start with no network.
   bool _adsStarted = false;
+
+  /// Whether UMP has actually *answered*, as opposed to having been asked and
+  /// failed. Without this a network error is indistinguishable from a refusal,
+  /// which is what used to strand a cold start made offline: consent looked
+  /// settled and denied, so nothing ever asked again.
+  bool _consentResolved = false;
+
+  AppLifecycleListener? _lifecycle;
 
   /// Height the banner slot falls back to when this device has never
   /// measured an adaptive banner. Sized at the large-anchored ceiling so a
@@ -100,7 +168,16 @@ class AdsService {
 
   Future<AdSize?> _resolveBannerSize(int width) async {
     final size = await AdSize.getLargeAnchoredAdaptiveBannerAdSize(width);
-    if (size == null) return null;
+    if (size == null) {
+      // Not cached: a null here is a failure to measure, not an answer, and
+      // caching it would leave the banner permanently unable to size itself
+      // for this width no matter how many times the slot retried.
+      if (_bannerSizeWidth == width) {
+        _bannerSizeWidth = null;
+        _bannerSizeFuture = null;
+      }
+      return null;
+    }
     _bannerSize = size;
     await _storage.saveBannerAdSize(width: width, height: size.height);
     return size;
@@ -108,11 +185,50 @@ class AdsService {
 
   Future<void>? _readyFuture;
 
+  /// Completes once the first startup attempt has been *made* — not once it
+  /// has succeeded. Callers await this to know that consent has been asked
+  /// about; an attempt made with no network completes here having resolved
+  /// nothing, and the retry paths take it from there. Blocking until ads
+  /// actually work would hang the banner and Settings for the whole time a
+  /// player is offline.
   Future<void> init() => _readyFuture ??= _init();
 
   Future<void> _init() async {
-    await _requestConsent();
-    await _startAdsIfAllowed();
+    // Registered unconditionally and before the first attempt: this used to
+    // live behind the consent gate, so the one start that most needed a second
+    // chance — the one where consent never resolved — was also the one with no
+    // lifecycle hook to trigger it.
+    _lifecycle = AppLifecycleListener(onStateChange: _onAppLifecycleStateChange);
+    _connectivity?.isOnline.addListener(_onOnlineChanged);
+    await _attemptStart();
+  }
+
+  bool get _isOnline => _connectivity?.isOnline.value ?? true;
+
+  /// True while a startup attempt is running, so the three things that can
+  /// trigger one — boot, the network returning, a resume — can't overlap into
+  /// two consent requests at once.
+  bool _starting = false;
+
+  /// The single entry point for "get ads going, from wherever we are".
+  ///
+  /// Idempotent and safe to call repeatedly: consent is only re-requested if
+  /// it never resolved, the SDK is only started once, and the loaders no-op
+  /// on formats that are already stocked or already in flight.
+  Future<void> _attemptStart() async {
+    if (_starting) return;
+    // Nothing here can succeed without a network, and failing now would only
+    // burn a request. The [_onOnlineChanged] listener calls back the moment
+    // that changes.
+    if (!_isOnline) return;
+
+    _starting = true;
+    try {
+      if (!_consentResolved) await _requestConsent();
+      await _startAdsIfAllowed();
+    } finally {
+      _starting = false;
+    }
   }
 
   /// Device IDs that UMP should treat as if they were in [_debugGeography].
@@ -138,25 +254,37 @@ class AdsService {
 
   Future<void> _requestConsent() async {
     final completer = Completer<void>();
-    void proceed() {
+    void proceed({required bool resolved}) {
+      // Only the success branch counts as an answer. A form that then fails to
+      // load is a separate, non-fatal problem: the consent *information* is in
+      // hand either way, which is what the rest of this class needs.
+      if (resolved) _consentResolved = true;
       if (!completer.isCompleted) completer.complete();
     }
 
     ConsentInformation.instance.requestConsentInfoUpdate(
       ConsentRequestParameters(consentDebugSettings: _debugConsentSettings),
-      () => ConsentForm.loadAndShowConsentFormIfRequired((_) => proceed()),
-      (_) => proceed(),
+      () => ConsentForm.loadAndShowConsentFormIfRequired(
+        (_) => proceed(resolved: true),
+      ),
+      (_) => proceed(resolved: false),
     );
     await completer.future;
     await _refreshConsentState();
   }
 
   Future<void> _refreshConsentState() async {
+    final wasAllowed = _canRequestAds;
     _canRequestAds = await ConsentInformation.instance.canRequestAds();
     _privacyOptionsRequired =
         await ConsentInformation.instance
             .getPrivacyOptionsRequirementStatus() ==
         PrivacyOptionsRequirementStatus.required;
+
+    // Consent arriving late is the one moment Settings and the banner cannot
+    // observe for themselves — Settings has already drawn its Privacy rows
+    // from the old answer, and the banner has already given up.
+    if (_canRequestAds != wasAllowed) _adRetryPulse.value++;
   }
 
   /// Idempotent: safe to call at boot and again after a consent change.
@@ -170,14 +298,43 @@ class AdsService {
     if (!_canRequestAds) return;
 
     if (!_adsStarted) {
+      try {
+        await MobileAds.instance.initialize();
+      } catch (_) {
+        // Deliberately leaves [_adsStarted] false. This flag used to be set
+        // before the await, so a handshake that failed could never be tried
+        // again; the retry paths now come back to it.
+        return;
+      }
       _adsStarted = true;
-      await MobileAds.instance.initialize();
-      AppLifecycleListener(onStateChange: _onAppLifecycleStateChange);
     }
 
     _loadRewarded();
     _loadInterstitial();
     _loadAppOpen();
+  }
+
+  /// The network came back, or went away.
+  void _onOnlineChanged() {
+    if (!_isOnline) {
+      // Every pending retry would fail. Hold them rather than spend them.
+      _rewardedRetry.pause();
+      _interstitialRetry.pause();
+      _appOpenRetry.pause();
+      return;
+    }
+    _retryNow();
+  }
+
+  /// Conditions just improved: forget the accumulated backoff, try startup
+  /// again if it never completed, refill anything empty, and tell the slots
+  /// that own their own loads (the banner) to do the same.
+  void _retryNow() {
+    _rewardedRetry.reset();
+    _interstitialRetry.reset();
+    _appOpenRetry.reset();
+    _adRetryPulse.value++;
+    unawaited(_attemptStart());
   }
 
   /// Re-presents the UMP privacy options form so a user can change or withdraw
@@ -219,6 +376,9 @@ class AdsService {
     // what's cached and refill under the new request.
     _adConfigRevision.value++;
     _discardCachedAds();
+    _rewardedRetry.reset();
+    _interstitialRetry.reset();
+    _appOpenRetry.reset();
     _loadRewarded();
     _loadInterstitial();
     _loadAppOpen();
@@ -248,6 +408,8 @@ class AdsService {
   bool _isCurrent(int revision) =>
       _canRequestAds && revision == _adConfigRevision.value;
 
+  final _rewardedRetry = _AdRetry();
+
   /// Non-null while a load is in flight, holding the revision it went out
   /// under. Doubles as the guard against a second overlapping load, which
   /// would strand the first ad undisposed when the later one overwrote it.
@@ -271,6 +433,7 @@ class AdsService {
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
           _rewardedLoadRevision = null;
+          _rewardedRetry.reset();
           if (!_isCurrent(revision)) {
             ad.dispose();
             // The change that stranded this one found the slot in flight and
@@ -283,6 +446,10 @@ class AdsService {
         onAdFailedToLoad: (_) {
           _rewardedLoadRevision = null;
           _rewardedAd = null;
+          // Without this the slot is dead for the session: the only other
+          // path back into this method is a dismissal callback, and there is
+          // no ad to dismiss.
+          _rewardedRetry.schedule(_loadRewarded);
         },
       ),
     );
@@ -321,6 +488,7 @@ class AdsService {
     return closed.future;
   }
 
+  final _interstitialRetry = _AdRetry();
   int? _interstitialLoadRevision;
 
   void _loadInterstitial() {
@@ -340,6 +508,7 @@ class AdsService {
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitialLoadRevision = null;
+          _interstitialRetry.reset();
           if (!_isCurrent(revision)) {
             ad.dispose();
             _loadInterstitial();
@@ -350,10 +519,12 @@ class AdsService {
         onAdFailedToLoad: (_) {
           _interstitialLoadRevision = null;
           _interstitialAd = null;
+          _interstitialRetry.schedule(_loadInterstitial);
         },
       ),
     );
   }
+
   void _showInterstitial() {
     final ad = _interstitialAd;
     if (ad == null) return;
@@ -394,6 +565,7 @@ class AdsService {
     await _storage.savePlaySecondsSinceLastInterstitial(seconds);
   }
 
+  final _appOpenRetry = _AdRetry();
   int? _appOpenLoadRevision;
 
   void _loadAppOpen() {
@@ -413,6 +585,7 @@ class AdsService {
       adLoadCallback: AppOpenAdLoadCallback(
         onAdLoaded: (ad) {
           _appOpenLoadRevision = null;
+          _appOpenRetry.reset();
           if (!_isCurrent(revision)) {
             ad.dispose();
             _loadAppOpen();
@@ -423,17 +596,30 @@ class AdsService {
         onAdFailedToLoad: (_) {
           _appOpenLoadRevision = null;
           _appOpenAd = null;
+          _appOpenRetry.schedule(_loadAppOpen);
         },
       ),
     );
   }
+
   void _onAppLifecycleStateChange(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _backgroundedAt = DateTime.now();
+      // Nothing requested from the background can be shown, and the network
+      // may well be asleep with the device.
+      _rewardedRetry.pause();
+      _interstitialRetry.pause();
+      _appOpenRetry.pause();
     } else if (state == AppLifecycleState.resumed) {
       _maybeShowAppOpenAd();
+      // The likeliest moment for the network to have changed while nothing
+      // was watching — and the one chance to recover a session that started
+      // with no internet if the connectivity stream missed the transition.
+      _connectivity?.refresh();
+      _retryNow();
     }
   }
+
   void _maybeShowAppOpenAd() {
     final backgroundedAt = _backgroundedAt;
     if (backgroundedAt == null) return;
@@ -463,5 +649,19 @@ class AdsService {
     );
     ad.show();
     _storage.saveLastAppOpenAdShownAt(DateTime.now());
+  }
+
+  /// The app holds one of these for its whole life, so this exists for tests —
+  /// which would otherwise leave retry timers running past the end of a case.
+  void dispose() {
+    _rewardedRetry.pause();
+    _interstitialRetry.pause();
+    _appOpenRetry.pause();
+    _connectivity?.isOnline.removeListener(_onOnlineChanged);
+    _lifecycle?.dispose();
+    _lifecycle = null;
+    _discardCachedAds();
+    _adConfigRevision.dispose();
+    _adRetryPulse.dispose();
   }
 }

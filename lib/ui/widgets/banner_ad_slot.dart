@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -17,10 +19,19 @@ class BannerAdSlot extends StatefulWidget {
 }
 
 class _BannerAdSlotState extends State<BannerAdSlot> {
+  /// Backoff between attempts, matching the one [AdsService] uses for the
+  /// cached formats. The banner needs its own because it owns its own load:
+  /// nothing in the service knows this slot exists.
+  static const _firstRetry = Duration(seconds: 4);
+  static const _maxRetry = Duration(seconds: 60);
+
   BannerAd? _bannerAd;
   double _slotHeight = 0;
   bool _requested = false;
   int _width = 0;
+
+  Timer? _retryTimer;
+  Duration _retryDelay = _firstRetry;
 
   /// Bumped every time a load is started or abandoned, so a banner that
   /// arrives after its request stopped being the current one can tell.
@@ -30,6 +41,7 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
   void initState() {
     super.initState();
     widget.ads.adConfigRevision.addListener(_onAdConfigChanged);
+    widget.ads.adRetryPulse.addListener(_onRetryPulse);
   }
 
   @override
@@ -56,16 +68,37 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
       _bannerAd?.dispose();
       _bannerAd = null;
     });
+    _resetRetry();
+    _load();
+  }
+
+  /// The network came back, the app was resumed, or consent finally resolved.
+  /// Only interesting to a slot that has nothing to show — one already
+  /// holding an ad has no reason to request another.
+  void _onRetryPulse() {
+    if (!mounted || !_requested || _bannerAd != null) return;
+    _resetRetry();
     _load();
   }
 
   Future<void> _load() async {
     final generation = ++_generation;
     await widget.ads.init();
-    if (!_isCurrent(generation) || !widget.ads.canRequestAds) return;
+    if (!_isCurrent(generation)) return;
+
+    if (!widget.ads.canRequestAds) {
+      // Not necessarily a refusal — consent may simply not have resolved yet,
+      // which is what a start with no internet looks like from here.
+      _scheduleRetry();
+      return;
+    }
 
     final size = await widget.ads.resolveBannerSize(_width);
-    if (!_isCurrent(generation) || size == null) return;
+    if (!_isCurrent(generation)) return;
+    if (size == null) {
+      _scheduleRetry();
+      return;
+    }
 
     final ad = BannerAd(
       adUnitId: AdUnitIds.banner,
@@ -77,19 +110,41 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
             ad.dispose();
             return;
           }
+          _resetRetry();
           setState(() => _bannerAd = ad as BannerAd);
         },
-        onAdFailedToLoad: (ad, _) => ad.dispose(),
+        onAdFailedToLoad: (ad, _) {
+          ad.dispose();
+          if (_isCurrent(generation)) _scheduleRetry();
+        },
       ),
     );
     ad.load();
+  }
+
+  void _scheduleRetry() {
+    if (_retryTimer != null) return;
+    final delay = _retryDelay;
+    _retryDelay = delay * 2 > _maxRetry ? _maxRetry : delay * 2;
+    _retryTimer = Timer(delay, () {
+      _retryTimer = null;
+      if (mounted && _bannerAd == null) _load();
+    });
+  }
+
+  void _resetRetry() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _retryDelay = _firstRetry;
   }
 
   bool _isCurrent(int generation) => mounted && generation == _generation;
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     widget.ads.adConfigRevision.removeListener(_onAdConfigChanged);
+    widget.ads.adRetryPulse.removeListener(_onRetryPulse);
     _bannerAd?.dispose();
     super.dispose();
   }

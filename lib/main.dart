@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'app.dart';
 import 'services/ads_service.dart';
 import 'services/audio_service.dart';
+import 'services/connectivity_service.dart';
 import 'services/music_service.dart';
 import 'services/storage_service.dart';
 
@@ -16,7 +17,7 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
   final storage = await StorageService.load();
-  final ads = AdsService(storage);
+  final ads = AdsService(storage, connectivity: ConnectivityService());
   unawaited(ads.init());
   unawaited(AudioService.warmUp());
   unawaited(MusicService.warmUp());

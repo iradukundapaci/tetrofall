@@ -102,6 +102,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) setState(() {});
     });
 
+    // And again whenever the ads service recovers — consent that failed for
+    // want of a network resolves long after `init()` completed, and without
+    // this the Privacy rows stay drawn from the answer that failure produced.
+    widget.ads.adRetryPulse.addListener(_onAdRetryPulse);
+
     if (_musicAvailable) return;
     // `main()` fires warmUp() unawaited, so the bundle probe has almost
     // certainly landed by the time anyone reaches Settings — but if it hasn't,
@@ -112,6 +117,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() => _musicAvailable = true);
       }
     });
+  }
+
+  void _onAdRetryPulse() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.ads.adRetryPulse.removeListener(_onAdRetryPulse);
+    super.dispose();
   }
 
   void _onMusicChanged(double value) {
