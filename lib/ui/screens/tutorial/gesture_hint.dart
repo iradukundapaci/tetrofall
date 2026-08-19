@@ -36,18 +36,30 @@ class _GestureHintState extends State<GestureHint>
     TutorialHint.flickDown: Duration(milliseconds: 1500),
   };
 
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: _durations[widget.hint] ?? const Duration(milliseconds: 1500),
-  )..repeat();
+  static Duration _durationFor(TutorialHint hint) =>
+      _durations[hint] ?? const Duration(milliseconds: 1500);
+
+  /// Built here rather than in a `late` field initializer: a [TutorialHint.none]
+  /// step never reads [_controller] from [build], so a lazy field would first
+  /// run its initializer inside [dispose] — asking a defunct element for
+  /// [TickerMode].
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: _durationFor(widget.hint),
+    )..repeat();
+  }
 
   @override
   void didUpdateWidget(GestureHint oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.hint != oldWidget.hint) {
       _controller
-        ..duration =
-            _durations[widget.hint] ?? const Duration(milliseconds: 1500)
+        ..duration = _durationFor(widget.hint)
         ..forward(from: 0)
         ..repeat();
     }
