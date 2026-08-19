@@ -108,6 +108,77 @@ void main() {
     });
   });
 
+  group('settleAbove', () {
+    test('rows at or below the floor keep their overhangs', () {
+      final grid = narrow();
+      paint(grid, 2, '..#.'); // above the floor: must settle
+      paint(grid, 3, '...#'); // the cleared line
+      paint(grid, 4, '..#.'); // below the floor: overhangs a hole
+      paint(grid, 5, '.#..');
+
+      RippleCascade.settleAbove(grid, floorRow: 3);
+
+      expect(read(grid, 2), '....');
+      expect(read(grid, 3), '..##', reason: 'it came to rest on the overhang');
+      expect(read(grid, 4), '..#.', reason: 'the overhang below is untouched');
+      expect(read(grid, 5), '.#..', reason: 'nothing below the floor moves');
+    });
+
+    test('a block above the floor falls past it into a hole below', () {
+      final grid = narrow();
+      paint(grid, 2, '#...');
+      paint(grid, 3, '...#');
+      paint(grid, 4, '..#.');
+      paint(grid, 5, '.#..');
+
+      final falls = RippleCascade.settleAbove(grid, floorRow: 3);
+
+      expect(read(grid, 2), '....');
+      expect(read(grid, 5), '##..', reason: 'col 0 fell all the way to rest');
+      expect(read(grid, 3), '...#', reason: 'the floor row itself is frozen');
+      expect(falls.single.col, 0);
+      expect(falls.single.fromRow, 2);
+      expect(falls.single.toRow, 5);
+    });
+
+    test('a floor at the top of the board releases nothing', () {
+      final grid = narrow();
+      paint(grid, 2, '##..');
+      paint(grid, 5, '..##');
+
+      expect(RippleCascade.settleAbove(grid, floorRow: 0), isEmpty);
+      expect(read(grid, 2), '##..');
+    });
+
+    test('matches the wave it stands in for', () {
+      Grid seeded() {
+        final grid = Grid(cols: 5, visibleRows: 8, spawnRows: 2);
+        paint(grid, 1, '#..#.');
+        paint(grid, 2, '.#...');
+        paint(grid, 4, '##.##');
+        paint(grid, 6, '..#..');
+        paint(grid, 7, '#...#');
+        return grid;
+      }
+
+      const floor = 5;
+      final flushed = seeded();
+      RippleCascade.settleAbove(flushed, floorRow: floor);
+
+      final rippled = seeded();
+      var cursor = RippleCascade.nextFloatingRow(rippled, fromRow: floor - 1);
+      var guard = 0;
+      while (cursor != null && guard++ < 100) {
+        RippleCascade.settleRow(rippled, cursor);
+        cursor = RippleCascade.nextFloatingRow(rippled, fromRow: cursor - 1);
+      }
+
+      for (var r = 0; r <= flushed.maxRow; r++) {
+        expect(read(flushed, r), read(rippled, r), reason: 'row $r');
+      }
+    });
+  });
+
   test('rippling bottom-up converges on the same board as ColumnCascade', () {
     Grid seeded() {
       final grid = Grid(cols: 5, visibleRows: 8, spawnRows: 2);

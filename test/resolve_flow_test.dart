@@ -122,6 +122,44 @@ void main() {
     );
   });
 
+  test('an overhang below the cleared line survives the resolve', () {
+    // The clear happens two rows off the floor. Below it sits a block hanging
+    // over a hole — the player's own doing, nothing to do with this clear — and
+    // the row it would complete if it fell. Collapsing the whole board would
+    // hand out a second clear the player never earned.
+    final grid = Grid();
+    final m = grid.maxRow;
+    for (var c = 0; c < grid.cols; c++) {
+      if (c != holeCol) grid.set(m, c, Cell(BlockType.wood));
+      if (c >= 2) grid.set(m - 2, c, Cell(BlockType.wood));
+    }
+    grid.set(m - 1, 0, Cell(BlockType.wood));
+    grid.set(m - 1, 1, Cell(BlockType.wood));
+    grid.set(m - 1, holeCol, Cell(BlockType.wood)); // the overhang
+
+    final engine = GameEngine(grid: grid, random: Random(1));
+    final result = runResolve(engine);
+
+    expect(result.clears.length, 1, reason: 'the lock clear, and nothing else');
+    expect(engine.chainIndex, 1);
+    expect(
+      engine.grid.at(m - 1, holeCol),
+      isNotNull,
+      reason: 'the overhang below the cleared line must not collapse',
+    );
+    expect(
+      engine.grid.at(m, holeCol),
+      isNull,
+      reason: 'the hole under it is still a hole',
+    );
+    expect(
+      [engine.grid.at(m - 2, 0), engine.grid.at(m - 2, 1)],
+      everyElement(isNotNull),
+      reason: 'the piece above the line still settled into the cleared row',
+    );
+    expect(engine.grid.at(m - 3, 0), isNull, reason: 'it left where it was');
+  });
+
   test('a full-height cascade still finishes inside the hard cap', () {
     // Every row occupied and the bottom one completed by the lock: the worst
     // case the ripple can be handed.

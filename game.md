@@ -141,7 +141,18 @@ Before clear            Row 17 clears           After cascade
   ▓ . . ▓ ▓               ▓ . . ▓ ▓               ▓ ▓ ▓ ▓ ▓
 ```
 
-**A block never stops in mid-air.** It falls until one of two things stops it:
+**Only the stack *above* the cleared line is released.** A clear reopens space
+for what was resting on top of it, and nothing else: rows at or below the
+cleared row keep their overhangs exactly as the player left them, the same way
+they survive a plain lock. In the diagram above, the two bottom rows never move
+— every cell that arrives in them fell from above the cleared row. On a
+multi-row clear the line is the **bottom-most** row cleared, and a later chain
+link only ever widens that window downward, never narrows it: a link clearing
+higher up must not re-freeze rows the wave had already been given permission to
+release.
+
+**A released block never stops in mid-air.** It falls until one of two things
+stops it:
 
 1. the cell directly below it in its own column is occupied, or
 2. it reaches the **board floor** (row `ROWS-1`).
@@ -150,10 +161,11 @@ There is no third case. In the diagram above, the lone block in column 1 falls a
 
 **Interaction with the rise.** The `pendingRow` is *not* part of the grid until `commitRise()` runs, so it is not a landing surface. A block falling while a row is halfway risen settles on the **current** floor, row `ROWS-1` — it never lands on, or sinks into, the partially-emerged row. When that row later commits, it pushes the settled block up along with everything else (§1.4), which keeps the two systems fully independent: cascade resolves against the committed grid only.
 
-**Gravity travels as a wave, one row at a time (`RippleCascade`).** The final resting position is the column rule above, but the stack does not get there in a single step. Gravity releases the bottom-most row that has empty space beneath it; every other row stays frozen exactly where it stands. Once that row is on its way down, the next row up is released, and so on until the wave reaches the top of the stack.
+**Gravity travels as a wave, one row at a time (`RippleCascade`).** The final resting position is the column rule above, but the stack does not get there in a single step. Gravity releases the bottom-most row *above the cleared line* that has empty space beneath it; every other row stays frozen exactly where it stands. Once that row is on its way down, the next row up is released, and so on until the wave reaches the top of the stack.
 
 ```dart
 // engine side, one step per animation beat
+// cursor starts one row above the cleared line, never at the board floor
 int? row = RippleCascade.nextFloatingRow(grid, fromRow: cursor);
 final falls = RippleCascade.settleRow(grid, row);   // this row only
 cursor = row - 1;                                   // wave moves up
@@ -161,7 +173,7 @@ cursor = row - 1;                                   // wave moves up
 
 `settleRow` drops each cell in that row to its own column's resting position, so a released row lands on an uneven surface and **disintegrates into the holes below it**. That is the point: its cells merge with the partial rows underneath, and a merge can complete a row.
 
-**Chain loop.** After every release, rescan for full rows. If any are full, the wave stops, the rows clear (shatter and all), the chain counter increments, and the wave **restarts from the bottom** — the clear has reopened a gap beneath everything still frozen above. Repeat until nothing is floating and nothing is full. Each chain link raises the score multiplier (§1.7), capped at 5.0x.
+**Chain loop.** After every release, rescan for full rows. If any are full, the wave stops, the rows clear (shatter and all), the chain counter increments, and the wave **restarts just above the new cleared line** — the clear has reopened a gap beneath everything still frozen above. Repeat until nothing is floating and nothing is full. Each chain link raises the score multiplier (§1.7), capped at 5.0x.
 
 Because merges clear as they happen rather than after one big collapse, chains run several links longer than a single-step cascade would produce.
 
@@ -174,9 +186,9 @@ resolveTimeScale = clamp(dropIntervalNow / dropIntervalAtStart, 0.35, 1.0)
 chainTimeScale   = resolveTimeScale * max(0.45, 1 - 0.35 * chainIndex)
 ```
 
-Clearing therefore speeds up at exactly the rate the game does, and later chain links compress further. On top of that the wave has a per-pass time budget (`Motion.rippleBudget`): a tall stack compresses its step interval to fit rather than running proportionally longer. If a resolve still exceeds `Motion.resolveHardCap`, the engine stops animating and collapses whatever is left with `ColumnCascade` in one step — an escape hatch so a pathological board can never stall the game.
+Clearing therefore speeds up at exactly the rate the game does, and later chain links compress further. On top of that the wave has a per-pass time budget (`Motion.rippleBudget`): a tall stack compresses its step interval to fit rather than running proportionally longer. If a resolve still exceeds `Motion.resolveHardCap`, the engine stops animating and collapses whatever is left with `RippleCascade.settleAbove` in one step — an escape hatch so a pathological board can never stall the game. That is the same wave run bottom-up without the animation, so it lands on the same board and honours the same cleared line.
 
-**`ColumnCascade`** remains as that escape hatch and as the reference implementation the ripple is tested against: repeatedly releasing rows bottom-up converges on the same board it produces in one pass.
+**`ColumnCascade`** remains as the reference implementation the ripple is tested against: with no line to respect, repeatedly releasing rows bottom-up converges on the same board it produces in one pass. It is not wired into the engine — it repacks whole columns, which would flatten the overhangs below the cleared line.
 
 ```dart
 for (final col in columns) {
@@ -194,7 +206,7 @@ for (final col in columns) {
 
 **Alternate resolver: `StickyGroup`** — flood-fill 4-connected components and drop each as a rigid body. Implemented behind the same `GravityResolver` interface and swappable via a debug flag, so both can be play-tested.
 
-**Gravity only runs as part of a clear.** A plain lock keeps its overhangs — an S-piece resting with one cell hanging over a hole stays there. The wave starts only once a row has been cleared.
+**Gravity only runs as part of a clear, and only above it.** A plain lock keeps its overhangs — an S-piece resting with one cell hanging over a hole stays there. The wave starts only once a row has been cleared, and it reaches only the rows above that row: an overhang three rows off the floor is just as safe from a clear at row 17 as it is from a lock.
 
 ## 1.7 Scoring & combos
 
@@ -403,9 +415,10 @@ lib/
       tetromino.dart             shapes, SRS kicks, 7-bag
       piece_controller.dart      move/rotate/lock/lock-delay
       rise_controller.dart       riseProgress, commitRise, generateRow
-      gravity_resolver.dart      GravityResolver interface
-        column_cascade.dart      ← default
-        sticky_group.dart        ← alternate, debug-swappable
+      gravity_resolver.dart      BlockFall + GravityResolver interface
+        ripple_cascade.dart      ← the live settle, one row at a time
+        column_cascade.dart      ← reference implementation, tests only
+        sticky_group.dart        ← alternate, unwired
       clear_detector.dart
       scoring.dart
       game_engine.dart           state machine + tick order
@@ -1220,7 +1233,7 @@ Everything else is recoverable later. These four are structural.
 | Decision | Choice | Rationale |
 |---|---|---|
 | Board size | 10 × 20 | Tetris-standard; fits portrait `375×812` cleanly. |
-| Gravity resolver | `ColumnCascade` default | Produces more chains and reads more clearly in motion than sticky groups. `StickyGroup` stays implemented behind a flag for play-testing. |
+| Gravity resolver | `RippleCascade`, bounded to the rows above the cleared line | Independent per-column falls produce more chains and read more clearly in motion than sticky groups. Bounding the wave to the cleared line keeps the player's own overhangs their problem — a clear must not tidy up the whole board. |
 | Rotation | SRS + wall kicks | Players carry muscle memory from other stackers; deviating feels broken. |
 | Randomizer | 7-bag | Eliminates drought frustration — important when a timer is already applying pressure. |
 | Hold piece | Deferred | The rise mechanic already supplies the pressure Hold would relieve; adding both dilutes the twist. |

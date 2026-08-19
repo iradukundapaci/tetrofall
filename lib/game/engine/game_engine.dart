@@ -4,7 +4,6 @@ import 'dart:math';
 import '../config/difficulty.dart';
 import '../config/motion.dart';
 import 'clear_detector.dart';
-import 'column_cascade.dart';
 import 'events.dart';
 import 'gravity_resolver.dart';
 import 'grid.dart';
@@ -63,8 +62,6 @@ class GameEngine {
 
   GamePhase phase = GamePhase.ready;
 
-  GravityResolver resolver = ColumnCascade();
-
   int chainIndex = 0;
 
   /// Tutorial hold. While set, the run's clocks stop — the rise neither
@@ -96,6 +93,13 @@ class GameEngine {
   /// Rows still holding blocks at or above [_rippleRow], used to pace the wave
   /// against [Motion.rippleBudget].
   int _rippleRowsRemaining = 0;
+
+  /// Bottom-most row cleared so far this resolve. Gravity releases only rows
+  /// strictly above it — a clear reopens space for the stack sitting on top of
+  /// it, not for the overhangs beneath it, which stay exactly as the player
+  /// left them. Null until the first clear, because gravity only ever runs as
+  /// part of a clear.
+  int? _gravityFloor;
 
   /// Longest flight still in the air, counted down alongside [_resolveTimer].
   /// Nothing may clear a row until this reaches zero.
@@ -344,6 +348,7 @@ class GameEngine {
     _resolveElapsed = 0;
     _flightRemaining = 0;
     _flushed = false;
+    _gravityFloor = null;
     scoring.startResolve();
   }
 
@@ -379,6 +384,7 @@ class GameEngine {
     }
 
     final removedCells = _stripRows(fullRows);
+    _lowerGravityFloor(fullRows);
 
     scoring.addDestroyed(removedCells.length);
     scoring.awardLineClear(
@@ -411,6 +417,16 @@ class GameEngine {
     return removedCells;
   }
 
+  /// Widens the settle window down to the rows just cleared. Monotonic on
+  /// purpose: a later chain link that clears higher up must not re-freeze rows
+  /// the wave already had permission to release, or blocks it had not reached
+  /// yet would be stranded in mid-air for the rest of the resolve.
+  void _lowerGravityFloor(List<int> clearedRows) {
+    final lowest = clearedRows.reduce(max);
+    final current = _gravityFloor;
+    if (current == null || lowest > current) _gravityFloor = lowest;
+  }
+
   /// [resolveTimeScale], tightened further as a chain deepens. The player has
   /// already watched the first shatter and the first wave; replaying both at
   /// full length for every link would be a very long time to sit through.
@@ -427,11 +443,15 @@ class GameEngine {
   double get _hardCapSeconds =>
       Motion.resolveHardCap.inMilliseconds / 1000 * resolveTimeScale;
 
-  /// Starts the gravity wave at the bottom of the stack. Every clear restarts
-  /// it here, because a cleared row reopens a gap below whatever is still
-  /// frozen higher up.
+  /// Starts the gravity wave just above the cleared line. Every clear restarts
+  /// it there, because a cleared row reopens a gap below whatever is still
+  /// frozen higher up — while everything at or below that line keeps standing
+  /// on its own overhangs, which this clear never disturbed.
   void _beginRipple() {
-    final row = RippleCascade.nextFloatingRow(grid, fromRow: grid.maxRow - 1);
+    final floor = _gravityFloor;
+    final row = floor == null
+        ? null
+        : RippleCascade.nextFloatingRow(grid, fromRow: floor - 1);
     if (row == null) {
       _resolveTimer = 0;
       phase = GamePhase.spawning;
@@ -498,18 +518,26 @@ class GameEngine {
     return max(Motion.rippleStepMin.inMilliseconds / 1000, min(base, paced));
   }
 
+  /// The flush's one-pass equivalent of the wave, under the same floor rule.
+  List<BlockFall> _settleAboveFloor() {
+    final floor = _gravityFloor;
+    if (floor == null) return const [];
+    return RippleCascade.settleAbove(grid, floorRow: floor);
+  }
+
   /// Escape hatch for a resolve that has outrun [Motion.resolveHardCap]:
-  /// collapse everything left in one [ColumnCascade] pass and sweep out any
+  /// collapse everything above the cleared line in one pass and sweep out any
   /// rows that completes. Only the final settle animates — intermediate
   /// movement snaps — because correctness of pace matters more here than
   /// polish on a case that should almost never fire.
   void _flushResolve() {
     _flushed = true;
-    var falls = resolver.resolve(grid);
+    var falls = _settleAboveFloor();
     for (var guard = 0; guard <= grid.visibleRows; guard++) {
       final fullRows = ClearDetector.findFullRows(grid);
       if (fullRows.isEmpty) break;
       final removedCells = _stripRows(fullRows);
+      _lowerGravityFloor(fullRows);
       scoring.addDestroyed(removedCells.length);
       scoring.awardLineClear(
         lines: fullRows.length,
@@ -521,7 +549,7 @@ class GameEngine {
       );
       _emit(ChainAdvancedEvent(chainIndex));
       chainIndex++;
-      falls = resolver.resolve(grid);
+      falls = _settleAboveFloor();
     }
 
     if (falls.isNotEmpty) {

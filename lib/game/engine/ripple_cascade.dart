@@ -57,6 +57,18 @@ abstract final class RippleCascade {
     return falls;
   }
 
+  /// The board the wave converges on, in one pass — for the hard cap, where
+  /// the engine gives up on animating and collapses whatever is left. Rows at
+  /// or below [floorRow] keep their overhangs, exactly as they do during the
+  /// wave: releasing them is not this clear's business.
+  static List<BlockFall> settleAbove(Grid grid, {required int floorRow}) {
+    final falls = <BlockFall>[];
+    for (var r = floorRow - 1; r >= 0; r--) {
+      falls.addAll(settleRow(grid, r));
+    }
+    return falls;
+  }
+
   /// Rows at or above [fromRow] that still hold at least one block, i.e. how
   /// many more ripple steps the cascade could still take. Used to pace the
   /// wave against its time budget so a tall stack compresses instead of
