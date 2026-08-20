@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/tokens.dart';
+import '../../theme/ui_scale.dart';
+import '../../widgets/modal_overlay.dart';
 import '../../widgets/panel.dart';
 import '../../widgets/primary_button.dart';
 import 'gesture_hint.dart';
@@ -76,53 +78,51 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
 
   Widget _buildModal() {
     final c = widget.controller;
-    return ColoredBox(
-      color: Colors.black.withValues(alpha: 0.55),
-      child: Center(
-        child: SizedBox(
-          width: 300,
-          child: AppPanel(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  c.title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontFamily: Tokens.fontDisplay,
-                    fontSize: Tokens.fontSizeXl,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.0,
-                    color: Tokens.colorText,
-                  ),
-                ),
-                const SizedBox(height: Tokens.spaceMd),
-                Text(
-                  c.body,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: Tokens.fontSizeSm,
-                    fontWeight: FontWeight.w600,
-                    color: Tokens.colorTextMuted,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: Tokens.spaceLg),
-                PrimaryButton(
-                  label: c.buttonLabel ?? 'Continue',
-                  fontSize: Tokens.fontSizeMd,
-                  onPressed: c.advance,
-                ),
-                // Nothing left to skip on the closing card — its own button
-                // already does exactly what Skip would.
-                if (c.step != TutorialStep.done) ...[
-                  const SizedBox(height: Tokens.spaceSm),
-                  _SkipButton(onPressed: c.skip),
-                ],
-              ],
+    final ui = context.scale;
+    // The body rather than [ModalOverlay] itself: `build` already owns this
+    // overlay's `Positioned.fill`, and the coach branch needs to keep it.
+    return ModalOverlayBody(
+      scrimOpacity: 0.55,
+      child: AppPanel(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              c.title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: Tokens.fontDisplay,
+                fontSize: ui.fontXl,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+                color: Tokens.colorText,
+              ),
             ),
-          ),
+            SizedBox(height: ui.spaceMd),
+            Text(
+              c.body,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: ui.fontSm,
+                fontWeight: FontWeight.w600,
+                color: Tokens.colorTextMuted,
+                height: 1.4,
+              ),
+            ),
+            SizedBox(height: ui.spaceLg),
+            PrimaryButton(
+              label: c.buttonLabel ?? 'Continue',
+              fontSize: ui.fontMd,
+              onPressed: c.advance,
+            ),
+            // Nothing left to skip on the closing card — its own button
+            // already does exactly what Skip would.
+            if (c.step != TutorialStep.done) ...[
+              SizedBox(height: ui.spaceSm),
+              _SkipButton(onPressed: c.skip),
+            ],
+          ],
         ),
       ),
     );
@@ -138,7 +138,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
 
     final c = widget.controller;
     final card = Padding(
-      padding: const EdgeInsets.all(Tokens.spaceMd),
+      padding: EdgeInsets.all(context.scale.spaceMd),
       child: _CoachCard(text: c.body, onSkip: c.skip),
     );
 
@@ -176,19 +176,20 @@ class _CoachCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 340),
+        constraints: BoxConstraints(maxWidth: ui.px(340)),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(
-            Tokens.spaceMd,
-            Tokens.spaceMd,
-            Tokens.spaceMd,
-            Tokens.spaceSm,
+          padding: EdgeInsets.fromLTRB(
+            ui.spaceMd,
+            ui.spaceMd,
+            ui.spaceMd,
+            ui.spaceSm,
           ),
           decoration: BoxDecoration(
             color: const Color(0xE0140C06),
-            borderRadius: BorderRadius.circular(Tokens.radiusMd),
+            borderRadius: BorderRadius.circular(ui.radiusMd),
             border: Border.all(color: Tokens.colorPanelBorder),
             boxShadow: const [Tokens.shadowSoft],
           ),
@@ -198,9 +199,9 @@ class _CoachCard extends StatelessWidget {
               Text(
                 text,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: Tokens.fontDisplay,
-                  fontSize: Tokens.fontSizeMd,
+                  fontSize: ui.fontMd,
                   fontWeight: FontWeight.w700,
                   color: Tokens.colorText,
                   height: 1.35,
@@ -224,11 +225,11 @@ class _SkipButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextButton(
       onPressed: onPressed,
-      child: const Text(
+      child: Text(
         'Skip',
         style: TextStyle(
           fontFamily: Tokens.fontDisplay,
-          fontSize: Tokens.fontSizeSm,
+          fontSize: context.scale.fontSm,
           fontWeight: FontWeight.w700,
           color: Tokens.colorTextMuted,
           letterSpacing: 0.5,

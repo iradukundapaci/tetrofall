@@ -10,9 +10,15 @@ import '../../services/ads_service.dart';
 /// area above it never resizes when an ad loads late, fails to load, or
 /// isn't requested at all.
 class BannerAdSlot extends StatefulWidget {
-  const BannerAdSlot({super.key, required this.ads});
+  const BannerAdSlot({super.key, required this.ads, this.bottomInset = 0});
 
   final AdsService ads;
+
+  /// Bottom safe-area inset to keep clear *below* the ad. Gameplay passes
+  /// whatever vertical slack it has left after sizing the board, so the
+  /// banner is held above the home indicator when there is room to spare and
+  /// runs edge to edge when there is not.
+  final double bottomInset;
 
   @override
   State<BannerAdSlot> createState() => _BannerAdSlotState();
@@ -50,10 +56,14 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
     if (_requested) return;
     _requested = true;
 
-    _width = MediaQuery.sizeOf(context).width.truncate();
+    final screen = MediaQuery.sizeOf(context);
+    _width = screen.width.truncate();
     // Locked in for the lifetime of this slot: even if the measured size
     // arrives later and differs, the layout must not shift mid-run.
-    _slotHeight = widget.ads.reservedBannerHeight(_width);
+    _slotHeight = widget.ads.reservedBannerHeight(
+      _width,
+      screenHeight: screen.height,
+    );
     _load();
   }
 
@@ -111,7 +121,16 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
             return;
           }
           _resetRetry();
-          setState(() => _bannerAd = ad as BannerAd);
+          setState(() {
+            _bannerAd = ad as BannerAd;
+            // An *estimated* reserve can undershoot on a first-ever cold
+            // start, before this device has measured a banner at all.
+            // Growing the slot once beats clipping the ad; from the second
+            // run on the height is measured and persisted, so this never
+            // fires and the board still never moves mid-run.
+            final loaded = ad.size.height.toDouble();
+            if (loaded > _slotHeight) _slotHeight = loaded;
+          });
         },
         onAdFailedToLoad: (ad, _) {
           ad.dispose();
@@ -154,16 +173,25 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
     final ad = _bannerAd;
     return SizedBox(
       width: double.infinity,
-      height: _slotHeight,
-      child: ad == null
-          ? null
-          : Center(
-              child: SizedBox(
-                width: ad.size.width.toDouble(),
-                height: ad.size.height.toDouble(),
-                child: AdWidget(ad: ad),
+      height: _slotHeight + widget.bottomInset,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: widget.bottomInset),
+        // Bottom-aligned, not centred. The slot is a *reservation*, and any
+        // slack between what was reserved and the ad that actually turned up
+        // has to collect above the ad, where it reads as board padding.
+        // `Center` split it in two, and the half below the ad showed as a
+        // dark band between the banner and the home indicator.
+        child: ad == null
+            ? null
+            : Align(
+                alignment: Alignment.bottomCenter,
+                child: SizedBox(
+                  width: ad.size.width.toDouble(),
+                  height: ad.size.height.toDouble(),
+                  child: AdWidget(ad: ad),
+                ),
               ),
-            ),
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
-import 'dart:ui' as ui;
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../../services/ads_service.dart';
 import '../../services/music_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/tokens.dart';
+import '../theme/ui_scale.dart';
 import '../widgets/banner_ad_slot.dart';
 import 'confirm_quit_overlay.dart';
 import 'game_over_overlay.dart';
@@ -292,62 +294,88 @@ class _GameplayBody extends StatelessWidget {
   final bool dimmed;
   final GlobalKey boardKey;
 
+  /// Aspect ratio of the visible grid — 18:32, which is exactly 9:16. That
+  /// equality is why the layout below is so miserly with vertical space: on a
+  /// 9:16 phone the board is height-bound, so every point of chrome above or
+  /// below it comes back out of the board's *width* at 0.5625 points a time.
+  static const _boardAspect = BoardConfig.cols / BoardConfig.rows;
+
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
+    final size = MediaQuery.sizeOf(context);
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+
+    // Every input here is known before layout — which is the whole reason
+    // ScoreHud has a fixed height and the banner slot reserves synchronously.
+    final bannerHeight = ads.reservedBannerHeight(
+      size.width.truncate(),
+      screenHeight: size.height,
+    );
+    final chrome =
+        viewPadding.top + ui.hudHeight + bannerHeight + ui.spaceXs * 2;
+
+    // What the board would want if it were width-bound: filling the screen
+    // edge to edge. Anything left over after that is genuine slack.
+    final boardWantsHeight = (size.width - ui.spaceSm * 2) / _boardAspect;
+    final slack = size.height - chrome - boardWantsHeight;
+
+    // Spend whatever slack exists on holding the banner clear of the home
+    // indicator. When there is none, the banner runs edge to edge rather than
+    // taking the inset out of the board.
+    final bannerBottomInset = slack <= 0
+        ? 0.0
+        : math.min(viewPadding.bottom, slack);
+
     final content = DecoratedBox(
       decoration: const BoxDecoration(gradient: Tokens.bgWoodGradient),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            ScoreHud(game: game, storage: storage),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  Tokens.spaceMd,
-                  Tokens.spaceSm,
-                  Tokens.spaceMd,
-                  Tokens.spaceMd,
-                ),
-                child: Center(
-                  child: AspectRatio(
-                    aspectRatio: BoardConfig.cols / BoardConfig.rows,
-                    child: DecoratedBox(
-                      key: boardKey,
-                      decoration: BoxDecoration(
-                        color: const Color(0x47000000),
-                        border: Border.all(
-                          color: const Color(0x4DF5EAD9),
-                          width: 3,
-                        ),
-                        borderRadius: BorderRadius.circular(
-                          Tokens.radiusSm + 2,
-                        ),
-                        boxShadow: const [Tokens.shadowSoft],
+      child: Column(
+        children: [
+          ScoreHud(game: game, storage: storage),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: ui.spaceSm,
+                vertical: ui.spaceXs,
+              ),
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: _boardAspect,
+                  child: DecoratedBox(
+                    key: boardKey,
+                    decoration: BoxDecoration(
+                      color: const Color(0x47000000),
+                      border: Border.all(
+                        color: const Color(0x4DF5EAD9),
+                        width: ui.px(Tokens.borderBoard),
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(Tokens.radiusSm),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Listener(
-                            onPointerDown: (e) {
-                              if (game.paused) return;
-                              game.gestureHandler.onPointerDown(e);
-                            },
-                            onPointerMove: (e) {
-                              if (game.paused) return;
-                              game.gestureHandler.onPointerMove(e);
-                            },
-                            onPointerUp: (e) {
-                              if (game.paused) return;
-                              game.gestureHandler.onPointerUp(e);
-                            },
-                            onPointerCancel: (e) {
-                              if (game.paused) return;
-                              game.gestureHandler.onPointerCancel(e);
-                            },
-                            child: GameWidget(game: game),
-                          ),
+                      borderRadius: BorderRadius.circular(
+                        ui.radiusSm + ui.px(2),
+                      ),
+                      boxShadow: const [Tokens.shadowSoft],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(ui.radiusSm),
+                      child: Padding(
+                        padding: EdgeInsets.all(ui.px(Tokens.boardInset)),
+                        child: Listener(
+                          onPointerDown: (e) {
+                            if (game.paused) return;
+                            game.gestureHandler.onPointerDown(e);
+                          },
+                          onPointerMove: (e) {
+                            if (game.paused) return;
+                            game.gestureHandler.onPointerMove(e);
+                          },
+                          onPointerUp: (e) {
+                            if (game.paused) return;
+                            game.gestureHandler.onPointerUp(e);
+                          },
+                          onPointerCancel: (e) {
+                            if (game.paused) return;
+                            game.gestureHandler.onPointerCancel(e);
+                          },
+                          child: GameWidget(game: game),
                         ),
                       ),
                     ),
@@ -355,9 +383,9 @@ class _GameplayBody extends StatelessWidget {
                 ),
               ),
             ),
-            BannerAdSlot(ads: ads),
-          ],
-        ),
+          ),
+          BannerAdSlot(ads: ads, bottomInset: bannerBottomInset),
+        ],
       ),
     );
 
@@ -372,7 +400,7 @@ class _GameplayBody extends StatelessWidget {
       ignoring: dimmed,
       child: ImageFiltered(
         enabled: dimmed,
-        imageFilter: ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+        imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
         child: Opacity(opacity: dimmed ? 0.4 : 1.0, child: content),
       ),
     );

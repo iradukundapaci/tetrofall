@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
+import '../theme/ui_scale.dart';
 
 /// Port of `.btn-primary` — the one bright, high-emphasis action on a
 /// screen (PLAY, Play Again, Resume).
@@ -10,22 +11,26 @@ class PrimaryButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.icon,
-    this.fontSize = Tokens.fontSizeLg,
+    this.fontSize,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final Widget? icon;
-  final double fontSize;
+
+  /// Null means "the scaled default" — callers only pass this to pick a
+  /// different step on the type scale, not to opt out of scaling.
+  final double? fontSize;
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return _JuiceButton(
       onPressed: onPressed,
       builder: (pressed) => Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Tokens.spaceXl,
-          vertical: 14,
+        padding: EdgeInsets.symmetric(
+          horizontal: ui.spaceXl,
+          vertical: ui.px(Tokens.buttonPadYLg),
         ),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
@@ -33,21 +38,29 @@ class PrimaryButton extends StatelessWidget {
             end: Alignment.bottomCenter,
             colors: [Tokens.colorGold, Color(0xFFD99A1F)],
           ),
-          borderRadius: BorderRadius.circular(Tokens.radiusLg),
+          borderRadius: BorderRadius.circular(ui.radiusLg),
           boxShadow: pressed ? const [] : const [Tokens.shadowSoft],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[icon!, const SizedBox(width: Tokens.spaceSm)],
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: Tokens.fontDisplay,
-                fontSize: fontSize,
-                fontWeight: FontWeight.w700,
-                color: Tokens.colorWoodDark,
+            if (icon != null) ...[icon!, SizedBox(width: ui.spaceSm)],
+            // Shrinks to fit rather than overflowing. A long label inside a
+            // panel-width column on a 320pt screen — "Watch Ad to Continue"
+            // is the worst case — has nowhere else to go.
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: Tokens.fontDisplay,
+                    fontSize: fontSize ?? ui.fontLg,
+                    fontWeight: FontWeight.w700,
+                    color: Tokens.colorWoodDark,
+                  ),
+                ),
               ),
             ),
           ],
@@ -66,11 +79,17 @@ class SecondaryButton extends StatelessWidget {
     required this.onPressed,
     this.icon,
     this.highlighted = false,
+    this.fontSize,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final Widget? icon;
+
+  /// Null means "the scaled default". Matches [PrimaryButton] — without it,
+  /// game-over's "Watch Ad to Continue" had no way to shrink on a narrow
+  /// screen while the button beside it did.
+  final double? fontSize;
 
   /// Gold "active/confirmed" tint — e.g. main-menu.html's `.is-purchased`
   /// state — distinct from the disabled (null onPressed) dim.
@@ -78,12 +97,13 @@ class SecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return _JuiceButton(
       onPressed: onPressed,
       builder: (pressed) => Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Tokens.spaceLg,
-          vertical: 12,
+        padding: EdgeInsets.symmetric(
+          horizontal: ui.spaceLg,
+          vertical: ui.px(Tokens.buttonPadYMd),
         ),
         decoration: BoxDecoration(
           color: highlighted
@@ -91,24 +111,29 @@ class SecondaryButton extends StatelessWidget {
               : pressed
               ? const Color(0x1AFFFFFF)
               : Tokens.colorPanel,
-          borderRadius: BorderRadius.circular(Tokens.radiusLg),
+          borderRadius: BorderRadius.circular(ui.radiusLg),
           border: Border.all(
             color: highlighted ? Tokens.colorGold : Tokens.colorPanelBorder,
-            width: 2,
+            width: ui.borderThick,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[icon!, const SizedBox(width: Tokens.spaceSm)],
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: Tokens.fontDisplay,
-                fontSize: Tokens.fontSizeMd,
-                fontWeight: FontWeight.w600,
-                color: highlighted ? Tokens.colorGold : Tokens.colorText,
+            if (icon != null) ...[icon!, SizedBox(width: ui.spaceSm)],
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: Tokens.fontDisplay,
+                    fontSize: fontSize ?? ui.fontMd,
+                    fontWeight: FontWeight.w600,
+                    color: highlighted ? Tokens.colorGold : Tokens.colorText,
+                  ),
+                ),
               ),
             ),
           ],

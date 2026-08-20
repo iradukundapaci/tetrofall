@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +16,7 @@ import '../../services/music_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
+import '../theme/ui_scale.dart';
 import '../widgets/counter_pill.dart';
 import '../widgets/icon_button.dart';
 import '../widgets/primary_button.dart';
@@ -142,6 +143,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return Scaffold(
       backgroundColor: Tokens.colorBg,
       body: Stack(
@@ -151,7 +153,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               child: _demoGame == null
                   ? const ColoredBox(color: Tokens.colorBg)
                   : ImageFiltered(
-                      imageFilter: ui.ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
+                      imageFilter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
                       child: GameWidget(game: _demoGame!),
                     ),
             ),
@@ -159,11 +161,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           const Positioned.fill(child: _MenuScrim()),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                Tokens.spaceLg,
-                Tokens.spaceLg,
-                Tokens.spaceLg,
-                Tokens.spaceXl,
+              padding: EdgeInsets.fromLTRB(
+                ui.spaceLg,
+                ui.spaceLg,
+                ui.spaceLg,
+                ui.spaceXl,
               ),
               child: Column(
                 children: [
@@ -185,8 +187,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         tooltip: 'Settings',
                         icon: SvgPicture.asset(
                           AppIcons.settings,
-                          width: 20,
-                          height: 20,
+                          width: ui.iconMd,
+                          height: ui.iconMd,
                           colorFilter: const ColorFilter.mode(
                             Tokens.colorText,
                             BlendMode.srcIn,
@@ -210,10 +212,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(
-                            width: 160,
+                            width: ui.px(Tokens.menuPlayWidth),
                             child: PrimaryButton(
                               label: 'PLAY',
-                              fontSize: Tokens.fontSizeMd,
+                              fontSize: ui.fontMd,
                               onPressed: _openGameplay,
                             ),
                           ),

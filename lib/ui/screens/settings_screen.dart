@@ -10,6 +10,7 @@ import '../../services/music_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
+import '../theme/ui_scale.dart';
 
 /// Source of truth for the policy, and the same URL given to Play Console as
 /// the listing's privacy policy — the two must not diverge, because Play
@@ -247,21 +248,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return Scaffold(
       backgroundColor: Tokens.colorBg,
       body: DecoratedBox(
         decoration: const BoxDecoration(gradient: Tokens.bgWoodGradient),
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: Tokens.spaceLg,
-              vertical: Tokens.spaceMd,
+            padding: EdgeInsets.symmetric(
+              horizontal: ui.spaceLg,
+              vertical: ui.spaceMd,
             ),
             children: [
               _Header(onBack: () => Navigator.of(context).maybePop()),
-              const SizedBox(height: Tokens.spaceLg),
-              const _SectionTitle('SOUND'),
-              const SizedBox(height: Tokens.spaceSm),
+              SizedBox(height: ui.spaceLg),
+              _SectionTitle('SOUND'),
+              SizedBox(height: ui.spaceSm),
               if (_musicAvailable) ...[
                 _VolumeRow(
                   icon: AppIcons.music,
@@ -270,7 +272,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: _onMusicChanged,
                   onToggleMute: _toggleMusicMute,
                 ),
-                const SizedBox(height: Tokens.spaceSm),
+                SizedBox(height: ui.spaceSm),
               ],
               _VolumeRow(
                 icon: AppIcons.sound,
@@ -280,32 +282,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onSettled: _previewSfx,
                 onToggleMute: _toggleSfxMute,
               ),
-              const SizedBox(height: Tokens.spaceLg),
-              const _SectionTitle('GAMEPLAY'),
-              const SizedBox(height: Tokens.spaceSm),
+              SizedBox(height: ui.spaceLg),
+              _SectionTitle('GAMEPLAY'),
+              SizedBox(height: ui.spaceSm),
               _ToggleRow(
                 icon: AppIcons.star,
                 label: 'Ghost Piece',
                 value: _ghostPiece,
                 onChanged: _onGhostPieceChanged,
               ),
-              const SizedBox(height: Tokens.spaceSm),
+              SizedBox(height: ui.spaceSm),
               _ToggleRow(
                 icon: AppIcons.trophy,
                 label: 'Adjust start speed to my best score',
                 value: _adaptiveStartSpeed,
                 onChanged: _onAdaptiveStartSpeedChanged,
               ),
-              const SizedBox(height: Tokens.spaceSm),
+              SizedBox(height: ui.spaceSm),
               _ToggleRow(
                 icon: AppIcons.vibrate,
                 label: 'Vibration',
                 value: _vibrate,
                 onChanged: _onVibrateChanged,
               ),
-              const SizedBox(height: Tokens.spaceLg),
-              const _SectionTitle('PRIVACY & LEGAL'),
-              const SizedBox(height: Tokens.spaceSm),
+              SizedBox(height: ui.spaceLg),
+              _SectionTitle('PRIVACY & LEGAL'),
+              SizedBox(height: ui.spaceSm),
               // Only where UMP actually has a form to show — see
               // AdsService.privacyOptionsRequired. Elsewhere this row would be
               // a button that does nothing.
@@ -315,7 +317,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'Privacy Settings',
                   onTap: _openingPrivacyOptions ? null : _openPrivacyOptions,
                 ),
-                const SizedBox(height: Tokens.spaceSm),
+                SizedBox(height: ui.spaceSm),
               ],
               // Unconditional, unlike the row above: everywhere UMP declines to
               // show a form, this is the player's only say over personalised
@@ -329,20 +331,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? _onPersonalizedAdsChanged
                     : null,
               ),
-              const SizedBox(height: Tokens.spaceSm),
+              SizedBox(height: ui.spaceSm),
               _LinkRow(
                 icon: AppIcons.lock,
                 label: 'Privacy Policy',
                 onTap: _openPrivacyPolicy,
               ),
-              const SizedBox(height: Tokens.spaceLg),
-              const _SectionTitle('ABOUT'),
-              const SizedBox(height: Tokens.spaceSm),
-              const Text(
+              SizedBox(height: ui.spaceLg),
+              _SectionTitle('ABOUT'),
+              SizedBox(height: ui.spaceSm),
+              Text(
                 'Tetrofall v1.0.0',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: Tokens.fontSizeXs,
+                  fontSize: ui.fontXs,
                   color: Tokens.colorTextMuted,
                 ),
               ),
@@ -361,26 +363,28 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return Row(
       children: [
         IconButton(
           onPressed: onBack,
           icon: const Icon(Icons.arrow_back, color: Tokens.colorText),
         ),
-        const Expanded(
+        Expanded(
           child: Text(
             'SETTINGS',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: Tokens.fontDisplay,
-              fontSize: Tokens.fontSizeXl,
+              fontSize: ui.fontXl,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
               color: Tokens.colorText,
             ),
           ),
         ),
-        const SizedBox(width: 48),
+        // Mirrors the leading IconButton so the title stays centred.
+        SizedBox(width: ui.tap),
       ],
     );
   }
@@ -395,8 +399,8 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        fontSize: Tokens.fontSizeXs,
+      style: TextStyle(
+        fontSize: context.scale.fontXs,
         fontWeight: FontWeight.w800,
         letterSpacing: 1.2,
         color: Tokens.colorTextMuted,
@@ -412,11 +416,12 @@ class _RowShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return Container(
-      padding: const EdgeInsets.all(Tokens.spaceMd),
+      padding: EdgeInsets.all(ui.spaceMd),
       decoration: BoxDecoration(
         color: Tokens.colorPanel,
-        borderRadius: BorderRadius.circular(Tokens.radiusLg),
+        borderRadius: BorderRadius.circular(ui.radiusLg),
         border: Border.all(color: Tokens.colorPanelBorder),
         boxShadow: const [Tokens.shadowSoft],
       ),
@@ -444,21 +449,22 @@ class _ToggleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = onChanged == null ? Tokens.colorTextMuted : Tokens.colorText;
+    final ui = context.scale;
     return _RowShell(
       child: Row(
         children: [
           SvgPicture.asset(
             icon,
-            width: 20,
-            height: 20,
+            width: ui.iconMd,
+            height: ui.iconMd,
             colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
           ),
-          const SizedBox(width: Tokens.spaceMd),
+          SizedBox(width: ui.spaceMd),
           Expanded(
             child: Text(
               label,
               style: TextStyle(
-                fontSize: Tokens.fontSizeSm,
+                fontSize: ui.fontSm,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
@@ -495,29 +501,30 @@ class _LinkRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return _RowShell(
       // Inside the shell rather than around it, so the ripple is clipped to
       // the panel's corner radius instead of squaring it off.
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(Tokens.radiusSm),
+        borderRadius: BorderRadius.circular(ui.radiusLg),
         child: Row(
           children: [
             SvgPicture.asset(
               icon,
-              width: 20,
-              height: 20,
+              width: ui.iconMd,
+              height: ui.iconMd,
               colorFilter: ColorFilter.mode(
                 onTap == null ? Tokens.colorTextMuted : Tokens.colorText,
                 BlendMode.srcIn,
               ),
             ),
-            const SizedBox(width: Tokens.spaceMd),
+            SizedBox(width: ui.spaceMd),
             Expanded(
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: Tokens.fontSizeSm,
+                  fontSize: ui.fontSm,
                   fontWeight: FontWeight.bold,
                   color: onTap == null
                       ? Tokens.colorTextMuted
@@ -527,8 +534,8 @@ class _LinkRow extends StatelessWidget {
             ),
             SvgPicture.asset(
               AppIcons.chevronRight,
-              width: 18,
-              height: 18,
+              width: ui.iconSm,
+              height: ui.iconSm,
               colorFilter: const ColorFilter.mode(
                 Tokens.colorTextMuted,
                 BlendMode.srcIn,
@@ -568,6 +575,7 @@ class _VolumeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return _RowShell(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -576,19 +584,19 @@ class _VolumeRow extends StatelessWidget {
             children: [
               SvgPicture.asset(
                 icon,
-                width: 20,
-                height: 20,
+                width: ui.iconMd,
+                height: ui.iconMd,
                 colorFilter: const ColorFilter.mode(
                   Tokens.colorText,
                   BlendMode.srcIn,
                 ),
               ),
-              const SizedBox(width: Tokens.spaceMd),
+              SizedBox(width: ui.spaceMd),
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(
-                    fontSize: Tokens.fontSizeSm,
+                  style: TextStyle(
+                    fontSize: ui.fontSm,
                     fontWeight: FontWeight.bold,
                     color: Tokens.colorText,
                   ),
@@ -597,8 +605,8 @@ class _VolumeRow extends StatelessWidget {
               GestureDetector(
                 onTap: onToggleMute,
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: ui.tap,
+                  height: ui.tap,
                   decoration: BoxDecoration(
                     color: _muted ? const Color(0x38D9432E) : Tokens.colorPanel,
                     shape: BoxShape.circle,
@@ -608,7 +616,7 @@ class _VolumeRow extends StatelessWidget {
                   ),
                   child: Icon(
                     _muted ? Icons.volume_off : Icons.volume_up,
-                    size: 18,
+                    size: ui.iconSm,
                     color: _muted ? Tokens.colorRed : Tokens.colorText,
                   ),
                 ),
@@ -621,7 +629,7 @@ class _VolumeRow extends StatelessWidget {
               inactiveTrackColor: const Color(0x59000000),
               thumbColor: Tokens.colorGold,
               overlayColor: const Color(0x33F2B632),
-              trackHeight: 8,
+              trackHeight: ui.px(Tokens.sliderTrackHeight),
             ),
             child: Slider(
               value: value,

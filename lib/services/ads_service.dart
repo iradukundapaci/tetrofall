@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -147,11 +148,30 @@ class AdsService {
   /// whether or not an ad is (or ever will be) loaded there — so the play
   /// area's size doesn't depend on ad fill. Prefers the size measured this
   /// session, then the one this device measured previously.
-  double reservedBannerHeight(int width) {
+  /// Height an anchored adaptive banner takes on a device that has never
+  /// measured one, following AdMob's own anchored rule — 32 / 50 / 90 by
+  /// screen height, capped at 15% of it.
+  ///
+  /// Worth having rather than reserving a flat [fallbackBannerHeight]
+  /// everywhere: on a 360x640 phone the real banner is 50pt, so the flat 100
+  /// over-reserved by half a slot, and that 50pt came straight off the
+  /// board's height — and, through its 9:16 aspect, off its width.
+  static double estimateBannerHeight(double screenHeight) {
+    final tier = screenHeight <= 400
+        ? 32.0
+        : screenHeight <= 720
+        ? 50.0
+        : 90.0;
+    return math.min(tier, screenHeight * 0.15);
+  }
+
+  double reservedBannerHeight(int width, {double? screenHeight}) {
     final measured = _bannerSizeWidth == width ? _bannerSize : null;
     return measured?.height.toDouble() ??
         _storage.bannerAdHeightForWidth(width)?.toDouble() ??
-        fallbackBannerHeight;
+        (screenHeight == null
+            ? fallbackBannerHeight
+            : estimateBannerHeight(screenHeight));
   }
 
   /// Measures the anchored-adaptive banner size for a screen [width] in

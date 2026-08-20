@@ -4,6 +4,8 @@ import '../../game/tetrofall_game.dart';
 import '../../services/ads_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/tokens.dart';
+import '../theme/ui_scale.dart';
+import '../widgets/modal_overlay.dart';
 import '../widgets/panel.dart';
 import '../widgets/primary_button.dart';
 import 'settings_screen.dart';
@@ -33,67 +35,60 @@ class PauseOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: ColoredBox(
-        color: Colors.black.withValues(alpha: 0.5),
-        child: Center(
-          child: SizedBox(
-            width: 280,
-            child: AppPanel(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'PAUSED',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: Tokens.fontDisplay,
-                      fontSize: Tokens.fontSizeXxl,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.0,
-                      color: Tokens.colorText,
-                    ),
-                  ),
-                  const SizedBox(height: Tokens.spaceMd),
-                  PrimaryButton(
-                    label: 'Resume',
-                    fontSize: Tokens.fontSizeMd,
-                    onPressed: onResume,
-                  ),
-                  const SizedBox(height: Tokens.spaceMd),
-                  SecondaryButton(label: 'Restart', onPressed: onRestart),
-                  const SizedBox(height: Tokens.spaceMd),
-                  SecondaryButton(
-                    label: 'Settings',
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => SettingsScreen(
-                          storage: storage,
-                          ads: ads,
-                          liveGame: liveGame,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: Tokens.spaceMd),
-                  TextButton(
-                    onPressed: onQuit,
-                    child: const Text(
-                      'Quit',
-                      style: TextStyle(
-                        fontFamily: Tokens.fontDisplay,
-                        fontSize: Tokens.fontSizeMd,
-                        fontWeight: FontWeight.w700,
-                        color: Tokens.colorTextMuted,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ],
+    final ui = context.scale;
+    return ModalOverlay(
+      child: AppPanel(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'PAUSED',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: Tokens.fontDisplay,
+                fontSize: ui.fontXxl,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+                color: Tokens.colorText,
               ),
             ),
-          ),
+            SizedBox(height: ui.spaceMd),
+            PrimaryButton(
+              label: 'Resume',
+              fontSize: ui.fontMd,
+              onPressed: onResume,
+            ),
+            SizedBox(height: ui.spaceMd),
+            SecondaryButton(label: 'Restart', onPressed: onRestart),
+            SizedBox(height: ui.spaceMd),
+            SecondaryButton(
+              label: 'Settings',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SettingsScreen(
+                    storage: storage,
+                    ads: ads,
+                    liveGame: liveGame,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: ui.spaceMd),
+            TextButton(
+              onPressed: onQuit,
+              child: Text(
+                'Quit',
+                style: TextStyle(
+                  fontFamily: Tokens.fontDisplay,
+                  fontSize: ui.fontMd,
+                  fontWeight: FontWeight.w700,
+                  color: Tokens.colorTextMuted,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../theme/app_icons.dart';
 import '../../theme/tokens.dart';
+import '../../theme/ui_scale.dart';
 import 'tutorial_controller.dart';
 
 /// The looping "do this" animation that floats over the board on a coach step:
@@ -25,7 +26,10 @@ class GestureHint extends StatefulWidget {
 
 class _GestureHintState extends State<GestureHint>
     with SingleTickerProviderStateMixin {
-  static const _fingerSize = 44.0;
+  /// Resolved in [build] and read by the paint helpers below, which have no
+  /// `BuildContext` of their own.
+  late UiScale _ui;
+  double get _fingerSize => _ui.px(Tokens.fingerHint);
 
   /// Each loop is one demonstration plus a beat of rest, so the gesture reads
   /// as a discrete action rather than a continuous wobble.
@@ -78,16 +82,22 @@ class _GestureHintState extends State<GestureHint>
   @override
   Widget build(BuildContext context) {
     if (widget.hint == TutorialHint.none) return const SizedBox.shrink();
+    _ui = context.scale;
     return IgnorePointer(
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) => switch (widget.hint) {
           TutorialHint.swipeHorizontal => _buildSwipe(_controller.value),
           TutorialHint.tap => _buildTap(_controller.value),
-          TutorialHint.dragDown => _buildDrag(_controller.value, 70, 0.12, 0.6),
+          TutorialHint.dragDown => _buildDrag(
+            _controller.value,
+            _ui.px(70),
+            0.12,
+            0.6,
+          ),
           TutorialHint.flickDown => _buildDrag(
             _controller.value,
-            110,
+            _ui.px(110),
             0.06,
             0.26,
           ),
@@ -98,7 +108,7 @@ class _GestureHintState extends State<GestureHint>
   }
 
   Widget _buildSwipe(double t) {
-    const travel = 44.0;
+    final travel = _ui.px(Tokens.fingerHint);
     final slide = Curves.easeInOut.transform(_seg(t, 0.15, 0.78));
     final opacity = _seg(t, 0, 0.12) * (1 - _seg(t, 0.82, 0.95));
     return Opacity(
@@ -107,12 +117,12 @@ class _GestureHintState extends State<GestureHint>
         mainAxisSize: MainAxisSize.min,
         children: [
           _chevron(math.pi),
-          const SizedBox(width: Tokens.spaceSm),
+          SizedBox(width: _ui.spaceSm),
           Transform.translate(
             offset: Offset(-travel + slide * travel * 2, 0),
             child: _finger(),
           ),
-          const SizedBox(width: Tokens.spaceSm),
+          SizedBox(width: _ui.spaceSm),
           _chevron(0),
         ],
       ),
@@ -131,11 +141,14 @@ class _GestureHintState extends State<GestureHint>
           Opacity(
             opacity: (1 - ring) * 0.7,
             child: Container(
-              width: _fingerSize + ring * 46,
-              height: _fingerSize + ring * 46,
+              width: _fingerSize + ring * _ui.px(46),
+              height: _fingerSize + ring * _ui.px(46),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: Tokens.colorGold, width: 2),
+                border: Border.all(
+                  color: Tokens.colorGold,
+                  width: _ui.borderThick,
+                ),
               ),
             ),
           ),
@@ -159,7 +172,7 @@ class _GestureHintState extends State<GestureHint>
             offset: Offset(0, slide * travel),
             child: _finger(),
           ),
-          const SizedBox(height: Tokens.spaceSm),
+          SizedBox(height: _ui.spaceSm),
           _chevron(math.pi / 2),
         ],
       ),
@@ -172,7 +185,7 @@ class _GestureHintState extends State<GestureHint>
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: const Color(0x33F5EAD9),
-      border: Border.all(color: Tokens.colorGold, width: 2),
+      border: Border.all(color: Tokens.colorGold, width: _ui.borderThick),
       boxShadow: const [Tokens.shadowSoft],
     ),
   );
@@ -181,8 +194,8 @@ class _GestureHintState extends State<GestureHint>
     angle: radians,
     child: SvgPicture.asset(
       AppIcons.chevronRight,
-      width: 18,
-      height: 18,
+      width: _ui.iconSm,
+      height: _ui.iconSm,
       colorFilter: const ColorFilter.mode(Tokens.colorGold, BlendMode.srcIn),
     ),
   );

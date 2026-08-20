@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../services/ads_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/tokens.dart';
+import '../theme/ui_scale.dart';
 import '../widgets/logo_mark.dart';
 import '../widgets/logo_wordmark.dart';
 import '../widgets/progress_bar.dart';
@@ -121,6 +122,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return Scaffold(
       backgroundColor: Tokens.colorBg,
       body: AnimatedOpacity(
@@ -142,7 +144,7 @@ class _SplashScreenState extends State<SplashScreen>
                       squashController: _squashController,
                       landed: _landed,
                     ),
-                    const SizedBox(height: Tokens.spaceMd),
+                    SizedBox(height: ui.spaceMd),
                     AnimatedSlide(
                       offset: _revealed ? Offset.zero : const Offset(0, 0.08),
                       duration: _revealDuration,
@@ -151,15 +153,20 @@ class _SplashScreenState extends State<SplashScreen>
                         opacity: _revealed ? 1 : 0,
                         duration: _revealDuration,
                         curve: Curves.easeOut,
-                        child: const LogoWordmark(),
+                        child: LogoWordmark(
+                          fontSize: ui.font(Tokens.logoWordFont),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: Tokens.spaceXl),
+                    SizedBox(height: ui.spaceXl),
                     AnimatedOpacity(
                       opacity: _revealed ? 1 : 0,
                       duration: const Duration(milliseconds: 350),
                       child: SizedBox(
-                        width: 220,
+                        width: math.min(
+                          ui.size.width - ui.spaceXl * 2,
+                          ui.px(Tokens.splashLoaderWidth),
+                        ),
                         child: Column(
                           children: [
                             AppProgressBar(
@@ -167,12 +174,12 @@ class _SplashScreenState extends State<SplashScreen>
                               animationDuration: _loaderFillDuration,
                               curve: const Cubic(0.3, 0.6, 0.3, 1),
                             ),
-                            const SizedBox(height: Tokens.spaceSm),
-                            const Text(
+                            SizedBox(height: ui.spaceSm),
+                            Text(
                               'LOADING…',
                               style: TextStyle(
                                 fontFamily: Tokens.fontBody,
-                                fontSize: Tokens.fontSizeSm,
+                                fontSize: ui.fontSm,
                                 fontWeight: FontWeight.bold,
                                 color: Tokens.colorTextMuted,
                                 letterSpacing: 0.6,
@@ -230,7 +237,8 @@ class _DroppingLogo extends StatelessWidget {
           0.85,
           0.15,
         ).transform(dropController.value);
-        final dropOffset = (1 - easedDrop) * -260;
+        final ui = context.scale;
+        final dropOffset = (1 - easedDrop) * -ui.px(Tokens.splashDropDistance);
         final shadowScaleX = 0.3 + 0.7 * shadowProgress;
         final shadowOpacity = shadowProgress;
 
@@ -246,18 +254,18 @@ class _DroppingLogo extends StatelessWidget {
               child: Transform(
                 alignment: Alignment.center,
                 transform: Matrix4.diagonal3Values(scaleX, scaleY, 1),
-                child: const LogoMark(),
+                child: LogoMark(cellSize: ui.px(Tokens.logoCell)),
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: ui.px(6)),
             Opacity(
               opacity: shadowOpacity,
               child: Transform.scale(
                 scaleX: shadowScaleX,
                 scaleY: 1,
                 child: Container(
-                  width: 96,
-                  height: 14,
+                  width: ui.px(96),
+                  height: ui.px(14),
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
@@ -342,14 +350,17 @@ class _SplashDustState extends State<_SplashDust>
                       : 0.4 * (1 - (t - 0.9) / 0.1);
                   return Positioned(
                     left: _specs[i].left * constraints.maxWidth,
-                    bottom: -20 + t * 820,
+                    // Travels the real viewport rather than a hardcoded 820,
+                    // which used to stop short on a tall screen and overshoot
+                    // a short one.
+                    bottom: -20 + t * (constraints.maxHeight + 40),
                     child: Opacity(
                       opacity: opacity.clamp(0.0, 1.0),
                       child: Transform.translate(
                         offset: Offset(_specs[i].driftX * t, 0),
                         child: Container(
-                          width: 4,
-                          height: 4,
+                          width: context.scale.px(4),
+                          height: context.scale.px(4),
                           decoration: const BoxDecoration(
                             color: Tokens.colorGold,
                             shape: BoxShape.circle,

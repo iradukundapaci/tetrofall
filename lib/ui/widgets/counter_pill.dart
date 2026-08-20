@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
+import '../theme/ui_scale.dart';
 
 /// Port of `.pill-counter` — an icon + label + value pill (BEST score,
 /// coin counts, etc).
@@ -18,11 +19,15 @@ class CounterPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: Tokens.spaceMd, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: ui.spaceMd,
+        vertical: ui.spaceSm,
+      ),
       decoration: BoxDecoration(
         color: Tokens.colorPanel,
-        borderRadius: BorderRadius.circular(Tokens.radiusPill),
+        borderRadius: BorderRadius.circular(UiScale.radiusPill),
         border: Border.all(color: Tokens.colorPanelBorder),
         boxShadow: const [Tokens.shadowSoft],
       ),
@@ -32,22 +37,26 @@ class CounterPill extends StatelessWidget {
           if (label != null) ...[
             Text(
               label!,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Tokens.colorTextMuted,
-                fontSize: Tokens.fontSizeXs,
+                fontSize: ui.fontXs,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.7,
               ),
             ),
-            const SizedBox(width: Tokens.spaceSm),
+            SizedBox(width: ui.spaceSm),
           ],
-          SizedBox(width: 22, height: 22, child: icon),
-          const SizedBox(width: Tokens.spaceSm),
+          SizedBox(
+            width: ui.px(Tokens.iconCounter),
+            height: ui.px(Tokens.iconCounter),
+            child: icon,
+          ),
+          SizedBox(width: ui.spaceSm),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: Tokens.fontDisplay,
-              fontSize: Tokens.fontSizeMd,
+              fontSize: ui.fontMd,
               fontWeight: FontWeight.w700,
               color: Tokens.colorText,
             ),

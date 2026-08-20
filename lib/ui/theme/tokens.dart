@@ -25,6 +25,9 @@ abstract final class Tokens {
   static const fontSizeXl = 28.0;
   static const fontSizeXxl = 40.0;
 
+  /// The game-over score numeral — the one type size larger than a heading.
+  static const fontSizeHero = 56.0;
+
   static const shadowSoft = BoxShadow(
     color: Color(0x59000000),
     offset: Offset(0, 4),
@@ -47,6 +50,44 @@ abstract final class Tokens {
   static const spaceLg = 24.0;
   static const spaceXl = 32.0;
   static const spaceXxl = 48.0;
+
+  // Iconography. Four sizes were in use with no token between them — 18 for
+  // chevrons and inline glyphs, 20 for row icons, Material's implicit 24, and
+  // a one-off 22 in the counter pill.
+  static const iconSm = 18.0;
+  static const iconMd = 20.0;
+  static const iconLg = 24.0;
+  static const iconCounter = 22.0;
+
+  /// The circular icon button, and every other minimum touch target.
+  static const tapTarget = 48.0;
+
+  /// The tutorial's drawn fingertip.
+  static const fingerHint = 44.0;
+
+  /// The gameplay HUD's content row, excluding the top safe inset. Fixed
+  /// rather than intrinsic so the board's vertical budget can be computed
+  /// before layout — see `_GameplayBody`.
+  static const hudHeight = 56.0;
+
+  static const borderThick = 2.0;
+  static const borderBoard = 3.0;
+  static const boardInset = 4.0;
+
+  /// Reference width for every centred modal, unifying what used to be 280
+  /// (pause, game over), 300 (confirm quit) and 300 (tutorial).
+  static const panelWidth = 300.0;
+
+  static const buttonPadYLg = 14.0;
+  static const buttonPadYMd = 12.0;
+  static const progressBarHeight = 12.0;
+  static const sliderTrackHeight = 8.0;
+  static const menuPlayWidth = 160.0;
+
+  static const logoCell = 40.0;
+  static const logoWordFont = 32.0;
+  static const splashDropDistance = 260.0;
+  static const splashLoaderWidth = 220.0;
 
   static const bgWoodGradient = LinearGradient(
     begin: Alignment.topCenter,

@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../services/storage_service.dart';
 import '../../ui/theme/app_icons.dart';
 import '../../ui/theme/tokens.dart';
+import '../../ui/theme/ui_scale.dart';
 import '../tetrofall_game.dart';
 
 class ScoreHud extends StatefulWidget {
@@ -45,20 +46,36 @@ class _ScoreHudState extends State<ScoreHud> {
     final scoring = widget.game.engine.scoring;
     if (scoring.score > _best) _best = scoring.score;
 
+    final ui = context.scale;
     return SafeArea(
       bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Tokens.spaceMd,
-          vertical: Tokens.spaceSm,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _ScoreBlock(score: scoring.score, best: _best),
-            _PauseButton(game: widget.game),
-          ],
+      // Fixed height rather than intrinsic. On a 9:16 phone the board's
+      // aspect ratio turns every point of HUD height into a point of board
+      // *width*, so this has to be both small and — more to the point —
+      // knowable before layout: `_GameplayBody` budgets the board against it.
+      child: SizedBox(
+        height: ui.hudHeight,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: ui.spaceMd,
+            vertical: ui.spaceXs,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Scales itself down rather than overflow the fixed height when
+              // the player has raised the system font size.
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: _ScoreBlock(score: scoring.score, best: _best),
+                ),
+              ),
+              _PauseButton(game: widget.game),
+            ],
+          ),
         ),
       ),
     );
@@ -73,14 +90,16 @@ class _ScoreBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.scale;
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           '$score',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: Tokens.fontDisplay,
-            fontSize: Tokens.fontSizeXl,
+            fontSize: ui.fontXl,
             fontWeight: FontWeight.w800,
             color: Tokens.colorText,
             height: 1.1,
@@ -88,8 +107,8 @@ class _ScoreBlock extends StatelessWidget {
         ),
         Text(
           'BEST $best',
-          style: const TextStyle(
-            fontSize: Tokens.fontSizeXs,
+          style: TextStyle(
+            fontSize: ui.fontXs,
             fontWeight: FontWeight.bold,
             color: Tokens.colorTextMuted,
             letterSpacing: 0.5,
@@ -113,6 +132,7 @@ class _PauseButton extends StatelessWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: game.pausedNotifier,
       builder: (context, paused, _) {
+        final ui = context.scale;
         return GestureDetector(
           onTap: () {
             if (paused) {
@@ -122,8 +142,8 @@ class _PauseButton extends StatelessWidget {
             }
           },
           child: Container(
-            width: 48,
-            height: 48,
+            width: ui.tap,
+            height: ui.tap,
             decoration: BoxDecoration(
               color: Tokens.colorPanel,
               shape: BoxShape.circle,
@@ -132,15 +152,15 @@ class _PauseButton extends StatelessWidget {
             ),
             child: Center(
               child: paused
-                  ? const Icon(
+                  ? Icon(
                       Icons.play_arrow,
                       color: Tokens.colorText,
-                      size: 20,
+                      size: ui.iconMd,
                     )
                   : SvgPicture.asset(
                       AppIcons.pause,
-                      width: 18,
-                      height: 18,
+                      width: ui.iconSm,
+                      height: ui.iconSm,
                       colorFilter: const ColorFilter.mode(
                         Tokens.colorText,
                         BlendMode.srcIn,
