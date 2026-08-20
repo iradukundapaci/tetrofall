@@ -148,23 +148,41 @@ class GestureHandler {
       _sidewaysActive = true;
     }
 
+    // Hard drop stays a deliberate, mostly-vertical gesture, so it is still
+    // measured against the whole gesture rather than one event.
+    final isVertical =
+        totalDown > InputTuning.hardDropVerticalityRatio * totalDx.abs();
+
+    // A real thumb does not flick in a straight line, it arcs. A burst of
+    // sideways travel mid-arc used to latch _sidewaysActive and bank a whole
+    // column shift while the stroke as a whole was plainly a downward flick,
+    // and the drop locks the piece immediately — so it slammed home one
+    // column off the one the player swiped on, with no chance to correct it.
+    // While the stroke is vertical and still moving at flick speed, or has
+    // already armed the hard drop, no column shift may fire.
+    final holdSideways =
+        _hardDropArmed ||
+        (isVertical &&
+            _smoothSpeedY >=
+                flickSpeed * InputTuning.flickSuppressionFraction);
+
     if (_sidewaysActive) {
+      // Drift keeps accumulating while held rather than being thrown away: a
+      // flick that is aborted into a deliberate steer should respond on the
+      // next event or two, not demand a fresh full column of travel. A real
+      // flick banks very little, and its gesture is consumed by the drop
+      // before the bank can ever be spent.
       if (_accumDx != 0 && dx != 0 && (_accumDx > 0) != (dx > 0)) {
         _accumDx = dx;
       } else {
         _accumDx += dx;
       }
-      while (_accumDx.abs() >= swipeColumnThreshold) {
+      while (!holdSideways && _accumDx.abs() >= swipeColumnThreshold) {
         final dir = _accumDx > 0 ? 1 : -1;
         _applyMove(dir);
         _accumDx -= dir * swipeColumnThreshold;
       }
     }
-
-    // Hard drop stays a deliberate, mostly-vertical gesture, so it is still
-    // measured against the whole gesture rather than one event.
-    final isVertical =
-        totalDown > InputTuning.hardDropVerticalityRatio * totalDx.abs();
 
     if (!_softDropEngaged &&
         totalDown >= softDropDistance &&

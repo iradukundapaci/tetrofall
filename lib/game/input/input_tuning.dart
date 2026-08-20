@@ -26,6 +26,11 @@ abstract final class InputTuning {
   /// board without escalating.
   static const flickCellsPerSecond = 10.0;
 
+  /// Fraction of [flickSpeed] above which the stroke reads as a downward flick
+  /// in progress and sideways column shifts are held. Below 1.0 so the hold
+  /// covers the acceleration ramp into a flick, not only its peak.
+  static const flickSuppressionFraction = 0.7;
+
   /// Exponential-smoothing weight kept from previous samples for the
   /// downward-speed estimate. Lower than [axisSmoothing] because the arming
   /// decision is made within a couple of events of the finger crossing

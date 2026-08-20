@@ -66,6 +66,60 @@ void main() {
     },
   );
 
+  // "When dropping hard, sometimes in the process of swiping I move the piece
+  // to the right or left accidentally." The constant gentle drift above never
+  // latched sideways control on, but a real thumb flick arcs: a burst of
+  // sideways travel in the middle of an otherwise vertical stroke did latch
+  // it, banked a full column, and the drop then locked the piece one column
+  // off with no chance to correct it.
+  test('an arced flick hard-drops in the starting column', () async {
+    const cellSize = 30.0;
+    final engine = GameEngine(random: Random(1));
+    engine.start();
+
+    final startCol = engine.pieceController.piece!.anchorCol;
+    final handler = GestureHandler(engine, () => cellSize);
+
+    const pointer = 1;
+    var pos = const Offset(200, 100);
+    handler.onPointerDown(PointerDownEvent(pointer: pointer, position: pos));
+
+    Future<void> step(double dx, double dy) async {
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+      pos = pos + Offset(dx, dy);
+      handler.onPointerMove(PointerMoveEvent(pointer: pointer, position: pos));
+    }
+
+    // Straight down, then the sideways burst the arc of a thumb makes, then
+    // straight down again. Totals stay overwhelmingly vertical (45px across
+    // against 210px down, far past the 1.5:1 bar), so this is a hard drop —
+    // but the burst alone is 45px, well over the 25.5px column threshold.
+    for (var i = 0; i < 5; i++) {
+      await step(0, 20);
+    }
+    for (var i = 0; i < 3; i++) {
+      await step(15, 10);
+    }
+    for (var i = 0; i < 4; i++) {
+      await step(0, 20);
+    }
+
+    engine.tick(1 / 60); // drains the hard-drop intent
+
+    final grid = engine.grid;
+    var lockedCol = -1;
+    for (var c = 0; c < grid.cols; c++) {
+      for (var r = grid.minRow; r <= grid.maxRow; r++) {
+        if (grid.at(r, c) != null) {
+          lockedCol = c;
+          break;
+        }
+      }
+      if (lockedCol != -1) break;
+    }
+    expect(lockedCol, startCol);
+  });
+
   // The other half of the same balance. Horizontal intent used to be gated
   // on `totalDown > 1.5 * totalDx.abs()`, both measured from the touch-down
   // point, so vertical drift latched sideways control off for the rest of
@@ -191,10 +245,14 @@ void main() {
     handler.onPointerDown(PointerDownEvent(pointer: pointer, position: pos));
 
     // 300px straight down — more than twice the 141px hard-drop distance —
-    // but at ~190px/s, well under the 300px/s flick speed for this cell.
-    for (var i = 0; i < 50; i++) {
+    // but slow. The step distance is what pins the speed here: a 16ms delay
+    // is only a lower bound on how long a step takes, so 3px/step can read no
+    // faster than 187px/s however loaded the machine is, comfortably under
+    // the 300px/s flick speed for this cell. 6px/step sat right on that line
+    // and flipped the result depending on scheduling.
+    for (var i = 0; i < 100; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 16));
-      pos = pos + const Offset(0, 6);
+      pos = pos + const Offset(0, 3);
       handler.onPointerMove(PointerMoveEvent(pointer: pointer, position: pos));
     }
 
