@@ -614,7 +614,7 @@ class GameEngine {
       grid.set(row, c, null);
     }
     if (removedCells.isNotEmpty) {
-      _emit(RowsClearedEvent([row], removedCells));
+      _emit(RowsClearedEvent([row], removedCells, forced: true));
     }
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'ad_unit_ids.dart';
+import 'analytics_service.dart';
 import 'connectivity_service.dart';
 import 'storage_service.dart';
 
@@ -463,7 +464,8 @@ class AdsService {
           }
           _rewardedAd = ad;
         },
-        onAdFailedToLoad: (_) {
+        onAdFailedToLoad: (error) {
+          _reportNoFill(AdPlacements.rewardedContinue, AdKind.rewardedVideo, error);
           _rewardedLoadRevision = null;
           _rewardedAd = null;
           // Without this the slot is dead for the session: the only other
@@ -494,13 +496,28 @@ class AdsService {
         if (!closed.isCompleted) closed.complete(earned);
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
+        AnalyticsService.ad(
+          outcome: AdOutcome.failed,
+          kind: AdKind.rewardedVideo,
+          placement: AdPlacements.rewardedContinue,
+        );
         ad.dispose();
         _loadRewarded();
         if (!closed.isCompleted) closed.complete(false);
       },
     );
+    AnalyticsService.ad(
+      outcome: AdOutcome.shown,
+      kind: AdKind.rewardedVideo,
+      placement: AdPlacements.rewardedContinue,
+    );
     ad.show(
       onUserEarnedReward: (_, _) {
+        AnalyticsService.ad(
+          outcome: AdOutcome.rewarded,
+          kind: AdKind.rewardedVideo,
+          placement: AdPlacements.rewardedContinue,
+        );
         earned = true;
         _justWatchedRewardedContinue = true;
       },
@@ -536,7 +553,8 @@ class AdsService {
           }
           _interstitialAd = ad;
         },
-        onAdFailedToLoad: (_) {
+        onAdFailedToLoad: (error) {
+          _reportNoFill(AdPlacements.interstitial, AdKind.interstitial, error);
           _interstitialLoadRevision = null;
           _interstitialAd = null;
           _interstitialRetry.schedule(_loadInterstitial);
@@ -555,9 +573,19 @@ class AdsService {
         _loadInterstitial();
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
+        AnalyticsService.ad(
+          outcome: AdOutcome.failed,
+          kind: AdKind.interstitial,
+          placement: AdPlacements.interstitial,
+        );
         ad.dispose();
         _loadInterstitial();
       },
+    );
+    AnalyticsService.ad(
+      outcome: AdOutcome.shown,
+      kind: AdKind.interstitial,
+      placement: AdPlacements.interstitial,
     );
     ad.show();
   }
@@ -613,7 +641,8 @@ class AdsService {
           }
           _appOpenAd = ad;
         },
-        onAdFailedToLoad: (_) {
+        onAdFailedToLoad: (error) {
+          _reportNoFill(AdPlacements.appOpen, AdKind.interstitial, error);
           _appOpenLoadRevision = null;
           _appOpenAd = null;
           _appOpenRetry.schedule(_loadAppOpen);
@@ -663,12 +692,43 @@ class AdsService {
         _loadAppOpen();
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
+        AnalyticsService.ad(
+          outcome: AdOutcome.failed,
+          kind: AdKind.interstitial,
+          placement: AdPlacements.appOpen,
+        );
         ad.dispose();
         _loadAppOpen();
       },
     );
+    AnalyticsService.ad(
+      outcome: AdOutcome.shown,
+      // GameAnalytics has no app-open type; Interstitial is the closest fit,
+      // and the placement keeps the two apart on the dashboard.
+      kind: AdKind.interstitial,
+      placement: AdPlacements.appOpen,
+    );
     ad.show();
     _storage.saveLastAppOpenAdShownAt(DateTime.now());
+  }
+
+  /// Reports a failed load as a GameAnalytics `FailedShow` with a reason, so
+  /// no-fill (an inventory problem) is separable from being offline (not one).
+  ///
+  /// AdMob's numeric codes are not documented as a stable enum, so this maps
+  /// only the two that change what you would do about them and lets the rest
+  /// fall through to `unknown` rather than guessing.
+  static void _reportNoFill(String placement, AdKind kind, LoadAdError error) {
+    AnalyticsService.ad(
+      outcome: AdOutcome.failed,
+      kind: kind,
+      placement: placement,
+      reason: switch (error.code) {
+        2 => AdFailure.internalError,
+        3 => AdFailure.noFill,
+        _ => AdFailure.unknown,
+      },
+    );
   }
 
   /// The app holds one of these for its whole life, so this exists for tests —

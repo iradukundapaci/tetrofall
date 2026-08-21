@@ -12,6 +12,7 @@ import '../../game/engine/grid.dart';
 import '../../game/engine/tetromino.dart';
 import '../../game/tetrofall_game.dart';
 import '../../services/ads_service.dart';
+import '../../services/analytics_service.dart';
 import '../../services/music_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
@@ -59,6 +60,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.design('screen:menu');
     _startDemo();
     _music.play(MusicTrack.menu);
   }

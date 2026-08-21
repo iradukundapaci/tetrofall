@@ -5,11 +5,14 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import '../../game/config/board_config.dart';
+import '../../game/config/difficulty.dart';
 import '../../game/engine/events.dart';
 import '../../game/render/score_hud.dart';
 import '../../game/tetrofall_game.dart';
 import '../../services/ads_service.dart';
+import '../../services/analytics_service.dart';
 import '../../services/music_service.dart';
+import '../../services/run_tracker.dart';
 import '../../services/storage_service.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
@@ -53,7 +56,10 @@ class _GameplayScreenState extends State<GameplayScreen> {
     ..showGhost = widget.storage.ghostPieceEnabled;
   GameOverReason? _gameOverReason;
   Duration _runElapsedAtGameOver = Duration.zero;
+
   bool _confirmingQuit = false;
+
+  final RunTracker _tracker = RunTracker();
 
   /// Non-null only for the duration of the first-run tutorial.
   TutorialController? _tutorial;
@@ -72,6 +78,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
   void initState() {
     super.initState();
     _game.engine.addEventListener(_onEngineEvent);
+    AnalyticsService.design('screen:gameplay');
     // The menu loop keeps playing if there's no gameplay track to swap to.
     MusicService(widget.storage).play(MusicTrack.gameplay);
     if (widget.startTutorial) {
@@ -81,8 +88,39 @@ class _GameplayScreenState extends State<GameplayScreen> {
         onFinished: _finishTutorial,
       )..addListener(_onTutorialChanged);
     }
+    // Coaching is not a run. The tutorial opens its own run when it hands off
+    // in [_finishTutorial], which is the same boundary [AdsService] already
+    // draws with `notifyRunEnded`.
+    if (!widget.startTutorial) _startTrackedRun();
     final onGameCreated = widget.onGameCreated;
     if (onGameCreated != null) onGameCreated(_game);
+  }
+
+  /// Opens an analytics run against the head start the game is about to take.
+  /// Mirrors [TetrofallGame]'s own `_adaptiveStartElapsed` — the value is only
+  /// reported, never used to drive anything.
+  void _startTrackedRun() {
+    _tracker.runStarted(
+      initialElapsed: widget.storage.adaptiveStartSpeedEnabled
+          ? Difficulty.adaptiveStartElapsed(widget.storage.bestScore)
+          : Duration.zero,
+      // Read now, before the run overwrites it — ScoreHud saves a new best the
+      // moment it is passed, so by game over `storage.bestScore` is this run.
+      bestBefore: widget.storage.bestScore,
+    );
+  }
+
+  /// Closes the analytics run out. Idempotent inside [RunTracker], so the
+  /// game-over path and the quit path can both reach it.
+  void _endTrackedRun(String reason, Duration elapsed) {
+    final scoring = _game.engine.scoring;
+    _tracker.runEnded(
+      reason: reason,
+      elapsed: elapsed,
+      score: scoring.score,
+      maxChain: scoring.maxChain,
+      blocksDestroyed: scoring.totalBlocksDestroyed,
+    );
   }
 
   @override
@@ -108,6 +146,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
     if (tutorial == null) return;
     _dropTutorial(tutorial);
     _game.restart();
+    _startTrackedRun();
   }
 
   /// Detaches the controller and schedules its disposal for after the frame
@@ -124,6 +163,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
   }
 
   void _onEngineEvent(GameEvent event) {
+    _tracker.onEvent(event);
     if (event is GameOverEvent) {
       _runElapsedAtGameOver = Duration(
         milliseconds: (_game.engine.riseController.elapsed * 1000).round(),
@@ -136,6 +176,13 @@ class _GameplayScreenState extends State<GameplayScreen> {
         tutorial.abandon();
         _dropTutorial(tutorial);
       }
+      _endTrackedRun(event.reason.name, _runElapsedAtGameOver);
+      // Reported here rather than from `build`, which reruns on every pause
+      // and every rebuild behind the overlay.
+      if (widget.ads.isRewardedContinueReady &&
+          !_game.engine.hasUsedContinueThisRun) {
+        AnalyticsService.design('continue:offered');
+      }
       setState(() {
         _gameOverReason = event.reason;
         _confirmingQuit = false;
@@ -143,8 +190,26 @@ class _GameplayScreenState extends State<GameplayScreen> {
     }
   }
 
+  void _resumeFromPause() {
+    AnalyticsService.design('pause:resume');
+    _game.resumeEngine();
+  }
+
   void _restart() {
+    // Reached from the pause menu as well as from game over, and only the
+    // latter has already closed the run out. A pause-menu restart abandons a
+    // live run, which is worth its own reason: it is the one run ending that
+    // says the player chose to walk away from a board rather than lost it.
+    if (_tracker.isRunning) {
+      _endTrackedRun(
+        'restart',
+        Duration(
+          milliseconds: (_game.engine.riseController.elapsed * 1000).round(),
+        ),
+      );
+    }
     _game.restart();
+    _startTrackedRun();
     setState(() => _gameOverReason = null);
   }
 
@@ -152,22 +217,26 @@ class _GameplayScreenState extends State<GameplayScreen> {
   /// player top out) while they decide.
   void _requestQuit() {
     if (_confirmingQuit) return;
+    AnalyticsService.design('quit:prompt');
     _wasPausedBeforeConfirm = _game.paused;
     if (!_game.paused) _game.pauseEngine();
     setState(() => _confirmingQuit = true);
   }
 
   void _cancelQuit() {
+    AnalyticsService.design('quit:cancel');
     setState(() => _confirmingQuit = false);
     if (!_wasPausedBeforeConfirm) _game.resumeEngine();
   }
 
   void _confirmQuit() {
+    AnalyticsService.design('quit:confirm');
     setState(() => _confirmingQuit = false);
     _goHome();
   }
 
   void _restartAfterGameOver() {
+    AnalyticsService.design('run:again');
     widget.ads.notifyRunEnded(_runElapsedAtGameOver);
     _restart();
   }
@@ -185,16 +254,27 @@ class _GameplayScreenState extends State<GameplayScreen> {
                   .round(),
             );
       widget.ads.notifyRunEnded(elapsed);
+      _endTrackedRun('quit', elapsed);
     }
     Navigator.of(context).pop();
   }
 
   Future<void> _continueAfterAd() async {
+    AnalyticsService.design('continue:accepted');
     final earned = await widget.ads.showRewardedContinue();
     if (!earned) {
+      AnalyticsService.design('continue:declined');
       setState(() {});
       return;
     }
+    AnalyticsService.design('continue:earned');
+    // The run the player is buying back into was already closed out by the
+    // GameOverEvent, so this opens a fresh one rather than resuming the old
+    // counters — reported as `run:resume` so continues are separable from
+    // clean starts, and without a second progression Start, which would
+    // otherwise show up as two attempts for one life.
+    _tracker.runStarted(resumed: true, bestBefore: widget.storage.bestScore);
+    _tracker.continueUsed();
     _game.continueAfterAd();
     setState(() => _gameOverReason = null);
   }
@@ -248,7 +328,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
                     storage: widget.storage,
                     ads: widget.ads,
                     liveGame: _game,
-                    onResume: _game.resumeEngine,
+                    onResume: _resumeFromPause,
                     onRestart: _restart,
                     onQuit: _requestQuit,
                   ),

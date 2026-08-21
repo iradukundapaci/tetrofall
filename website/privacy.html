@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Privacy Policy | Tetrofall</title>
-  <meta name="description" content="Privacy Policy for Tetrofall by NoSleep Studios. We collect nothing about you. The only data that leaves your device is what Google AdMob collects to serve ads." />
+  <meta name="description" content="Privacy Policy for Tetrofall by NoSleep Studios. No accounts, no personal information. The data that leaves your device goes to Google AdMob to serve ads and to GameAnalytics to measure how the game is played." />
   <meta name="theme-color" content="#2b1c12" />
   <link rel="canonical" href="https://tetrofall.vercel.app/privacy.html" />
 
@@ -43,7 +43,7 @@
 
   <main id="main" class="container">
     <h1 class="page-title">Privacy Policy</h1>
-    <p class="updated">Last updated: 15 August 2026 &middot; Effective: 15 August 2026</p>
+    <p class="updated">Last updated: 21 August 2026 &middot; Effective: 21 August 2026</p>
 
     <div class="privacy-layout">
       <nav class="toc-wrap" aria-label="Sections on this page">
@@ -51,6 +51,7 @@
         <ul class="toc">
           <li><a href="#collect">Information We Collect</a></li>
           <li><a href="#advertising">Advertising</a></li>
+          <li><a href="#analytics">Analytics</a></li>
           <li><a href="#consent">Consent</a></li>
           <li><a href="#third-party">Third-Party Services</a></li>
           <li><a href="#choices">Your Choices</a></li>
@@ -64,20 +65,21 @@
           <h2>In short</h2>
           <ul class="plain">
             <li>
-              <strong>NoSleep Studios collects nothing about you.</strong> We run no
-              server, we have no database, and we never receive your data. There is
-              no account and no sign-in, so the game does not know who you are.
+              <strong>We never learn who you are.</strong> We run no server and
+              have no database. There is no account and no sign-in, and we ask you
+              for no personal information at any point.
             </li>
             <li>
               <strong>Your scores and settings stay on your phone.</strong> We
               cannot read them.
             </li>
             <li>
-              <strong>The ads are the one exception.</strong> Tetrofall shows ads
-              through Google AdMob, and Google's advertising software collects some
-              data from your device to choose and measure those ads. That is the
-              only information that leaves your phone, and it goes to Google, not to
-              us. Exactly what it collects is listed below.
+              <strong>Two things do leave your phone.</strong> Tetrofall shows ads
+              through Google AdMob, which collects data from your device to choose
+              and measure those ads. It also reports anonymous gameplay statistics
+              to GameAnalytics, so we can see how the game is actually played.
+              Neither one goes to a server of ours, and exactly what each collects
+              is listed below.
             </li>
             <li>
               <strong>You can switch off personalized ads from inside the game</strong>,
@@ -85,8 +87,11 @@
               Personalised ads</em>. See <a href="#choices">Your Choices</a>.
             </li>
             <li>
-              <strong>The game contains no analytics and no crash reporting.</strong>
-              We do not track how you play.
+              <strong>The gameplay statistics are about the game, not about
+              you.</strong> They record things like how long a game lasted and how
+              many rows it cleared. They carry no name, no email and no account, and
+              nothing in them is used to build a profile of you or to target ads.
+              There is no crash reporting.
             </li>
           </ul>
         </div>
@@ -115,8 +120,8 @@
             <em>Android Settings &rarr; Google &rarr; Backup</em>.
           </p>
           <p>
-            The one thing that does leave your device is advertising data, collected
-            by Google AdMob when it serves an ad:
+            The first thing that does leave your device is advertising data,
+            collected by Google AdMob when it serves an ad:
           </p>
           <div class="panel">
             <dl class="data-list">
@@ -166,11 +171,52 @@
             transit using TLS.
           </p>
           <p>
-            <strong>We add nothing of our own on top of this.</strong> The App
-            contains no analytics SDK and no crash-reporting SDK. NoSleep Studios
-            operates no server, receives no report when the App crashes, and gets no
-            gameplay statistics. We see only the aggregate earnings and performance
-            figures that Google's AdMob dashboard reports to every publisher.
+            The second is gameplay statistics, reported to
+            <strong>GameAnalytics</strong>. These describe what happened in the
+            game, not who was holding the phone:
+          </p>
+          <div class="panel">
+            <dl class="data-list">
+              <dt>Gameplay events</dt>
+              <dd>
+                In-app events such as a game starting and ending, the score and
+                length it reached, rows cleared, whether the tutorial was finished,
+                which settings were changed, and whether an ad was watched for an
+                extra life.
+              </dd>
+
+              <dt>Device information</dt>
+              <dd>
+                Device model, operating system version, language and the version of
+                the App, so a problem can be traced to the devices it affects.
+              </dd>
+
+              <dt>Approximate location</dt>
+              <dd>
+                Country, derived by GameAnalytics from your IP address. The App
+                never requests or receives precise or GPS location, and it holds no
+                location permission.
+              </dd>
+
+              <dt>A random installation identifier</dt>
+              <dd>
+                A random identifier generated for this installation of the App, used
+                only to tell one player's games apart from another's in the
+                statistics. It is not your Advertising ID, it is not shared with our
+                advertising partner, and it disappears when you uninstall the App.
+              </dd>
+            </dl>
+          </div>
+          <p>
+            We see this only as charts and totals on GameAnalytics' dashboard. It is
+            never used to identify you, is never combined with the advertising data
+            above, and is not sold or shared with anyone else. It is encrypted in
+            transit using TLS.
+          </p>
+          <p>
+            <strong>We add nothing else on top of this.</strong> The App contains no
+            crash-reporting SDK. NoSleep Studios operates no server of its own and
+            receives no report when the App crashes.
           </p>
           <a class="to-top" href="#main">Back to top</a>
         </section>
@@ -227,11 +273,38 @@
           <a class="to-top" href="#main">Back to top</a>
         </section>
 
+        <section id="analytics">
+          <h2>Analytics</h2>
+          <p>
+            We use <strong>GameAnalytics</strong> to understand how Tetrofall is
+            played &mdash; how long a typical game lasts, where the difficulty curve
+            loses people, whether the tutorial does its job. Without it we would be
+            guessing at every balance decision.
+          </p>
+          <p>
+            What is reported is described under
+            <a href="#collect">Information We Collect</a>. It is tied to a random
+            per-installation identifier rather than to you, it is not used for
+            advertising or profiling, and it is not sold or shared onward.
+            GameAnalytics' handling of it is described in their
+            <a href="https://gameanalytics.com/privacy" target="_blank" rel="noopener">privacy
+            policy</a>.
+          </p>
+          <p>
+            Uninstalling the App stops the reporting and ends the link to that
+            identifier; a reinstall is counted as a new player.
+          </p>
+          <a class="to-top" href="#main">Back to top</a>
+        </section>
+
         <section id="third-party">
           <h2>Third-Party Services</h2>
           <dl class="data-list">
             <dt><a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google AdMob</a></dt>
             <dd>Ad serving and measurement.</dd>
+
+            <dt><a href="https://gameanalytics.com/privacy" target="_blank" rel="noopener">GameAnalytics</a></dt>
+            <dd>Anonymous gameplay statistics.</dd>
 
             <dt><a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Play Services</a></dt>
             <dd>Core platform services the App relies on when installed from Google Play.</dd>
@@ -262,6 +335,12 @@
               Reset or delete your Advertising ID at any time in
               <em>Android Settings &rarr; Privacy &rarr; Ads</em>, which breaks the
               link to any advertising profile built from it.
+            </li>
+            <li>
+              Stop the gameplay statistics by uninstalling the App. Because they
+              are tied to a random per-installation identifier rather than to you,
+              uninstalling both ends the reporting and breaks the link to everything
+              already reported.
             </li>
             <li>
               Delete what the App has stored by uninstalling it. If Android Auto

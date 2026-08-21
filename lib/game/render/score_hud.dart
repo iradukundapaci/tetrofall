@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../services/analytics_service.dart';
 import '../../services/storage_service.dart';
 import '../../ui/theme/app_icons.dart';
 import '../../ui/theme/tokens.dart';
@@ -135,6 +136,10 @@ class _PauseButton extends StatelessWidget {
         final ui = context.scale;
         return GestureDetector(
           onTap: () {
+            // Only this button and the overlay's Resume are reported. The
+            // engine is also paused behind the quit prompt, which is not the
+            // player pausing and is already covered by `quit:prompt`.
+            AnalyticsService.design(paused ? 'pause:resume' : 'pause:open');
             if (paused) {
               game.resumeEngine();
             } else {

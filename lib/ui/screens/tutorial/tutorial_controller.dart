@@ -6,6 +6,7 @@ import '../../../game/engine/cell.dart';
 import '../../../game/engine/events.dart';
 import '../../../game/engine/tetromino.dart';
 import '../../../game/tetrofall_game.dart';
+import '../../../services/analytics_service.dart';
 import '../../../services/storage_service.dart';
 
 /// How a step presents itself.
@@ -77,6 +78,10 @@ class TutorialController extends ChangeNotifier {
     // the moment it appears, and a player who force-quits partway through
     // should not be met by it again on the next launch.
     storage.saveTutorialSeen(true);
+    // The opening step is set as a field initialiser and so never passes
+    // through [_goTo] — without this the funnel would have no entry count to
+    // measure the later steps against.
+    AnalyticsService.design('tutorial:step:${_step.name}');
     _applyStep();
   }
 
@@ -173,25 +178,37 @@ class TutorialController extends ChangeNotifier {
   void advance() {
     if (mode != TutorialMode.modal) return;
     if (_step == TutorialStep.done) {
+      // The only genuine completion: tapping through the closing step. Every
+      // other exit — Skip, or a top-out underneath the coach — also lands in
+      // [_end] and then in the host screen's hand-off, so reporting from
+      // there would score a skip as a completion and read 100% forever.
+      AnalyticsService.design('tutorial:complete');
       _end();
       return;
     }
     _goTo(TutorialStep.values[_step.index + 1]);
   }
 
-  void skip() => _end();
+  void skip() {
+    AnalyticsService.design('tutorial:skip:${_step.name}');
+    _end();
+  }
 
   /// Ends the tutorial without asking for a hand-off restart — used when the
   /// run has already ended underneath it and the game-over overlay owns the
   /// screen.
   void abandon() {
     if (_finished) return;
+    AnalyticsService.design('tutorial:abandon:${_step.name}');
     _finished = true;
     _releaseEngine();
     notifyListeners();
   }
 
   void _goTo(TutorialStep next) {
+    // The per-step drop-off funnel. [TutorialStep] is a closed enum, so this
+    // is a fixed set of ids however the tutorial is navigated.
+    AnalyticsService.design('tutorial:step:${next.name}');
     _step = next;
     _moveCount = 0;
     _applyStep();

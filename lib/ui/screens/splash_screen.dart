@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../services/ads_service.dart';
+import '../../services/analytics_service.dart';
 import '../../services/storage_service.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
@@ -50,6 +51,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
+    AnalyticsService.design('screen:splash');
     _dropController = AnimationController(vsync: this, duration: _dropDuration);
     _squashController = AnimationController(
       vsync: this,

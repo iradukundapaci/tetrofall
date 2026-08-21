@@ -18,15 +18,23 @@ rejection cause.
 
 ## The SDK surface these answers come from
 
-`google_mobile_ads` is the **only** third-party data-collecting SDK in the app.
-There is no analytics, no crash reporting, no IAP, no login, no server.
+Two third-party SDKs collect data: `google_mobile_ads` (ads) and
+`gameanalytics_sdk` (gameplay analytics). There is no crash reporting, no IAP,
+no login, and no server of our own.
+
+GameAnalytics adds no permission of its own — it reaches the network through
+`INTERNET`, which is already there, and identifies an install with a random id
+it generates itself rather than with the Advertising ID. So the permission table
+below is unchanged by it; what changes is the *purpose* half of the Data safety
+answers, since App interactions are now collected for our analytics as well as
+by the ad SDK.
 
 Permissions actually merged into the release manifest (verified with
 `aapt2 dump badging`):
 
 | Permission | Source |
 | --- | --- |
-| `INTERNET`, `ACCESS_NETWORK_STATE` | ours — AdMob needs both |
+| `INTERNET`, `ACCESS_NETWORK_STATE` | ours — AdMob needs both; GameAnalytics uses `INTERNET` |
 | `com.google.android.gms.permission.AD_ID` | google_mobile_ads |
 | `ACCESS_ADSERVICES_AD_ID` | google_mobile_ads (Privacy Sandbox) |
 | `ACCESS_ADSERVICES_ATTRIBUTION` | google_mobile_ads (Privacy Sandbox) |
@@ -55,14 +63,21 @@ Permissions actually merged into the release manifest (verified with
 
 Every row: **Collected ✔ and Shared ✔**, purposes **Advertising or marketing +
 Analytics + Fraud prevention, security and compliance**, and **Required** (not
-"user can choose"), because the app does not offer a no-ads path.
+"user can choose"), because the app does not offer a no-ads path and analytics
+has no in-app opt-out either.
+
+> Row 2 and row 4 now cover GameAnalytics as well as AdMob. The **Analytics**
+> purpose was already ticked on every row for the ad SDK's own measurement, so
+> adding GameAnalytics does not add a purpose — but the *description* of what is
+> collected has widened, and `website/privacy.html` was updated to match.
+> Play audits one against the other.
 
 | # | Category → Data type | What it actually is |
 | --- | --- | --- |
 | 1 | **Location → Approximate location** | Google derives coarse location from the IP address. The app holds **no** location permission and never sees GPS — declare it anyway, because the SDK transmits the IP. |
-| 2 | **App activity → App interactions** | "User product interactions" reported to the ad SDK. |
+| 2 | **App activity → App interactions** | "User product interactions" reported to the ad SDK, **and** the gameplay events reported to GameAnalytics — games started and ended, score and duration reached, rows cleared, tutorial progress, settings changed. |
 | 3 | **App info and performance → Diagnostics** | Ad SDK performance/reliability data. |
-| 4 | **Device or other IDs → Device or other IDs** | Android Advertising ID (AAID) **and** App Set ID. |
+| 4 | **Device or other IDs → Device or other IDs** | Android Advertising ID (AAID), App Set ID, **and** GameAnalytics' random per-installation id. |
 
 > On "is this data optional?": Google notes the ad ID is the one item a developer
 > *could* suppress, by removing the `AD_ID` permission from the manifest. We do

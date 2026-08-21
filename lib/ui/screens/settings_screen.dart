@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../game/tetrofall_game.dart';
 import '../../services/ads_service.dart';
+import '../../services/analytics_service.dart';
 import '../../services/audio_service.dart';
 import '../../services/haptics_service.dart';
 import '../../services/music_service.dart';
@@ -94,6 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.design('screen:settings');
 
     // Both Privacy rows are drawn from answers that only exist once UMP has
     // replied, and `main()` fires that off unawaited — so Settings reached
@@ -153,19 +155,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _toggleMusicMute() {
     if (_musicVolume > 0) {
       _onMusicChanged(0);
+      _onMusicSettled(0);
       return;
     }
-    _onMusicChanged(_musicRestore > 0 ? _musicRestore : 0.70);
+    final restored = _musicRestore > 0 ? _musicRestore : 0.70;
+    _onMusicChanged(restored);
+    _onMusicSettled(restored);
   }
 
   void _toggleSfxMute() {
     if (_sfxVolume > 0) {
       _onSfxChanged(0);
+      _onSfxSettled(0);
       return;
     }
     final restored = _sfxRestore > 0 ? _sfxRestore : 0.85;
     _onSfxChanged(restored);
-    _previewSfx(restored);
+    _onSfxSettled(restored);
+  }
+
+  /// Reported from the settle rather than from [_onMusicChanged], which rides
+  /// the drag and would send one event per frame of it.
+  void _onMusicSettled(double value) =>
+      AnalyticsService.design('settings:music', value: value);
+
+  void _onSfxSettled(double value) {
+    AnalyticsService.design('settings:sfx', value: value);
+    _previewSfx(value);
   }
 
   DateTime? _lastPreview;
@@ -194,6 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _openPrivacyOptions() async {
     if (_openingPrivacyOptions) return;
+    AnalyticsService.design('settings:privacy_options');
     setState(() => _openingPrivacyOptions = true);
     try {
       await widget.ads.showPrivacyOptions();
@@ -209,6 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// A device with no browser at all can't be helped by this row, so on the
   /// failure path it surfaces the address rather than doing nothing visible.
   Future<void> _openPrivacyPolicy() async {
+    AnalyticsService.design('settings:privacy_policy');
     final launched = await launchUrl(
       Uri.parse(_privacyPolicyUrl),
       mode: LaunchMode.externalApplication,
@@ -223,22 +241,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// turning it off has to reach the ads already loaded as well as the next
   /// request — otherwise the switch reads as instant and isn't.
   void _onPersonalizedAdsChanged(bool value) {
+    AnalyticsService.design('settings:personalized_ads', value: value ? 1 : 0);
     setState(() => _personalizedAds = value);
     widget.ads.setPersonalizedAds(value);
   }
 
   void _onGhostPieceChanged(bool value) {
+    AnalyticsService.design('settings:ghost', value: value ? 1 : 0);
     setState(() => _ghostPiece = value);
     widget.storage.saveGhostPieceEnabled(value);
     widget.liveGame?.showGhost = value;
   }
 
   void _onAdaptiveStartSpeedChanged(bool value) {
+    AnalyticsService.design('settings:adaptive', value: value ? 1 : 0);
+    AnalyticsService.setAdaptiveDimension(value);
     setState(() => _adaptiveStartSpeed = value);
     widget.storage.saveAdaptiveStartSpeedEnabled(value);
   }
 
   void _onVibrateChanged(bool value) {
+    AnalyticsService.design('settings:vibrate', value: value ? 1 : 0);
     setState(() => _vibrate = value);
     widget.storage.saveVibrateEnabled(value);
     // Confirm the switch with the thing it controls; gated by the switch
@@ -270,6 +293,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'Music',
                   value: _musicVolume,
                   onChanged: _onMusicChanged,
+                  onSettled: _onMusicSettled,
                   onToggleMute: _toggleMusicMute,
                 ),
                 SizedBox(height: ui.spaceSm),
@@ -279,7 +303,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: 'Sound Effects',
                 value: _sfxVolume,
                 onChanged: _onSfxChanged,
-                onSettled: _previewSfx,
+                onSettled: _onSfxSettled,
                 onToggleMute: _toggleSfxMute,
               ),
               SizedBox(height: ui.spaceLg),

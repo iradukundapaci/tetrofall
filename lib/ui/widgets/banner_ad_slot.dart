@@ -5,6 +5,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../services/ad_unit_ids.dart';
 import '../../services/ads_service.dart';
+import '../../services/analytics_service.dart';
 
 /// Bottom banner slot that always occupies the same height, so the play
 /// area above it never resizes when an ad loads late, fails to load, or
@@ -121,6 +122,13 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
             return;
           }
           _resetRetry();
+          // A banner is on screen the moment it loads — there is no separate
+          // show step to hang this off, the way the full-screen formats have.
+          AnalyticsService.ad(
+            outcome: AdOutcome.shown,
+            kind: AdKind.banner,
+            placement: AdPlacements.banner,
+          );
           setState(() {
             _bannerAd = ad as BannerAd;
             // An *estimated* reserve can undershoot on a first-ever cold
@@ -132,7 +140,13 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
             if (loaded > _slotHeight) _slotHeight = loaded;
           });
         },
-        onAdFailedToLoad: (ad, _) {
+        onAdFailedToLoad: (ad, error) {
+          AnalyticsService.ad(
+            outcome: AdOutcome.failed,
+            kind: AdKind.banner,
+            placement: AdPlacements.banner,
+            reason: error.code == 3 ? AdFailure.noFill : AdFailure.unknown,
+          );
           ad.dispose();
           if (_isCurrent(generation)) _scheduleRetry();
         },

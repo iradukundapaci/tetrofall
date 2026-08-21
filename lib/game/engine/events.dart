@@ -30,13 +30,27 @@ class ClearedCell {
 }
 
 class RowsClearedEvent extends GameEvent {
-  const RowsClearedEvent(this.rows, this.cells, {this.timeScale = 1.0});
+  const RowsClearedEvent(
+    this.rows,
+    this.cells, {
+    this.timeScale = 1.0,
+    this.forced = false,
+  });
   final List<int> rows;
   final List<ClearedCell> cells;
 
   /// How much the engine compressed this shatter, so the crack sequence can
   /// run at the same speed the engine is waiting for.
   final double timeScale;
+
+  /// Whether the engine wiped this row rather than the player completing it —
+  /// the board-clearing sweep a rewarded continue pays for.
+  ///
+  /// It still shatters and still sounds like a clear, because that is the
+  /// point of it. But it is not something the player did: [Scoring] already
+  /// declines to award it, and anything counting what the player achieved
+  /// must skip it too, or one continue reads as thirty-two line clears.
+  final bool forced;
 }
 
 class BlockFallEvent {
