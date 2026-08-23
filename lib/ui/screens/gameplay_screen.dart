@@ -310,6 +310,13 @@ class _GameplayScreenState extends State<GameplayScreen> {
                   storage: widget.storage,
                   ads: widget.ads,
                   boardKey: _boardKey,
+                  // Lets the coached caption duck out of the way while a
+                  // finger is on the glass. Null outside the tutorial, which
+                  // is every frame of a real run.
+                  onBoardTouched: tutorial?.setBoardTouched,
+                  // Coaching is not a run — the same line drawn for
+                  // RunTracker above and for the interstitial cadence.
+                  recordsBest: tutorial == null,
                   // A coach step must never dim: the dim treatment applies
                   // `IgnorePointer`, which would swallow the very gestures the
                   // step is teaching.
@@ -366,6 +373,8 @@ class _GameplayBody extends StatelessWidget {
     required this.ads,
     required this.dimmed,
     required this.boardKey,
+    this.onBoardTouched,
+    this.recordsBest = true,
   });
 
   final TetrofallGame game;
@@ -373,6 +382,14 @@ class _GameplayBody extends StatelessWidget {
   final AdsService ads;
   final bool dimmed;
   final GlobalKey boardKey;
+
+  /// Told whenever a touch starts or ends on the board. Only the tutorial
+  /// listens; it fades its chrome down for the duration of the gesture.
+  final ValueChanged<bool>? onBoardTouched;
+
+  /// Whether this board's score may become the player's best. False while the
+  /// tutorial is coaching over it.
+  final bool recordsBest;
 
   /// Aspect ratio of the visible grid — 18:32, which is exactly 9:16. That
   /// equality is why the layout below is so miserly with vertical space: on a
@@ -411,7 +428,7 @@ class _GameplayBody extends StatelessWidget {
       decoration: const BoxDecoration(gradient: Tokens.bgWoodGradient),
       child: Column(
         children: [
-          ScoreHud(game: game, storage: storage),
+          ScoreHud(game: game, storage: storage, recordsBest: recordsBest),
           Expanded(
             child: Padding(
               padding: EdgeInsets.symmetric(
@@ -441,6 +458,7 @@ class _GameplayBody extends StatelessWidget {
                         child: Listener(
                           onPointerDown: (e) {
                             if (game.paused) return;
+                            onBoardTouched?.call(true);
                             game.gestureHandler.onPointerDown(e);
                           },
                           onPointerMove: (e) {
@@ -450,10 +468,12 @@ class _GameplayBody extends StatelessWidget {
                           onPointerUp: (e) {
                             if (game.paused) return;
                             game.gestureHandler.onPointerUp(e);
+                            onBoardTouched?.call(false);
                           },
                           onPointerCancel: (e) {
                             if (game.paused) return;
                             game.gestureHandler.onPointerCancel(e);
+                            onBoardTouched?.call(false);
                           },
                           child: GameWidget(game: game),
                         ),

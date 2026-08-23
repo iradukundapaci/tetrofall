@@ -9,10 +9,25 @@ import '../../ui/theme/ui_scale.dart';
 import '../tetrofall_game.dart';
 
 class ScoreHud extends StatefulWidget {
-  const ScoreHud({super.key, required this.game, required this.storage});
+  const ScoreHud({
+    super.key,
+    required this.game,
+    required this.storage,
+    this.recordsBest = true,
+  });
 
   final TetrofallGame game;
   final StorageService storage;
+
+  /// Whether what happens on this board counts towards the player's best.
+  ///
+  /// False for the duration of the coached tutorial, which is the same line
+  /// gameplay already draws for [RunTracker] and for the interstitial cadence:
+  /// coaching is not a run. Its rigged row is worth a hundred points and the
+  /// player is *told* to clear it, so banking that would hand every new player
+  /// a best score they did not earn and, through
+  /// [Difficulty.adaptiveStartElapsed], a head start on their first real game.
+  final bool recordsBest;
 
   @override
   State<ScoreHud> createState() => _ScoreHudState();
@@ -35,7 +50,7 @@ class _ScoreHudState extends State<ScoreHud> {
 
   void _onScoringChanged() {
     final scoring = widget.game.engine.scoring;
-    if (scoring.score > _best) {
+    if (widget.recordsBest && scoring.score > _best) {
       _best = scoring.score;
       widget.storage.saveBestScore(_best);
     }
@@ -45,14 +60,14 @@ class _ScoreHudState extends State<ScoreHud> {
   @override
   Widget build(BuildContext context) {
     final scoring = widget.game.engine.scoring;
-    if (scoring.score > _best) _best = scoring.score;
+    if (widget.recordsBest && scoring.score > _best) _best = scoring.score;
 
     final ui = context.scale;
     return SafeArea(
       bottom: false,
       // Fixed height rather than intrinsic. On a 9:16 phone the board's
       // aspect ratio turns every point of HUD height into a point of board
-      // *width*, so this has to be both small and — more to the point —
+      // *width*, so this has to be both small and more to the point —
       // knowable before layout: `_GameplayBody` budgets the board against it.
       child: SizedBox(
         height: ui.hudHeight,
@@ -129,7 +144,7 @@ class _PauseButton extends StatelessWidget {
   Widget build(BuildContext context) {
     // Listens to the same notifier the pause overlay uses, so the icon
     // stays correct whether pause/resume is triggered from here or from
-    // Resume in the overlay — not just from this button's own tap.
+    // Resume in the overlay not just from this button's own tap.
     return ValueListenableBuilder<bool>(
       valueListenable: game.pausedNotifier,
       builder: (context, paused, _) {
