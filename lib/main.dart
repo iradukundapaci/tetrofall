@@ -20,10 +20,6 @@ void main() async {
   final storage = await StorageService.load();
   final ads = AdsService(storage, connectivity: ConnectivityService());
   unawaited(ads.init());
-  // Fire-and-forget like the rest: the SDK queues events written before it has
-  // finished starting, and nothing on screen waits for analytics. The two
-  // dimensions are set after it, on the same future, because GameAnalytics
-  // drops any dimension set before `initialize` resolves.
   unawaited(
     AnalyticsService.init().then((_) {
       AnalyticsService.setAdaptiveDimension(storage.adaptiveStartSpeedEnabled);

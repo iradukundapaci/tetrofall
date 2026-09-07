@@ -55,3 +55,7 @@ app.*.map.json
 # Obfuscation symbols for a release build. Archived per release out-of-band
 # (Phase 5.2) rather than committed — large, and regenerated every build.
 /build/symbols/
+# Store capture videos. Large (16 Mbps portrait MP4) and fully regenerable
+# from `tools/capture/capture.sh reel`, so they stay out of history. Every
+# image under gameplay/ IS tracked — those are the upload artefacts.
+/gameplay/video/

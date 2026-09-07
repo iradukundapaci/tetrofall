@@ -3,6 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tetrofall/game/engine/events.dart';
 import 'package:tetrofall/ui/screens/confirm_quit_overlay.dart';
 import 'package:tetrofall/ui/screens/game_over_overlay.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tetrofall/game/config/board_config.dart';
+import 'package:tetrofall/services/ads_service.dart';
+import 'package:tetrofall/services/storage_service.dart';
+import 'package:tetrofall/ui/screens/gameplay_screen.dart';
 import 'package:tetrofall/ui/theme/ui_scale.dart';
 
 /// The chrome is sized from one scalar, so the regression net only has to
@@ -105,5 +110,27 @@ void main() {
         });
       }
     }
+  });
+
+  /// `GameplayScreen.immersive` exists only for the store-capture harness in
+  /// `tools/capture/`. It removes the banner slot outright — and that slot is
+  /// the app's only banner placement — so the shipped build depends on this
+  /// staying off. Constructing the widget is enough to catch a flipped
+  /// default; mounting it would boot Flame for no extra signal.
+  group('immersive capture flag', () {
+    test('defaults to off, so the shipped layout keeps its banner', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      final storage = StorageService(await SharedPreferences.getInstance());
+      final shipped = GameplayScreen(storage: storage, ads: AdsService(storage));
+      expect(shipped.immersive, isFalse);
+    });
+
+    test('the board is exactly 9:16, which is why chrome costs width', () {
+      // The reason immersive reclaims so much: with the board height-bound at
+      // 9:16 on a 9:16 screen, every point of HUD or banner above and below it
+      // comes back out of the board's *width* at 0.5625pt a time.
+      expect(BoardConfig.cols / BoardConfig.rows, closeTo(9 / 16, 1e-9));
+    });
   });
 }

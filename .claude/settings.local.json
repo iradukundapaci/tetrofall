@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter --version)",
+      "WebSearch",
+      "Bash(brew list *)",
+      "Bash(flutter config *)",
+      "Bash(brew install *)",
+      "Bash(JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./android/gradlew -p android assembleDebug --console=plain)",
+      "Bash(xargs ls -la)",
+      "Bash(flutter analyze *)",
+      "Bash(git restore *)",
+      "Bash(xargs -I{} echo {})",
+      "Bash(flutter devices *)",
+      "Bash(adb devices *)",
+      "Read(//Users/pacifique/Library/Android/sdk/platform-tools/**)",
+      "Bash(~/Library/Android/sdk/platform-tools/adb devices *)"
+    ]
+  }
+}

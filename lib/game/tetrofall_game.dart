@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show Random;
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -19,7 +20,8 @@ class TetrofallGame extends FlameGame {
     this.theme = ThemeDefinition.classicWood,
     required this.storage,
     this.feedbackEnabled = true,
-  }) : engine = GameEngine() {
+    Random? random,
+  }) : engine = GameEngine(random: random) {
     gestureHandler = GestureHandler(
       engine,
       () => _board?.cellSize ?? 0,
@@ -64,6 +66,18 @@ class TetrofallGame extends FlameGame {
     gestureHandler.reset();
     super.pauseEngine();
     pausedNotifier.value = true;
+  }
+
+  /// Stops Flame's clock **without** flipping [pausedNotifier], so no pause
+  /// overlay appears over the frozen frame.
+  ///
+  /// Capture-only (`tools/capture/main.dart`): the shatter and the ripple
+  /// cascade are the best-looking moments in the game and are three frames
+  /// long, so the store harness runs them and then freezes mid-flight to
+  /// photograph one. [pauseEngine] can't do this — it is the player-facing
+  /// pause, and raising the overlay is the whole point of it.
+  void freezeForCapture() {
+    super.pauseEngine();
   }
 
   @override

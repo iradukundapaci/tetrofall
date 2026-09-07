@@ -125,13 +125,38 @@ void main() {
     final texture = await _loadTexture(tester);
     await _loadLabelFont();
 
+    // 1024x500 exactly, three times. Play rejects any other ratio for this
+    // slot — it is NOT square, which is the usual mistake.
+    //
+    // Three variants rather than one because the graphic plays alone, with
+    // no screenshots beside it, in several Play promo surfaces: which of the
+    // three pitches — identity, mechanic, or payoff — carries best there is
+    // worth A/B-ing rather than guessing.
+    const featureSize = Size(1024, 500);
+
     await _capture(
       tester,
-      // 1024x500 exactly. Play rejects any other ratio for this slot — it is
-      // NOT square, which is the usual mistake.
-      size: const Size(1024, 500),
+      size: featureSize,
       path: '$out/store/feature_graphic.png',
       child: _FeatureGraphic(texture: texture),
+    );
+    await _capture(
+      tester,
+      size: featureSize,
+      path: 'gameplay/feature/01_wordmark.png',
+      child: _FeatureGraphic(texture: texture),
+    );
+    await _capture(
+      tester,
+      size: featureSize,
+      path: 'gameplay/feature/02_rising_floor.png',
+      child: _FeatureRisingFloor(texture: texture),
+    );
+    await _capture(
+      tester,
+      size: featureSize,
+      path: 'gameplay/feature/03_shatter.png',
+      child: _FeatureShatter(texture: texture),
     );
   });
 
@@ -536,6 +561,299 @@ class _RisingRow extends StatelessWidget {
           _WoodBlock(size: 64, opacity: i.isEven ? 0.55 : 0.4),
           const SizedBox(width: 8),
         ],
+      ],
+    );
+  }
+}
+
+/// Feature graphic 2 — the mechanic, not the name.
+///
+/// Where variant 1 sells the identity, this one answers "what is this game?"
+/// in the two seconds the graphic gets on its own: pieces coming down on the
+/// left of the plate, a row shoving up from the floor on the right, lit with
+/// the same red the board frame uses when the stack nears the top.
+class _FeatureRisingFloor extends StatelessWidget {
+  const _FeatureRisingFloor({required this.texture});
+
+  final ui.Image? texture;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        WoodPlate(texture: texture),
+
+        // A scrim under the copy. The plate's grain is busiest on the left,
+        // which is exactly where the headline sits.
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xCC2B1C12), Color(0x002B1C12)],
+              stops: [0.08, 0.62],
+            ),
+          ),
+        ),
+
+        // The right third is the diagram: a slab of stack with the rising row
+        // glowing beneath it and three pieces on the way down.
+        const Positioned(right: 0, top: 0, bottom: 0, width: 392, child: _RiseDiagram()),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(102, 50, 102, 50),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const LogoWordmark(fontSize: 58),
+              const SizedBox(height: 16),
+              Text(
+                'The floor keeps rising.',
+                style: TextStyle(
+                  fontFamily: Tokens.fontDisplay,
+                  fontSize: 44,
+                  height: 1.06,
+                  fontWeight: FontWeight.w800,
+                  color: Tokens.colorGold,
+                  shadows: const [
+                    Shadow(color: Color(0xB3000000), offset: Offset(0, 3), blurRadius: 8),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Clear rows to buy back space.',
+                style: TextStyle(
+                  fontFamily: Tokens.fontBody,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Tokens.colorText.withValues(alpha: 0.9),
+                  shadows: const [
+                    Shadow(color: Color(0x99000000), offset: Offset(0, 2), blurRadius: 5),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RiseDiagram extends StatelessWidget {
+  const _RiseDiagram();
+
+  @override
+  Widget build(BuildContext context) {
+    const cell = 44.0;
+    return Stack(
+      children: [
+        // Pieces on the way down.
+        const Positioned(left: 70, top: 96, child: _WoodBlock(size: 34, tilt: -0.24, opacity: 0.55)),
+        const Positioned(left: 148, top: 40, child: _WoodBlock(size: 46, tilt: 0.16, opacity: 0.72)),
+        const Positioned(left: 236, top: 84, child: _WoodBlock(size: 38, tilt: 0.34, opacity: 0.6)),
+        const Positioned(left: 300, top: 26, child: _WoodBlock(size: 28, tilt: -0.4, opacity: 0.45)),
+
+        // The settled stack, ragged along the top the way a real one is.
+        Positioned(
+          left: 22,
+          right: 22,
+          bottom: cell + 54,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final heights in const [
+                [0, 1, 1, 0, 1, 1, 0],
+                [1, 1, 1, 1, 0, 1, 1],
+                [1, 0, 1, 1, 1, 1, 1],
+              ])
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (final on in heights)
+                      SizedBox(
+                        width: cell + 4,
+                        height: cell + 4,
+                        child: on == 1
+                            ? const Padding(
+                                padding: EdgeInsets.all(2),
+                                child: _WoodBlock(size: cell, opacity: 0.92),
+                              )
+                            : null,
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+
+        // The rise itself: the row arriving, under the red the board frame
+        // uses for its top-out warning.
+        Positioned(
+          left: 22,
+          right: 22,
+          bottom: 34,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                height: cell + 54,
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.bottomCenter,
+                    radius: 1.15,
+                    colors: [
+                      Tokens.colorRed.withValues(alpha: 0.8),
+                      Tokens.colorRed.withValues(alpha: 0.28),
+                      Tokens.colorRed.withValues(alpha: 0.0),
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (final on in const [1, 1, 0, 1, 1, 1, 0])
+                    SizedBox(
+                      width: cell + 4,
+                      height: cell + 4,
+                      child: on == 1
+                          ? const Padding(
+                              padding: EdgeInsets.all(2),
+                              child: _WoodBlock(size: cell, opacity: 0.85),
+                            )
+                          : null,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Feature graphic 3 — the payoff.
+///
+/// The shatter is the thing players stay for, and it is the one moment a
+/// static graphic can show that a screenshot of a settled board cannot.
+class _FeatureShatter extends StatelessWidget {
+  const _FeatureShatter({required this.texture});
+
+  final ui.Image? texture;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        WoodPlate(texture: texture),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0.34, 0.1),
+              radius: 0.95,
+              colors: [Color(0x4DF2B632), Color(0x00000000)],
+            ),
+          ),
+        ),
+
+        // The burst, centred on the right of the plate so the copy on the
+        // left stays clear of it.
+        const Positioned.fill(child: _ShardBurst()),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(102, 50, 102, 50),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const LogoWordmark(fontSize: 58),
+              const SizedBox(height: 16),
+              Text(
+                'Clear rows.\nWatch them shatter.',
+                style: TextStyle(
+                  fontFamily: Tokens.fontDisplay,
+                  fontSize: 42,
+                  height: 1.08,
+                  fontWeight: FontWeight.w800,
+                  color: Tokens.colorGold,
+                  shadows: const [
+                    Shadow(color: Color(0xB3000000), offset: Offset(0, 3), blurRadius: 8),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Wood shards thrown from a cleared row. Hand-placed rather than random so
+/// the graphic is byte-identical on every regeneration — a feature graphic
+/// that changes silently between runs is one you cannot review.
+class _ShardBurst extends StatelessWidget {
+  const _ShardBurst();
+
+  /// `(left, top, size, tilt, opacity)`, spreading up and out from the row.
+  static const _shards = <(double, double, double, double, double)>[
+    // Upper arc — the fragments thrown furthest, smallest and faintest.
+    (598, 150, 12, 0.5, 0.55), (652, 116, 10, -0.3, 0.5),
+    (720, 96, 14, 0.9, 0.6), (792, 104, 11, 0.2, 0.5),
+    (860, 122, 13, -0.7, 0.55), (924, 156, 10, 1.1, 0.45),
+    // Mid burst — the body of it.
+    (580, 212, 22, 0.35, 0.8), (622, 180, 18, -0.5, 0.75),
+    (668, 216, 28, 0.75, 0.9), (706, 172, 15, -0.15, 0.7),
+    (744, 208, 26, 0.5, 0.88), (784, 168, 20, 1.25, 0.78),
+    (820, 214, 30, -0.35, 0.92), (862, 178, 17, 0.65, 0.72),
+    (900, 210, 24, -0.85, 0.85), (940, 186, 19, 0.3, 0.7),
+    (976, 224, 14, -0.6, 0.6),
+    // Lower spray, still leaving the row.
+    (566, 284, 16, -0.9, 0.7), (612, 300, 24, 0.45, 0.8),
+    (664, 286, 13, 1.3, 0.62), (708, 308, 21, -0.4, 0.78),
+    (756, 288, 27, 0.15, 0.85), (802, 312, 15, 0.95, 0.65),
+    (848, 292, 23, -0.55, 0.8), (896, 306, 18, 0.7, 0.7),
+    (944, 288, 20, -1.0, 0.72), (986, 302, 12, 0.4, 0.55),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // The row the shards came off, half gone already.
+        Positioned(
+          left: 558,
+          right: 12,
+          top: 352,
+          child: Row(
+            children: [
+              for (final on in const [1, 0, 1, 1, 0, 0, 1, 0])
+                SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: on == 1
+                      ? const Padding(
+                          padding: EdgeInsets.all(2),
+                          child: _WoodBlock(size: 48, opacity: 0.9),
+                        )
+                      : null,
+                ),
+            ],
+          ),
+        ),
+        for (final (left, top, size, tilt, opacity) in _shards)
+          Positioned(
+            left: left,
+            top: top,
+            child: _WoodBlock(size: size, tilt: tilt, opacity: opacity),
+          ),
       ],
     );
   }

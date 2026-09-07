@@ -30,6 +30,7 @@ class GameplayScreen extends StatefulWidget {
     required this.ads,
     this.startTutorial = false,
     this.onGameCreated,
+    this.immersive = false,
   });
 
   final StorageService storage;
@@ -46,6 +47,22 @@ class GameplayScreen extends StatefulWidget {
   /// the capture harness is a separate entrypoint that the release build never
   /// compiles.
   final void Function(TetrofallGame game)? onGameCreated;
+
+  /// Capture-only (android_release_plan.md §4.7). Gives the board the whole
+  /// viewport: no banner reservation, no padding, and the HUD floated over
+  /// the board instead of stacked above it.
+  ///
+  /// The board is `AspectRatio(18/32)` — exactly 9:16 — so on a 9:16 screen
+  /// every point of chrome the layout spends vertically comes straight back
+  /// out of the board's *width* at 0.5625pt a time. In the shipped layout the
+  /// HUD, the status bar and a ~90pt banner reservation between them cost the
+  /// board roughly two thirds of its area, which is what makes an honest
+  /// screenshot look like a small board on a large empty background.
+  ///
+  /// Defaults to false and nothing in `lib/` passes true: the shipped app
+  /// keeps its banner, and its revenue. Only the separate capture entrypoint
+  /// under `tools/` turns this on.
+  final bool immersive;
 
   @override
   State<GameplayScreen> createState() => _GameplayScreenState();
@@ -310,6 +327,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
                   storage: widget.storage,
                   ads: widget.ads,
                   boardKey: _boardKey,
+                  immersive: widget.immersive,
                   // Lets the coached caption duck out of the way while a
                   // finger is on the glass. Null outside the tutorial, which
                   // is every frame of a real run.
@@ -373,6 +391,7 @@ class _GameplayBody extends StatelessWidget {
     required this.ads,
     required this.dimmed,
     required this.boardKey,
+    required this.immersive,
     this.onBoardTouched,
     this.recordsBest = true,
   });
@@ -382,6 +401,9 @@ class _GameplayBody extends StatelessWidget {
   final AdsService ads;
   final bool dimmed;
   final GlobalKey boardKey;
+
+  /// See [GameplayScreen.immersive]. Capture-only; false in the shipped app.
+  final bool immersive;
 
   /// Told whenever a touch starts or ends on the board. Only the tutorial
   /// listens; it fades its chrome down for the duration of the gesture.
@@ -405,12 +427,15 @@ class _GameplayBody extends StatelessWidget {
 
     // Every input here is known before layout — which is the whole reason
     // ScoreHud has a fixed height and the banner slot reserves synchronously.
-    final bannerHeight = ads.reservedBannerHeight(
-      size.width.truncate(),
-      screenHeight: size.height,
-    );
-    final chrome =
-        viewPadding.top + ui.hudHeight + bannerHeight + ui.spaceXs * 2;
+    final bannerHeight = immersive
+        ? 0.0
+        : ads.reservedBannerHeight(
+            size.width.truncate(),
+            screenHeight: size.height,
+          );
+    final chrome = immersive
+        ? 0.0
+        : viewPadding.top + ui.hudHeight + bannerHeight + ui.spaceXs * 2;
 
     // What the board would want if it were width-bound: filling the screen
     // edge to edge. Anything left over after that is genuine slack.
@@ -424,69 +449,91 @@ class _GameplayBody extends StatelessWidget {
         ? 0.0
         : math.min(viewPadding.bottom, slack);
 
+    // Immersive drops the frame entirely rather than merely thinning it: a
+    // rounded gold border is a nicety when the board floats on a background,
+    // and a visible seam once the board *is* the screen.
+    final boardPadding = immersive
+        ? EdgeInsets.zero
+        : EdgeInsets.symmetric(horizontal: ui.spaceSm, vertical: ui.spaceXs);
+    final boardRadius = immersive ? 0.0 : ui.radiusSm;
+
+    final board = DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0x47000000),
+        border: immersive
+            ? null
+            : Border.all(
+                color: const Color(0x4DF5EAD9),
+                width: ui.px(Tokens.borderBoard),
+              ),
+        borderRadius: BorderRadius.circular(
+          immersive ? 0 : ui.radiusSm + ui.px(2),
+        ),
+        boxShadow: immersive ? null : const [Tokens.shadowSoft],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(boardRadius),
+        child: Padding(
+          padding: EdgeInsets.all(immersive ? 0 : ui.px(Tokens.boardInset)),
+          child: Listener(
+            onPointerDown: (e) {
+              if (game.paused) return;
+              onBoardTouched?.call(true);
+              game.gestureHandler.onPointerDown(e);
+            },
+            onPointerMove: (e) {
+              if (game.paused) return;
+              game.gestureHandler.onPointerMove(e);
+            },
+            onPointerUp: (e) {
+              if (game.paused) return;
+              game.gestureHandler.onPointerUp(e);
+              onBoardTouched?.call(false);
+            },
+            onPointerCancel: (e) {
+              if (game.paused) return;
+              game.gestureHandler.onPointerCancel(e);
+              onBoardTouched?.call(false);
+            },
+            child: GameWidget(game: game),
+          ),
+        ),
+      ),
+    );
+
+    final hud = ScoreHud(game: game, storage: storage, recordsBest: recordsBest);
+
     final content = DecoratedBox(
       decoration: const BoxDecoration(gradient: Tokens.bgWoodGradient),
-      child: Column(
-        children: [
-          ScoreHud(game: game, storage: storage, recordsBest: recordsBest),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: ui.spaceSm,
-                vertical: ui.spaceXs,
-              ),
-              child: Center(
-                child: AspectRatio(
-                  aspectRatio: _boardAspect,
-                  child: DecoratedBox(
-                    key: boardKey,
-                    decoration: BoxDecoration(
-                      color: const Color(0x47000000),
-                      border: Border.all(
-                        color: const Color(0x4DF5EAD9),
-                        width: ui.px(Tokens.borderBoard),
-                      ),
-                      borderRadius: BorderRadius.circular(
-                        ui.radiusSm + ui.px(2),
-                      ),
-                      boxShadow: const [Tokens.shadowSoft],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(ui.radiusSm),
-                      child: Padding(
-                        padding: EdgeInsets.all(ui.px(Tokens.boardInset)),
-                        child: Listener(
-                          onPointerDown: (e) {
-                            if (game.paused) return;
-                            onBoardTouched?.call(true);
-                            game.gestureHandler.onPointerDown(e);
-                          },
-                          onPointerMove: (e) {
-                            if (game.paused) return;
-                            game.gestureHandler.onPointerMove(e);
-                          },
-                          onPointerUp: (e) {
-                            if (game.paused) return;
-                            game.gestureHandler.onPointerUp(e);
-                            onBoardTouched?.call(false);
-                          },
-                          onPointerCancel: (e) {
-                            if (game.paused) return;
-                            game.gestureHandler.onPointerCancel(e);
-                            onBoardTouched?.call(false);
-                          },
-                          child: GameWidget(game: game),
-                        ),
+      // Immersive floats the HUD *over* the board so it costs no height;
+      // the shipped layout stacks it above, where its fixed `ui.hudHeight`
+      // is what lets the budget above be computed before layout runs.
+      child: immersive
+          ? Stack(
+              children: [
+                Positioned.fill(
+                  child: KeyedSubtree(key: boardKey, child: board),
+                ),
+                Positioned(top: 0, left: 0, right: 0, child: hud),
+              ],
+            )
+          : Column(
+              children: [
+                hud,
+                Expanded(
+                  child: Padding(
+                    padding: boardPadding,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: _boardAspect,
+                        child: KeyedSubtree(key: boardKey, child: board),
                       ),
                     ),
                   ),
                 ),
-              ),
+                BannerAdSlot(ads: ads, bottomInset: bannerBottomInset),
+              ],
             ),
-          ),
-          BannerAdSlot(ads: ads, bottomInset: bannerBottomInset),
-        ],
-      ),
     );
 
     // The dim treatment is switched by parameter rather than by wrapping, and
