@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+{{NETWORK_META}}
+<title>Tetrofall</title>
+<style>
+  {{FONT_FACE}}
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #2B1C12;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    background: #2B1C12;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="tf-canvas"></canvas>
+<script>
+{{ASSETS_JS}}
+</script>
+<script>
+{{GAME_JS}}
+</script>
+<script>
+{{SHIM_JS}}
+</script>
+</body>
+</html>

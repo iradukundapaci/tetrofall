@@ -32,10 +32,16 @@ GOLD = (0xF2, 0xB6, 0x32)
 GOLD_LIGHT = (0xFF, 0xD4, 0x6B)
 GOLD_DEEP = (0xD9, 0x93, 0x1C)
 TEXT = (0xF5, 0xEA, 0xD9)
+TEXT_MUTED = (0xB9, 0xA8, 0x89)
 
 NAME = "TETROFALL"
 # tools/branding/forge_test.dart — the same line the feature graphic carries.
 TAGLINE = "The floor rises. Clear rows or get crushed."
+
+# A small line above the mark, for the end card's "this is the real game"
+# angle. Off unless asked for: the mechanic tagline is the safer default for
+# anything going on the store listing itself.
+KICKER = None
 
 # The T-tetromino, as the mark uses it: one block over three.
 MARK = [(1, 0), (0, 1), (1, 1), (2, 1)]
@@ -90,7 +96,7 @@ def _fit(draw, text, font_path, max_width, start):
     return ImageFont.truetype(str(font_path), 20)
 
 
-def build_card(w: int, h: int) -> Image.Image:
+def build_card(w: int, h: int, tagline=TAGLINE, kicker=KICKER) -> Image.Image:
     card = _wood(w, h)
     draw = ImageDraw.Draw(card)
 
@@ -105,13 +111,31 @@ def build_card(w: int, h: int) -> Image.Image:
     mark_h = 2 * cell + gap
     name_font = _fit(draw, NAME, DISPLAY_FONT, safe, round(w * 0.20))
     name_h = draw.textbbox((0, 0), NAME, font=name_font)[3]
-    tag_font = _fit(draw, TAGLINE, BODY_FONT, safe, round(w * 0.048))
-    tag_h = draw.textbbox((0, 0), TAGLINE, font=tag_font)[3]
+    tag_font = _fit(draw, tagline, BODY_FONT, safe, round(w * 0.048))
+    tag_h = draw.textbbox((0, 0), tagline, font=tag_font)[3]
 
     pad_a = round(h * 0.045)   # mark -> name
     pad_b = round(h * 0.022)   # name -> tagline
+    pad_k = round(h * 0.030)   # kicker -> mark
+
+    kick_font = kick_h = None
+    if kicker:
+        kick_font = _fit(draw, kicker, BODY_FONT, safe, round(w * 0.040))
+        kick_h = draw.textbbox((0, 0), kicker, font=kick_font)[3]
+
     total = mark_h + pad_a + name_h + pad_b + tag_h
+    if kicker:
+        total += kick_h + pad_k
     y = (h - total) // 2
+
+    if kicker:
+        # Letter-spaced, muted and small — a label over the mark, not a
+        # second headline competing with the wordmark.
+        spaced = " ".join(kicker.upper())
+        kick_font = _fit(draw, spaced, BODY_FONT, safe, round(w * 0.040))
+        kw = draw.textlength(spaced, font=kick_font)
+        draw.text(((w - kw) / 2, y), spaced, font=kick_font, fill=TEXT_MUTED)
+        y += kick_h + pad_k
 
     block = _block(cell)
     mx = (w - mark_w) // 2
@@ -127,8 +151,8 @@ def build_card(w: int, h: int) -> Image.Image:
     draw.text((nx, y), NAME, font=name_font, fill=GOLD)
     y += name_h + pad_b
 
-    tx = (w - draw.textlength(TAGLINE, font=tag_font)) / 2
-    draw.text((tx, y), TAGLINE, font=tag_font, fill=TEXT)
+    tx = (w - draw.textlength(tagline, font=tag_font)) / 2
+    draw.text((tx, y), tagline, font=tag_font, fill=TEXT)
     return card
 
 
@@ -154,10 +178,14 @@ def main() -> int:
     ap.add_argument("--fade", type=float, default=0.6)
     ap.add_argument("--card-only", type=Path,
                     help="write just the card PNG here and stop")
+    ap.add_argument("--tagline", default=TAGLINE,
+                    help="line under the wordmark")
+    ap.add_argument("--kicker", default=KICKER,
+                    help="small letter-spaced label above the mark")
     a = ap.parse_args()
 
     if a.card_only:
-        build_card(1080, 1920).save(a.card_only)
+        build_card(1080, 1920, a.tagline, a.kicker).save(a.card_only)
         print(f"→ {a.card_only}  1080x1920")
         return 0
 
@@ -173,7 +201,7 @@ def main() -> int:
         return 2
 
     card_png = a.video.with_suffix(".card.png")
-    build_card(w, h).save(card_png)
+    build_card(w, h, a.tagline, a.kicker).save(card_png)
 
     out = a.out or a.video.with_name(a.video.stem + "_outro.mp4")
     # The card is a still, so it costs almost nothing to encode; the gameplay

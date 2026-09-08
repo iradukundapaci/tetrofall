@@ -63,7 +63,7 @@ Not tracked in git (see `.gitignore`) — they are large and regenerable.
 | `05_long_form.mp4` | 60s | A minute of mixed play for a YouTube URL. |
 | `06_endurance_2min.mp4` | 120s | Two minutes of dense survival against the rising floor, score 4800 → ~12000. Holds a full board through the first seventy seconds and thins in the last third. |
 | `07_cascade_2min.mp4` | 120s | Two minutes of ripple gravity: clears chain down the stack, a fast floor refills it, repeat. Opens on a 20-row board, score 9100 → ~21000. The showier of the two long cuts. |
-| `08_listing_40_outro.mp4` | 40s | `01_skilled_run` trimmed to 36.6s and crossfaded into the Tetrofall end card. Same footage, but it closes on the game name. |
+| `08_listing_40_outro.mp4` | 40s | `01_skilled_run` trimmed to 36.6s and crossfaded into the end card, which reads **NO FAKE ADS** / TETROFALL / *That was all real gameplay.* Same footage, closing on the game name and the claim. |
 
 Cuts 2–5 are deliberate-blunder creative for paid social, not for the listing:
 a clip where the viewer can plainly see the mistake converts because they want
@@ -87,6 +87,38 @@ tools/store/outro.py gameplay/video/01_skilled_run.mp4 \
 `--total` is the length of the *finished* file, so a 40-second cut with a
 4-second card holds ~36.6s of play. `--card-only out.png` renders just the
 card for checking the layout without re-encoding anything.
+
+`--tagline` replaces the line under the wordmark and `--kicker` adds a small
+letter-spaced label above the mark:
+
+```bash
+tools/store/outro.py gameplay/video/01_skilled_run.mp4 \
+    --out gameplay/video/08_listing_40_outro.mp4 --total 40 \
+    --kicker "no fake ads" --tagline "That was all real gameplay."
+```
+
+### "This is the real game" — the copy angle
+
+Tetrofall started from one of those fake mobile ads that shows a game which
+does not exist in the app being advertised, so the listing has an unusually
+strong claim available: the game in the ad is this one, and it is playable.
+
+The card above is worded to be *verifiable* rather than boastful. Every frame
+of every reel is `adb screenrecord` output from the shipped build — nothing is
+mocked up, composited or sped up — so "that was all real gameplay" is a
+statement about the footage the viewer just watched, not a promise about the
+game in general.
+
+Three limits on how far to push it:
+
+- **Never name or show another game or company's ad.** Generic "those ads" is
+  fine; disparaging a named competitor is a policy problem and an IP one.
+- **"No fake ads" is a promise about your own creative,** not just the store
+  page. Cuts 2–5 are honest — a real bot playing badly on purpose — but the
+  claim only holds while every piece of UA creative stays actual gameplay.
+- **"You've seen the ad" implies the viewer saw an ad for _this_ game.** Fair
+  on paid social, where the cut *is* the ad; on the listing itself prefer
+  "those ads", which references the genre rather than asserting a history.
 
 ## Regenerating
 
@@ -274,5 +306,13 @@ has, and at two minutes it compounds. Three takes of reel 6 at an identical
 
 So record two or three and measure. A take that dies *late* is fine — trimmed,
 it yields a dense ~110s cut, which beats a take that survives by being empty.
-Reel 7 needs none of this care: its cascade base plus `riseSpeed: 2.4` held
-mean 184 with 4/60 sparse and no top-out on the first take.
+
+Reel 7 is subject to the same thing, despite holding mean 184 with no top-out
+on its first ever take — a later recapture of the identical config died at
+t=86, and three more takes of it then survived at mean 185–188. Do not read one
+good take as a stable config for either long reel. Always record a few:
+
+```bash
+# after `capture.sh reel …` has built and installed the APK once, extra takes
+# cost only the recording — relaunch, wait for the marker, screenrecord again
+```
