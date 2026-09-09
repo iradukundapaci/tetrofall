@@ -120,6 +120,62 @@ void main() {
     expect(lockedCol, startCol);
   });
 
+  // "When dropping hard, sometimes in the process of swiping I move the
+  // piece to the right or left accidentally." Unlike the arced-flick case
+  // above (a sideways burst mid-stroke), this is the *opening* sample of the
+  // gesture: `isVertical` is a ratio of totals since touch-down, so on event
+  // one it has no history yet and reads false even when the downward speed
+  // that same instant is already well past flick pace. `holdSideways` used
+  // to require `isVertical`, so the very first sample of a fast flick could
+  // bank a full column before verticality had accumulated enough distance to
+  // prove itself.
+  test(
+    'the opening sample of a fast flick does not bank a column',
+    () async {
+      const cellSize = 30.0;
+      final engine = GameEngine(random: Random(1));
+      engine.start();
+
+      final startCol = engine.pieceController.piece!.anchorCol;
+      final handler = GestureHandler(engine, () => cellSize);
+
+      const pointer = 1;
+      var pos = const Offset(200, 100);
+      handler.onPointerDown(PointerDownEvent(pointer: pointer, position: pos));
+
+      // First sample: 27px sideways (over the 25.5px column threshold) against
+      // only 23px down over 40ms — read in isolation this looks more
+      // horizontal than vertical, and `totalDown` has no earlier history to
+      // say otherwise. Then straight down, fast, to complete the flick.
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      pos = pos + const Offset(27, 23);
+      handler.onPointerMove(PointerMoveEvent(pointer: pointer, position: pos));
+
+      for (var i = 0; i < 6; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+        pos = pos + const Offset(0, 30);
+        handler.onPointerMove(
+          PointerMoveEvent(pointer: pointer, position: pos),
+        );
+      }
+
+      engine.tick(1 / 60); // drains the hard-drop intent
+
+      final grid = engine.grid;
+      var lockedCol = -1;
+      for (var c = 0; c < grid.cols; c++) {
+        for (var r = grid.minRow; r <= grid.maxRow; r++) {
+          if (grid.at(r, c) != null) {
+            lockedCol = c;
+            break;
+          }
+        }
+        if (lockedCol != -1) break;
+      }
+      expect(lockedCol, startCol);
+    },
+  );
+
   // The other half of the same balance. Horizontal intent used to be gated
   // on `totalDown > 1.5 * totalDx.abs()`, both measured from the touch-down
   // point, so vertical drift latched sideways control off for the rest of

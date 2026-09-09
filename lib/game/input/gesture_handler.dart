@@ -153,18 +153,48 @@ class GestureHandler {
     final isVertical =
         totalDown > InputTuning.hardDropVerticalityRatio * totalDx.abs();
 
+    // Arm/disarm runs before the sideways-shift block below so that an event
+    // which *newly* arms (or re-confirms) the hard drop can never also bank a
+    // column shift under this event's stale, pre-arm flag. Order used to be
+    // reversed, and a fast flick's very first qualifying event could shift a
+    // column in the same breath it armed the drop.
+    if (!_softDropEngaged &&
+        totalDown >= softDropDistance &&
+        totalDown > totalDx.abs()) {
+      // The one moment the vertical gesture is classified. Distance decides
+      // *that* the piece drops faster; speed decides whether this stroke is
+      // ever allowed to become a slam. A drag that starts slow is a soft
+      // drop for the rest of the gesture no matter how far it travels.
+      _softDropEngaged = true;
+      _hardDropArmed = isVertical && _smoothSpeedY >= flickSpeed;
+      engine.enqueueIntent(GameIntentType.softDropStart);
+    } else if (_hardDropArmed && _smoothSpeedY < flickSpeed) {
+      // A flick does not stall halfway down. Once the finger settles into a
+      // drag — or stops to hold the soft drop and steer — the gesture has
+      // shown it is not a flick, and disarming is permanent.
+      _hardDropArmed = false;
+    }
+
     // A real thumb does not flick in a straight line, it arcs. A burst of
     // sideways travel mid-arc used to latch _sidewaysActive and bank a whole
     // column shift while the stroke as a whole was plainly a downward flick,
     // and the drop locks the piece immediately — so it slammed home one
     // column off the one the player swiped on, with no chance to correct it.
-    // While the stroke is vertical and still moving at flick speed, or has
-    // already armed the hard drop, no column shift may fire.
+    // While still moving at flick speed, or already armed for hard drop, no
+    // column shift may fire.
+    //
+    // Gated on speed alone, not `isVertical` — `isVertical` is a ratio of
+    // totals *since touch-down*, so on the opening event or two of a fast
+    // flick it is still false purely for lack of history, even though the
+    // downward speed right then is already well past flick pace. That gap
+    // let the very first sample of a fast flick bank a column before
+    // verticality had accumulated enough distance to prove itself. Downward
+    // speed alone doesn't have that lag — it reads from the first sample —
+    // and a genuinely horizontal swipe keeps `_smoothSpeedY` near zero
+    // regardless, so it isn't caught by this.
     final holdSideways =
         _hardDropArmed ||
-        (isVertical &&
-            _smoothSpeedY >=
-                flickSpeed * InputTuning.flickSuppressionFraction);
+        _smoothSpeedY >= flickSpeed * InputTuning.flickSuppressionFraction;
 
     if (_sidewaysActive) {
       // Drift keeps accumulating while held rather than being thrown away: a
@@ -182,23 +212,6 @@ class GestureHandler {
         _applyMove(dir);
         _accumDx -= dir * swipeColumnThreshold;
       }
-    }
-
-    if (!_softDropEngaged &&
-        totalDown >= softDropDistance &&
-        totalDown > totalDx.abs()) {
-      // The one moment the vertical gesture is classified. Distance decides
-      // *that* the piece drops faster; speed decides whether this stroke is
-      // ever allowed to become a slam. A drag that starts slow is a soft
-      // drop for the rest of the gesture no matter how far it travels.
-      _softDropEngaged = true;
-      _hardDropArmed = isVertical && _smoothSpeedY >= flickSpeed;
-      engine.enqueueIntent(GameIntentType.softDropStart);
-    } else if (_hardDropArmed && _smoothSpeedY < flickSpeed) {
-      // A flick does not stall halfway down. Once the finger settles into a
-      // drag — or stops to hold the soft drop and steer — the gesture has
-      // shown it is not a flick, and disarming is permanent.
-      _hardDropArmed = false;
     }
 
     if (_hardDropArmed && totalDown >= hardDropDistance && isVertical) {
