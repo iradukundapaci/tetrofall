@@ -8,6 +8,7 @@ import 'services/ads_service.dart';
 import 'services/analytics_service.dart';
 import 'services/audio_service.dart';
 import 'services/connectivity_service.dart';
+import 'services/firebase_analytics_service.dart';
 import 'services/music_service.dart';
 import 'services/storage_service.dart';
 
@@ -18,6 +19,7 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
   final storage = await StorageService.load();
+  await FirebaseAnalyticsService.init();
   final ads = AdsService(storage, connectivity: ConnectivityService());
   unawaited(ads.init());
   unawaited(

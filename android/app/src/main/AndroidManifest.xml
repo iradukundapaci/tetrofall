@@ -47,6 +47,27 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-5422471961828877~5855001448"/>
+        <!-- Firebase Analytics consent-mode defaults. All three ad signals
+             start DENIED so a cold start in the EEA measures nothing
+             ad-related before the UMP form has been answered; AdsService
+             grants them the moment consent resolves (see _publishConsent and
+             FirebaseAnalyticsService.setConsent). Outside the regions UMP
+             covers the form is never required and the grant lands within a
+             second of launch, so this costs no attribution there.
+
+             analytics_storage is deliberately absent, which leaves it at the
+             SDK default of granted: it covers first-party measurement, and
+             denying it would mean no analytics at all rather than
+             un-personalised analytics. -->
+        <meta-data
+            android:name="google_analytics_default_allow_ad_storage"
+            android:value="false"/>
+        <meta-data
+            android:name="google_analytics_default_allow_ad_user_data"
+            android:value="false"/>
+        <meta-data
+            android:name="google_analytics_default_allow_ad_personalization_signals"
+            android:value="false"/>
     </application>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>

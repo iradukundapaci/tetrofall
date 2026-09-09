@@ -21,6 +21,12 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.11.1" apply false
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    // Reads android/app/google-services.json and turns it into the
+    // resources the Firebase SDK looks for at runtime. Applied in
+    // app/build.gradle.kts; the build fails loudly if that file is
+    // missing, which is the intended safety net — a release without it
+    // would report no conversions at all to Google Ads.
+    id("com.google.gms.google-services") version "4.4.4" apply false
 }
 
 include(":app")

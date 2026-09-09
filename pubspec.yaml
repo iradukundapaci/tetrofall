@@ -2,7 +2,7 @@ name: tetrofall
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.2+3
+version: 1.0.3+4
 
 environment:
   sdk: ^3.11.5
@@ -12,6 +12,12 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  # Firebase Analytics exists to feed Google Ads App campaigns, which can
+  # only bid against conversions they can read. GameAnalytics below stays
+  # the product dashboard; it is not a Google attribution partner and
+  # Google Ads cannot see it. See lib/services/firebase_analytics_service.dart.
+  firebase_core: ^4.14.0
+  firebase_analytics: ^12.5.0
   flutter_svg: ^2.0.10
   flame: ^1.18.0
   flame_audio: ^2.10.0

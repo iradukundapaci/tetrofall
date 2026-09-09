@@ -8,17 +8,9 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'ad_unit_ids.dart';
 import 'analytics_service.dart';
 import 'connectivity_service.dart';
+import 'firebase_analytics_service.dart';
 import 'storage_service.dart';
 
-/// One retriable slot: the timer that will try a failed load again, and how
-/// long it will wait before doing so.
-///
-/// Backoff rather than a fixed interval because most failures are one of two
-/// things — no network, which can last minutes, or no fill, which is the ad
-/// server saying "not right now" and should not be asked again immediately.
-/// [reset] is the counterweight: the moment something changes that makes a
-/// retry likely to succeed (the network returns, the app is resumed) the wait
-/// collapses back to the first step instead of sitting out a full minute.
 class _AdRetry {
   static const _first = Duration(seconds: 4);
   static const _max = Duration(seconds: 60);
@@ -26,8 +18,6 @@ class _AdRetry {
   Timer? _timer;
   Duration _delay = _first;
 
-  /// No-ops while a retry is already pending, so several failures in a row
-  /// can't stack up into several timers racing to reload the same slot.
   void schedule(void Function() run) {
     if (_timer != null) return;
     final delay = _delay;
@@ -306,7 +296,27 @@ class AdsService {
     // observe for themselves — Settings has already drawn its Privacy rows
     // from the old answer, and the banner has already given up.
     if (_canRequestAds != wasAllowed) _adRetryPulse.value++;
+
+    _publishConsent();
   }
+
+  /// Hands the answer UMP just gave to GA4 consent mode.
+  ///
+  /// Firebase defaults every ad signal to denied (see the
+  /// `google_analytics_default_allow_*` entries in AndroidManifest.xml and
+  /// Info.plist), so this is the only thing that ever grants them — which
+  /// makes it, in turn, what lets a Google Ads App campaign attribute an
+  /// install. Called from both places the answer can change: here, and from
+  /// [setPersonalizedAds].
+  ///
+  /// Unawaited on purpose. Nothing in the ad path waits on analytics, and
+  /// [FirebaseAnalyticsService.setConsent] swallows its own failures.
+  void _publishConsent() => unawaited(
+    FirebaseAnalyticsService.setConsent(
+      adsAllowed: _canRequestAds,
+      personalized: _personalizedAds,
+    ),
+  );
 
   /// Idempotent: safe to call at boot and again after a consent change.
   ///
@@ -390,6 +400,7 @@ class AdsService {
     if (value == _personalizedAds) return;
     _personalizedAds = value;
     await _storage.savePersonalizedAdsEnabled(value);
+    _publishConsent();
 
     // Every cached ad was fetched under the previous answer, so showing one
     // now would be a personalised ad served after the switch went off. Bump

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tetrofall/game/engine/events.dart';
 import 'package:tetrofall/services/analytics_service.dart';
+import 'package:tetrofall/services/firebase_analytics_service.dart';
 import 'package:tetrofall/services/run_tracker.dart';
 
 /// One emitted design event, so assertions can read ids and values back.
@@ -18,14 +19,25 @@ class _Recorder {
   int starts = 0;
   final failScores = <int>[];
 
+  /// The GA4 leg, which goes to Firebase rather than GameAnalytics and exists
+  /// for Google Ads. Recorded separately because it is deliberately a much
+  /// smaller set than the design events above.
+  int levelStarts = 0;
+  final levelEnds = <({int score, int tier})>[];
+
   void design(String id, {double? value}) => events.add(_Emitted(id, value));
   void start() => starts++;
   void fail({required int score}) => failScores.add(score);
+  void levelStart() => levelStarts++;
+  void levelEnd({required int score, required int tier}) =>
+      levelEnds.add((score: score, tier: tier));
 
   RunTracker get tracker => RunTracker(
     design: design,
     progressionStart: start,
     progressionFail: fail,
+    levelStart: levelStart,
+    levelEnd: levelEnd,
   );
 
   List<String> get ids => [for (final e in events) e.id];
@@ -198,6 +210,63 @@ void main() {
       expect(r.ids, isNot(contains('score:best')));
     });
 
+    test('the run boundary is mirrored to the GA4 events Google Ads bids on', () {
+      final r = _Recorder();
+      final tracker = r.tracker..runStarted();
+
+      tracker.runEnded(
+        reason: 'topout',
+        elapsed: const Duration(minutes: 4),
+        score: 4200,
+        maxChain: 3,
+        blocksDestroyed: 88,
+      );
+
+      expect(r.levelStarts, 1);
+      // Same tier the design event reports, so `post_score` and `run:tier`
+      // can never disagree about how far a run got.
+      expect(r.levelEnds, [(score: 4200, tier: 3)]);
+      expect(r.valueOf('run:tier'), 3);
+    });
+
+    test('a resumed run does not report a second level_start', () {
+      final r = _Recorder();
+      final tracker = r.tracker..runStarted();
+
+      // A rewarded continue restarts the screen's run without opening a new
+      // one. Counting it again would inflate the engagement conversion a
+      // campaign optimises against.
+      tracker.runEnded(
+        reason: 'topout',
+        elapsed: const Duration(seconds: 30),
+        score: 100,
+        maxChain: 1,
+        blocksDestroyed: 5,
+      );
+      tracker.runStarted(resumed: true);
+
+      expect(r.levelStarts, 1);
+      expect(r.starts, 1);
+    });
+
+    test('ending a run twice reports one level_end', () {
+      final r = _Recorder();
+      final tracker = r.tracker..runStarted();
+
+      void end(String reason) => tracker.runEnded(
+        reason: reason,
+        elapsed: Duration.zero,
+        score: 10,
+        maxChain: 1,
+        blocksDestroyed: 0,
+      );
+
+      end('topout');
+      end('quit');
+
+      expect(r.levelEnds, hasLength(1));
+    });
+
     test('the continue board wipe is not counted as line clears', () {
       final r = _Recorder();
       final tracker = r.tracker..runStarted();
@@ -278,6 +347,24 @@ void main() {
         outcome: AdOutcome.shown,
         kind: AdKind.banner,
         placement: 'banner',
+      );
+    });
+  });
+
+  group('FirebaseAnalyticsService', () {
+    test('is inert without a platform behind it', () async {
+      // Same guard as above, and it matters more here: this service is the
+      // one `main` awaits, so a throw would take the whole boot with it.
+      await FirebaseAnalyticsService.init();
+      expect(FirebaseAnalyticsService.isReady, isFalse);
+
+      FirebaseAnalyticsService.logLevelStart();
+      FirebaseAnalyticsService.logLevelEnd(score: 1, tier: 1);
+      FirebaseAnalyticsService.logTutorialBegin();
+      FirebaseAnalyticsService.logTutorialComplete();
+      await FirebaseAnalyticsService.setConsent(
+        adsAllowed: true,
+        personalized: true,
       );
     });
   });

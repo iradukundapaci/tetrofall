@@ -9,6 +9,7 @@ import '../../../game/engine/events.dart';
 import '../../../game/engine/tetromino.dart';
 import '../../../game/tetrofall_game.dart';
 import '../../../services/analytics_service.dart';
+import '../../../services/firebase_analytics_service.dart';
 import '../../../services/storage_service.dart';
 
 /// How a step presents itself.
@@ -131,6 +132,10 @@ class TutorialController extends ChangeNotifier {
     // through [_goTo] without this the funnel would have no entry count to
     // measure the later steps against.
     AnalyticsService.design('tutorial:step:${_step.name}');
+    // The GA4 counterpart, for Google Ads rather than the dashboard: paired
+    // with `tutorial_complete` below it is the earliest quality signal a new
+    // install produces, and it fires within a minute of first open.
+    FirebaseAnalyticsService.logTutorialBegin();
     _applyStep();
   }
 
@@ -301,6 +306,7 @@ class TutorialController extends ChangeNotifier {
       // [_end] and then in the host screen's hand-off, so reporting from
       // there would score a skip as a completion and read 100% forever.
       AnalyticsService.design('tutorial:complete');
+      FirebaseAnalyticsService.logTutorialComplete();
       _end();
       return;
     }

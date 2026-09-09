@@ -82,9 +82,15 @@ def main() -> int:
     out = a.out or a.video.with_name(a.video.stem + ".trimmed.mp4")
     # Re-encode rather than stream-copy: a keyframe cut would land up to a
     # second early or late, and the whole point is a precise ending.
+    # `0:a?` is optional on purpose: reels shot with `adb shell screenrecord`
+    # carry no audio at all, and the trim has to work on those too. Where a
+    # soundtrack does exist it is stream-copied — re-encoding an already-lossy
+    # AAC to cut the picture would be generation loss for nothing.
     subprocess.run(
         ["ffmpeg", "-y", "-v", "error", "-i", str(a.video), "-t", f"{keep}",
+         "-map", "0:v", "-map", "0:a?",
          "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+         "-c:a", "copy",
          "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)],
         check=True)
 

@@ -30,6 +30,7 @@ import 'package:tetrofall/game/engine/events.dart';
 import 'package:tetrofall/game/engine/game_engine.dart';
 import 'package:tetrofall/game/tetrofall_game.dart';
 import 'package:tetrofall/services/ads_service.dart';
+import 'package:tetrofall/services/audio_service.dart';
 import 'package:tetrofall/services/storage_service.dart';
 import 'package:tetrofall/ui/screens/gameplay_screen.dart';
 import 'package:tetrofall/ui/screens/main_menu_screen.dart';
@@ -66,6 +67,15 @@ void main() async {
 
   final storage = await StorageService.load();
   final ads = AdsService(storage);
+
+  // `AudioService.play` is a no-op until `warmUp` has built the voice rings,
+  // and only `lib/main.dart` calls it — so every reel shot from this
+  // entrypoint was silent no matter what the SFX slider said. Reels are
+  // mirrored with scrcpy, which does carry audio, so warm the rings here too.
+  // Unawaited for the same reason `lib/main.dart` does it: loading nine
+  // players must not hold up the first frame, and the ready marker below is
+  // what `capture.sh` gates the recording on.
+  unawaited(AudioService.warmUp());
 
   if (_reelName.isNotEmpty) {
     runApp(_CaptureApp(child: await _mountReel(reelNamed(_reelName), storage, ads)));

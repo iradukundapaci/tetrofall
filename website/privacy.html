@@ -43,7 +43,7 @@
 
   <main id="main" class="container">
     <h1 class="page-title">Privacy Policy</h1>
-    <p class="updated">Last updated: 21 August 2026 &middot; Effective: 21 August 2026</p>
+    <p class="updated">Last updated: 8 September 2026 &middot; Effective: 8 September 2026</p>
 
     <div class="privacy-layout">
       <nav class="toc-wrap" aria-label="Sections on this page">
@@ -74,12 +74,14 @@
               cannot read them.
             </li>
             <li>
-              <strong>Two things do leave your phone.</strong> Tetrofall shows ads
-              through Google AdMob, which collects data from your device to choose
-              and measure those ads. It also reports anonymous gameplay statistics
-              to GameAnalytics, so we can see how the game is actually played.
-              Neither one goes to a server of ours, and exactly what each collects
-              is listed below.
+              <strong>Three things do leave your phone.</strong> Tetrofall shows
+              ads through Google AdMob, which collects data from your device to
+              choose and measure those ads. It reports anonymous gameplay
+              statistics to GameAnalytics, so we can see how the game is actually
+              played. And it reports a handful of milestones to Google Analytics
+              for Firebase, so we can tell which of our own adverts brought in
+              players who stayed. None of them goes to a server of ours, and
+              exactly what each collects is listed below.
             </li>
             <li>
               <strong>You can switch off personalized ads from inside the game</strong>,
@@ -214,9 +216,54 @@
             transit using TLS.
           </p>
           <p>
-            <strong>We add nothing else on top of this.</strong> The App contains no
-            crash-reporting SDK. NoSleep Studios operates no server of its own and
-            receives no report when the App crashes.
+            The third is advertising measurement, reported to
+            <strong>Google Analytics for Firebase</strong>. This exists so that we
+            can tell whether an advert we paid for brought in a player who
+            actually enjoyed the game, and it is deliberately a much shorter list
+            than the one above:
+          </p>
+          <div class="panel">
+            <dl class="data-list">
+              <dt>A fixed set of milestones</dt>
+              <dd>
+                The App being opened for the first time, a session starting, the
+                tutorial being started and finished, a game beginning and ending,
+                and the score and difficulty step it reached. Nothing else about
+                how you play is reported here.
+              </dd>
+
+              <dt>Advertising ID (AAID) and App Instance ID</dt>
+              <dd>
+                Used to connect an install back to the advert that led to it.
+                <strong>Only where you have allowed it</strong> &mdash; see
+                <a href="#consent">Consent</a> below. Until you have answered the
+                consent form the advertising signals are switched off, and turning
+                off personalised ads in Settings switches personalisation off here
+                too.
+              </dd>
+
+              <dt>Device information</dt>
+              <dd>
+                Device model, operating system version, language and the version of
+                the App.
+              </dd>
+
+              <dt>Approximate location</dt>
+              <dd>
+                Derived by Google from your IP address, at roughly city level. The
+                App never requests or receives precise or GPS location, and it holds
+                no location permission.
+              </dd>
+            </dl>
+          </div>
+          <p>
+            This is collected by, and shared with, Google, and is used to measure
+            and improve our advertising. It is encrypted in transit using TLS.
+          </p>
+          <p>
+            <strong>We add nothing else on top of these three.</strong> The App
+            contains no crash-reporting SDK. NoSleep Studios operates no server of
+            its own and receives no report when the App crashes.
           </p>
           <a class="to-top" href="#main">Back to top</a>
         </section>
@@ -291,8 +338,30 @@
             policy</a>.
           </p>
           <p>
-            Uninstalling the App stops the reporting and ends the link to that
-            identifier; a reinstall is counted as a new player.
+            We also use <strong>Google Analytics for Firebase</strong>, for a
+            different and much narrower purpose: measuring how well our own
+            advertising works. It reports a small, fixed set of milestones
+            &mdash; the App being opened for the first time, the tutorial being
+            started and finished, a game beginning and ending, and the score it
+            reached &mdash; so that we can tell which adverts bring in players
+            who actually enjoy the game. It records no gameplay detail beyond
+            that.
+          </p>
+          <p>
+            Firebase can associate those milestones with your device's
+            advertising identifier. It only does so where you have allowed it:
+            the consent choice described under
+            <a href="#consent">Consent</a> governs Firebase exactly as it
+            governs advertising, and until you have made that choice the
+            advertising signals stay switched off. Turning off personalised ads
+            in Settings turns off personalisation here too. Google's handling of
+            the data is described in their
+            <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">privacy
+            policy</a>.
+          </p>
+          <p>
+            Uninstalling the App stops both services reporting and ends the link
+            to those identifiers; a reinstall is counted as a new player.
           </p>
           <a class="to-top" href="#main">Back to top</a>
         </section>
@@ -305,6 +374,9 @@
 
             <dt><a href="https://gameanalytics.com/privacy" target="_blank" rel="noopener">GameAnalytics</a></dt>
             <dd>Anonymous gameplay statistics.</dd>
+
+            <dt><a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Analytics for Firebase</a></dt>
+            <dd>Measuring the effectiveness of our own advertising.</dd>
 
             <dt><a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Play Services</a></dt>
             <dd>Core platform services the App relies on when installed from Google Play.</dd>

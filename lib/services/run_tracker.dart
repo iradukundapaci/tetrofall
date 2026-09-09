@@ -1,10 +1,13 @@
 import '../game/config/difficulty.dart';
 import '../game/engine/events.dart';
 import 'analytics_service.dart';
+import 'firebase_analytics_service.dart';
 
 typedef DesignSink = void Function(String eventId, {double? value});
 typedef ProgressionStartSink = void Function();
 typedef ProgressionFailSink = void Function({required int score});
+typedef LevelStartSink = void Function();
+typedef LevelEndSink = void Function({required int score, required int tier});
 
 /// Turns the engine's [GameEvent] stream into the handful of analytics events
 /// that are actually worth reporting.
@@ -22,13 +25,24 @@ class RunTracker {
     DesignSink? design,
     ProgressionStartSink? progressionStart,
     ProgressionFailSink? progressionFail,
+    LevelStartSink? levelStart,
+    LevelEndSink? levelEnd,
   }) : _design = design ?? AnalyticsService.design,
        _progressionStart = progressionStart ?? AnalyticsService.progressionStart,
-       _progressionFail = progressionFail ?? AnalyticsService.progressionFail;
+       _progressionFail = progressionFail ?? AnalyticsService.progressionFail,
+       _levelStart = levelStart ?? FirebaseAnalyticsService.logLevelStart,
+       _levelEnd = levelEnd ?? FirebaseAnalyticsService.logLevelEnd;
 
   final DesignSink _design;
   final ProgressionStartSink _progressionStart;
   final ProgressionFailSink _progressionFail;
+
+  /// The GA4 half of the run boundary, which exists for Google Ads rather than
+  /// for the dashboard — see [FirebaseAnalyticsService]. Deliberately only the
+  /// two boundary events: everything else this class reports is per-run detail
+  /// that no campaign can bid on.
+  final LevelStartSink _levelStart;
+  final LevelEndSink _levelEnd;
 
   int _pieces = 0;
   int _hardDrops = 0;
@@ -63,7 +77,10 @@ class RunTracker {
       resumed ? 'run:resume' : 'run:start',
       value: initialElapsed.inMilliseconds / 1000,
     );
-    if (!resumed) _progressionStart();
+    if (!resumed) {
+      _progressionStart();
+      _levelStart();
+    }
   }
 
   void onEvent(GameEvent event) {
@@ -126,6 +143,7 @@ class RunTracker {
     // worth knowing is where a record run actually landed.
     if (score > _bestBefore) _design('score:best', value: score.toDouble());
     _progressionFail(score: score);
+    _levelEnd(score: score, tier: tierFor(elapsed));
   }
 
   /// A rewarded continue extended the current run rather than starting a new

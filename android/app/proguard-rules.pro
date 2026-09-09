@@ -11,6 +11,8 @@
 #   * google_mobile_ads — reflection over ad-format classes
 #   * flame_audio / audioplayers — native player lookup
 #   * shared_preferences — the platform channel codec
+#   * firebase_analytics — the measurement SDK ships its own consumer
+#     rules, so this is here only as the next place to look
 #
 # When you do add a rule, say WHICH symptom it fixes. An unexplained -keep is
 # impossible to remove later, and they accumulate until minification does

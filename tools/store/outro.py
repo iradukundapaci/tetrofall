@@ -34,6 +34,11 @@ GOLD_DEEP = (0xD9, 0x93, 0x1C)
 TEXT = (0xF5, 0xEA, 0xD9)
 TEXT_MUTED = (0xB9, 0xA8, 0x89)
 
+# Peak the soundtrack lands on. Short of a broadcast -1dBTP, since the SFX are
+# sparse impulses over silence and the last dB buys nothing but clipping risk
+# through the AAC encoder.
+PEAK_TARGET = -1.5
+
 NAME = "TETROFALL"
 # tools/branding/forge_test.dart — the same line the feature graphic carries.
 TAGLINE = "The floor rises. Clear rows or get crushed."
@@ -156,6 +161,42 @@ def build_card(w: int, h: int, tagline=TAGLINE, kicker=KICKER) -> Image.Image:
     return card
 
 
+def has_audio(path: Path) -> bool:
+    """Whether the source carries a real soundtrack.
+
+    `adb shell screenrecord`, which `tools/capture/capture.sh reel` uses,
+    records picture only - so every reel shot that way answers False here and
+    the card is appended exactly as it always was. A take captured some other
+    way (scrcpy mirrors the device with audio, for one) answers True, and the
+    play half's sound is carried through and faded under the card.
+    """
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a:0",
+         "-show_entries", "stream=codec_type",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    return out.startswith("audio")
+
+
+def peak_dbfs(path: Path) -> float:
+    """The source's true peak, in dBFS.
+
+    A reel mirrored off the device arrives around -30dBFS: the SFX play at the
+    0.85 slider's amplitude into an otherwise digitally silent capture. That is
+    far below what a YouTube viewer expects, so the peak is measured here and
+    the gain that lands it on [PEAK_TARGET] is applied in the same filter pass.
+    """
+    out = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-i", str(path), "-map", "a:0",
+         "-af", "astats=metadata=1", "-f", "null", "-"],
+        capture_output=True, text=True, check=True,
+    ).stderr
+    peaks = [float(line.split(":")[1]) for line in out.splitlines()
+             if "Peak level dB" in line and "inf" not in line]
+    return max(peaks) if peaks else 0.0
+
+
 def probe(path: Path) -> tuple[int, int, float]:
     out = subprocess.run(
         ["ffprobe", "-v", "error", "-select_streams", "v:0",
@@ -182,6 +223,12 @@ def main() -> int:
                     help="line under the wordmark")
     ap.add_argument("--kicker", default=KICKER,
                     help="small letter-spaced label above the mark")
+    ap.add_argument("--peak", type=float, default=PEAK_TARGET,
+                    help="normalise the soundtrack to this peak, in dBFS; "
+                         "pass a bare --peak with no value to leave the "
+                         "levels exactly as captured")
+    ap.add_argument("--no-normalise", dest="peak", action="store_const",
+                    const=None, help=argparse.SUPPRESS)
     a = ap.parse_args()
 
     if a.card_only:
@@ -204,24 +251,51 @@ def main() -> int:
     build_card(w, h, a.tagline, a.kicker).save(card_png)
 
     out = a.out or a.video.with_name(a.video.stem + "_outro.mp4")
+
+    graph = (
+        f"[0:v]trim=0:{play},setpts=PTS-STARTPTS,fps=60,format=yuv420p[a];"
+        f"[1:v]scale={w}:{h},setsar=1,fps=60,format=yuv420p[b];"
+        f"[a][b]xfade=transition=fade:duration={a.fade}:"
+        f"offset={play - a.fade}[v]"
+    )
+    maps = ["-map", "[v]"]
+    codec = []
+    gain = 0.0
+    if has_audio(a.video) and a.peak is not None:
+        gain = a.peak - peak_dbfs(a.video)
+    if has_audio(a.video):
+        # The sound fades on the same curve as the picture and then `apad`
+        # holds silence under the card, so the stream runs the file's whole
+        # length - without it the muxer stops at the last sample and some
+        # players report a duration short of the video's.
+        graph += (
+            f";[0:a]atrim=0:{play},asetpts=PTS-STARTPTS,"
+            + (f"volume={gain:.2f}dB," if abs(gain) > 0.1 else "")
+            + f"afade=t=out:st={play - a.fade}:d={a.fade},"
+            f"apad=whole_dur={a.total}[au]"
+        )
+        maps += ["-map", "[au]"]
+        codec = ["-c:a", "aac", "-b:a", "192k"]
+
     # The card is a still, so it costs almost nothing to encode; the gameplay
     # half has to be re-encoded regardless because xfade cannot stream-copy.
     subprocess.run([
         "ffmpeg", "-y", "-v", "error",
         "-i", str(a.video),
         "-loop", "1", "-t", str(a.card), "-i", str(card_png),
-        "-filter_complex",
-        f"[0:v]trim=0:{play},setpts=PTS-STARTPTS,fps=60,format=yuv420p[a];"
-        f"[1:v]scale={w}:{h},setsar=1,fps=60,format=yuv420p[b];"
-        f"[a][b]xfade=transition=fade:duration={a.fade}:"
-        f"offset={play - a.fade}[v]",
-        "-map", "[v]", "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        "-filter_complex", graph,
+        *maps, "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        *codec,
         "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out),
     ], check=True)
     card_png.unlink()
 
     _, _, got = probe(out)
-    print(f"→ {out}  {w}x{h}  {got:.2f}s  "
+    if has_audio(out):
+        sound = f"with sound ({gain:+.1f}dB to {peak_dbfs(out):.1f}dBFS peak)"
+    else:
+        sound = "silent (source had no audio)"
+    print(f"→ {out}  {w}x{h}  {got:.2f}s  {sound}  "
           f"({play:.1f}s play + {a.fade}s fade + card)")
     return 0
 

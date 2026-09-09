@@ -18,7 +18,7 @@ abstract final class AnalyticsKeys {
   /// the release that introduced it. Keep in sync with `pubspec.yaml`'s
   /// `version:` — deliberately a plain constant rather than a `package_info`
   /// lookup, which would be a whole platform channel for one string.
-  static const build = '1.0.1';
+  static const build = '1.0.3';
 
   static bool get configured => gameKey.isNotEmpty && secretKey.isNotEmpty;
 }
