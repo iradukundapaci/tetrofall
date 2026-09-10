@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "199229784536",
+    "project_id": "tetrofall-72aeb",
+    "storage_bucket": "tetrofall-72aeb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:199229784536:android:e705bb7b8405961ac532ad",
+        "android_client_info": {
+          "package_name": "com.nosleepstudios.tetrofall"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCrV0-geSROoPOmRphd-emHb84YCa_jqXc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
