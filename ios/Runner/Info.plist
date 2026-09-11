@@ -24,6 +24,8 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-5422471961828877~6469958970</string>
 	<!-- Firebase Analytics consent-mode defaults, the iOS counterpart of the
 	     google_analytics_default_allow_* meta-data in AndroidManifest.xml.
 	     Every ad signal starts denied; AdsService grants them once UMP has
