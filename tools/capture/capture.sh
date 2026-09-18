@@ -107,9 +107,18 @@ launch_at() {
 # from two to five seconds depending on how many emulators were running, and
 # every reel take that guessed short opened on an empty board — the score
 # seeded and the stack not yet drawn.
+#
+# Only the marker from the process just launched counts. `logcat -c` in
+# `launch_at` does not always take on a loaded emulator, and a leftover marker
+# from the previous take let recording start over the splash screen of this
+# one — twice on reels whose seed then never showed.
 wait_ready() {
-  local i=$1 n=0
-  until adb_at "$i" logcat -d -s flutter:I 2>/dev/null | grep -q TETROFALL_CAPTURE_READY; do
+  local i=$1 n=0 pid=""
+  until [ -n "$pid" ] && adb_at "$i" logcat -d --pid="$pid" -s flutter:I 2>/dev/null \
+      | grep -q TETROFALL_CAPTURE_READY; do
+    # `pidof` exits 1 until the process exists, which `set -e` would take as
+    # fatal.
+    pid=$(adb_at "$i" shell pidof "$PKG" 2>/dev/null | tr -d '\r' || true)
     n=$((n + 1))
     if [ "$n" -gt 120 ]; then
       echo "  ! timed out waiting for the capture-ready marker" >&2
@@ -195,8 +204,57 @@ PY
     done
     ;;
 
+  # The same take as `reel`, but with the game's sound — `screenrecord`
+  # records picture only, and every paid cut needs its audio. Emulator only.
+  #
+  # It records with the emulator console (`adb emu screenrecord`), which
+  # encodes on the host. Anything that captures audio inside the guest —
+  # scrcpy with any audio codec or source, or a scrcpy audio-only session
+  # beside `screenrecord` — stalls the guest's software H.264 encoder: every
+  # such take came back with ~5s of picture under a full-length soundtrack,
+  # and nothing reported an error. The host recorder runs at ~21fps with
+  # even frame spacing, which the 30fps ad cuts absorb.
+  audio-reel)
+    for reel in "$@"; do
+      secs=$(python3 - "$reel" <<'PY'
+import re, sys
+src = open('tools/capture/reels.dart').read()
+block = src.split(f"name: '{sys.argv[1]}'", 1)[1]
+print(re.search(r'seconds:\s*(\d+)', block).group(1))
+PY
+)
+      echo "▸ $reel (${secs}s, with audio)"
+      build --dart-define=REEL="$reel"
+      for ((i = 0; i < NTARGETS; i++)); do
+        serial=${SERIALS[$i]:-$("$ADB" get-serialno)}
+        out="${OUTDIRS[$i]}/$reel.mp4"
+        install_at "$i"
+        launch_at "$i"
+        wait_ready "$i"
+        # The emulator console records on the host, so it needs an absolute
+        # host path, and it only exists on an emulator.
+        raw="$(cd "$(dirname "$out")" && pwd)/$(basename "${out%.mp4}").webm"
+        rm -f "$out" "$raw"
+        "$ADB" -s "$serial" emu screenrecord start --time-limit "$secs" "$raw" >/dev/null
+        sleep $((secs + 2))
+        "$ADB" -s "$serial" emu screenrecord stop >/dev/null 2>&1 || true
+        # The webm is finalised a moment after the limit; wait until it parses.
+        for _ in $(seq 1 40); do
+          ffprobe -v error "$raw" >/dev/null 2>&1 && break
+          sleep 0.5
+        done
+        ffmpeg -v error -y -i "$raw" -c:v libx264 -preset veryfast -crf 14 \
+          -pix_fmt yuv420p -c:a aac -b:a 192k -ar 48000 -movflags +faststart "$out"
+        rm -f "$raw"
+        vlen=$(ffprobe -v error -select_streams v -show_entries stream=duration \
+          -of csv=p=0 "$out")
+        echo "  → $out  (picture ${vlen}s of ${secs}s)"
+      done
+    done
+    ;;
+
   *)
-    echo "unknown mode '$MODE' (want: shots | reel)" >&2
+    echo "unknown mode '$MODE' (want: shots | reel | audio-reel)" >&2
     exit 2
     ;;
 esac

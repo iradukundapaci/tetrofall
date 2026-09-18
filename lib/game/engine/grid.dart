@@ -67,6 +67,19 @@ class Grid {
     }
   }
 
+  /// A copy of one visible row, left to right. Slide rebuilds a row from
+  /// this rather than reading cell by cell (`boosters.md` §5.5).
+  List<Cell?> rowCells(int row) => [for (var c = 0; c < cols; c++) at(row, c)];
+
+  /// Carries one cell from one coordinate to another, emptying the source.
+  /// The mover boosters settle the board themselves, so they need this rather
+  /// than the column-at-a-time repacking the cascades do.
+  void move((int, int) from, (int, int) to) {
+    final cell = at(from.$1, from.$2);
+    set(from.$1, from.$2, null);
+    set(to.$1, to.$2, cell);
+  }
+
   /// Empties the spawn buffer above the board. It isn't rendered, so
   /// unlike a visible-row clear it needs no animation — just a direct
   /// wipe so nothing left over there can block the next spawn after a

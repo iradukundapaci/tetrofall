@@ -2,7 +2,7 @@ name: tetrofall
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.3+4
+version: 1.0.4+6
 
 environment:
   sdk: ^3.11.5
@@ -12,10 +12,6 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  # Firebase Analytics exists to feed Google Ads App campaigns, which can
-  # only bid against conversions they can read. GameAnalytics below stays
-  # the product dashboard; it is not a Google attribution partner and
-  # Google Ads cannot see it. See lib/services/firebase_analytics_service.dart.
   firebase_core: ^4.14.0
   firebase_analytics: ^12.5.0
   flutter_svg: ^2.0.10
@@ -35,23 +31,16 @@ dev_dependencies:
   flutter_native_splash: ^2.4.8
   fake_async: ^1.3.3
 
-# Launcher icons (android_release_plan.md §1.2). Sources are rendered by
-# `flutter test tools/branding/forge_test.dart`; see branding/README.md.
-#   dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: "ic_launcher"
-  ios: false
+  ios: true
+  remove_alpha_ios: true
   image_path: "branding/icon_master.png"
-  # The textured plate rather than a flat #4A2F1C — it is the same wood the
-  # board is made of, and it is what makes the icon read as this game.
   adaptive_icon_background: "branding/icon_background.png"
   adaptive_icon_foreground: "branding/icon_foreground.png"
   adaptive_icon_monochrome: "branding/icon_monochrome.png"
   min_sdk_android: 24
 
-# Native splash (android_release_plan.md §1.3). Kills the white flash between
-# the launcher and the dark Dart SplashScreen.
-#   dart run flutter_native_splash:create
 flutter_native_splash:
   color: "#2B1C12"
   image: branding/splash_logo_legacy.png
@@ -60,13 +49,9 @@ flutter_native_splash:
     image: branding/splash_logo.png
     icon_background_color: "#2B1C12"
   android: true
-  ios: false
+  ios: true
   web: false
   android_gravity: center
-  # Deliberately NOT fullscreen, against the draft config in the plan: the app
-  # keeps the status bar (every screen uses SafeArea), so hiding it for the
-  # native splash only to hand back a shorter viewport is a visible jump on
-  # the first Flutter frame — the exact class of flicker §1.3 is here to kill.
   fullscreen: false
 
 flutter:
@@ -76,17 +61,7 @@ flutter:
     - assets/images/blocks/
     - assets/images/textures/
     - assets/audio/sfx/
-    # Registered ahead of the loops themselves — see the README in there.
     - assets/audio/music/
-    # The OFL requires the licence text to travel with the fonts. `fonts:`
-    # below bundles only the .ttf files, so the licences are listed here as
-    # plain assets to keep the text inside the APK.
-    #
-    # Nothing reads them at runtime any more: the Settings row that displayed
-    # them, and main()'s LicenseRegistry hook that fed it, were both removed by
-    # decision. Keep these two entries anyway — they are what still puts the
-    # notice in each distributed copy, they cost ~8 KB, and dropping them
-    # removes the last part of the OFL that this build satisfies.
     - assets/fonts/Nunito/OFL.txt
     - assets/fonts/Baloo_2/OFL.txt
   fonts:

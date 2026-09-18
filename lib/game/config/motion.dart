@@ -78,5 +78,27 @@ abstract final class Motion {
   static const riseWarnRow = 3;
   static const riseEmergeFadeFraction = 0.30;
 
+  // Boosters (`boosters.md` §11.2). Everything here is multiplied by the
+  // engine's `resolveTimeScale`, like every other resolve animation, so
+  // boosters speed up as the game does — except the reel timings, which
+  // happen before the run and are never scaled.
+  static const boosterReelSpin = Duration(milliseconds: 500);
+  static const boosterReelStagger = Duration(milliseconds: 250);
+  static const boosterRespinSpin = Duration(milliseconds: 500);
+  static const boosterHammerSwing = Duration(milliseconds: 140);
+  static const boosterBombFuse = Duration(milliseconds: 300);
+  static const boosterBombRing = Duration(milliseconds: 40);
+  static const boosterDrillCellStep = Duration(milliseconds: 30);
+  static const boosterGrow = Duration(milliseconds: 180);
+  static const boosterSlideRow = Duration(milliseconds: 160);
+  static const boosterSlideStep = Duration(milliseconds: 45);
+  static const boosterStackStep = Duration(milliseconds: 50);
+  static const boosterSweep = Duration(milliseconds: 260);
+  static const boosterBoltStep = Duration(milliseconds: 90);
+  static const boosterQuakeShake = Duration(milliseconds: 420);
+  static const boosterTiltLean = Duration(milliseconds: 150);
+  static const boosterFireLayer = Duration(milliseconds: 70);
+  static const boosterEffectBeat = Duration(milliseconds: 120);
+
   static const horizontalMoveEase = Duration(milliseconds: 60);
 }

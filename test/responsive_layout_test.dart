@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tetrofall/game/config/board_config.dart';
 import 'package:tetrofall/services/ads_service.dart';
 import 'package:tetrofall/services/storage_service.dart';
+import 'package:tetrofall/services/economy.dart';
 import 'package:tetrofall/ui/screens/gameplay_screen.dart';
 import 'package:tetrofall/ui/theme/ui_scale.dart';
 
@@ -77,15 +78,18 @@ void main() {
     }
 
     // The tallest state either overlay can reach: a new best (which adds the
-    // pill), plus the ad button, plus a six-digit score.
+    // pill), plus the continue button, plus a six-digit score. The balance is
+    // deliberately zero, because the can't-afford label is the longer one.
     Widget gameOver() => GameOverOverlay(
       reason: GameOverReason.topOut,
       score: 999999,
       best: 1,
       onRestart: () {},
       onHome: () {},
-      canContinueWithAd: true,
-      onContinueWithAd: () {},
+      canContinue: true,
+      continuePrice: 120,
+      coinBalance: 0,
+      onContinue: () {},
     );
 
     Widget confirmQuit() => ConfirmQuitOverlay(
@@ -113,23 +117,27 @@ void main() {
   });
 
   /// `GameplayScreen.immersive` exists only for the store-capture harness in
-  /// `tools/capture/`. It removes the banner slot outright — and that slot is
-  /// the app's only banner placement — so the shipped build depends on this
-  /// staying off. Constructing the widget is enough to catch a flipped
-  /// default; mounting it would boot Flame for no extra signal.
+  /// `tools/capture/`: it floats the HUD over the board and drops the frame,
+  /// the booster bar and the safe-area padding, which is honest for a store
+  /// shot and wrong for play. Constructing the widget is enough to catch a
+  /// flipped default; mounting it would boot Flame for no extra signal.
   group('immersive capture flag', () {
-    test('defaults to off, so the shipped layout keeps its banner', () async {
+    test('defaults to off, so the shipped layout keeps its chrome', () async {
       TestWidgetsFlutterBinding.ensureInitialized();
       SharedPreferences.setMockInitialValues({});
       final storage = StorageService(await SharedPreferences.getInstance());
-      final shipped = GameplayScreen(storage: storage, ads: AdsService(storage));
+      final shipped = GameplayScreen(
+        storage: storage,
+        ads: AdsService(storage),
+        economy: Economy(storage),
+      );
       expect(shipped.immersive, isFalse);
     });
 
     test('the board is exactly 9:16, which is why chrome costs width', () {
       // The reason immersive reclaims so much: with the board height-bound at
-      // 9:16 on a 9:16 screen, every point of HUD or banner above and below it
-      // comes back out of the board's *width* at 0.5625pt a time.
+      // 9:16 on a 9:16 screen, every point of HUD or booster bar above and
+      // below it comes back out of the board's *width* at 0.5625pt a time.
       expect(BoardConfig.cols / BoardConfig.rows, closeTo(9 / 16, 1e-9));
     });
   });

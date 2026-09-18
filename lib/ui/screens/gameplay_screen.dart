@@ -4,21 +4,29 @@ import 'dart:ui' show ImageFilter;
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
+import '../../game/boosters/booster_type.dart';
+import '../../game/boosters/loadout.dart';
 import '../../game/config/board_config.dart';
+import '../../game/config/booster_tuning.dart';
 import '../../game/config/difficulty.dart';
+import '../../game/config/economy_tuning.dart';
 import '../../game/engine/events.dart';
 import '../../game/render/score_hud.dart';
 import '../../game/tetrofall_game.dart';
 import '../../services/ads_service.dart';
 import '../../services/analytics_service.dart';
+import '../../services/economy.dart';
 import '../../services/music_service.dart';
 import '../../services/run_tracker.dart';
 import '../../services/storage_service.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
-import '../widgets/banner_ad_slot.dart';
+import '../widgets/booster_bar.dart';
+import '../widgets/booster_coin_sheet.dart';
+import '../widgets/purchase_prompt.dart';
 import 'confirm_quit_overlay.dart';
 import 'game_over_overlay.dart';
+import 'loadout_overlay.dart';
 import 'pause_overlay.dart';
 import 'tutorial/tutorial_controller.dart';
 import 'tutorial/tutorial_overlay.dart';
@@ -28,6 +36,7 @@ class GameplayScreen extends StatefulWidget {
     super.key,
     required this.storage,
     required this.ads,
+    required this.economy,
     this.startTutorial = false,
     this.onGameCreated,
     this.immersive = false,
@@ -35,6 +44,7 @@ class GameplayScreen extends StatefulWidget {
 
   final StorageService storage;
   final AdsService ads;
+  final Economy economy;
 
   /// Runs the first-run coached tutorial over this screen before handing off
   /// to a normal scored run. Set by the main menu on the very first PLAY.
@@ -69,8 +79,15 @@ class GameplayScreen extends StatefulWidget {
 }
 
 class _GameplayScreenState extends State<GameplayScreen> {
-  late final TetrofallGame _game = TetrofallGame(storage: widget.storage)
-    ..showGhost = widget.storage.ghostPieceEnabled;
+  late final TetrofallGame _game = TetrofallGame(
+    storage: widget.storage,
+    theme: widget.economy.wallet.equippedTheme,
+    clearSkies: widget.economy.clearSkies,
+    // The tutorial coaches over a board with no boosters and no roll, so it
+    // opens its run immediately. Everything else waits for the roll to close
+    // (`boosters.md` §3.1).
+    autoStart: widget.startTutorial,
+  )..showGhost = widget.storage.ghostPieceEnabled;
   GameOverReason? _gameOverReason;
   Duration _runElapsedAtGameOver = Duration.zero;
 
@@ -91,10 +108,23 @@ class _GameplayScreenState extends State<GameplayScreen> {
   /// the player deliberately paused.
   bool _wasPausedBeforeConfirm = false;
 
+  /// The loadout roll is open over the board (`boosters.md` §3.1). True from
+  /// the moment the screen opens until START is pressed, and again between
+  /// runs — the engine sits in `ready` behind it.
+  bool _showRoll = false;
+
+  /// Whether this roll is a replay, which opens with the previous loadout
+  /// already in the reels and offers "Same boosters" (§3.7).
+  bool _rollIsReplay = false;
+
+  /// The slot whose refill purchase sheet is open, if any (§4.9).
+  int? _refillSlot;
+
   @override
   void initState() {
     super.initState();
     _game.engine.addEventListener(_onEngineEvent);
+    _lifecycle = AppLifecycleListener(onStateChange: _onAppLifecycleChange);
     AnalyticsService.design('screen:gameplay');
     // The menu loop keeps playing if there's no gameplay track to swap to.
     MusicService(widget.storage).play(MusicTrack.gameplay);
@@ -105,10 +135,10 @@ class _GameplayScreenState extends State<GameplayScreen> {
         onFinished: _finishTutorial,
       )..addListener(_onTutorialChanged);
     }
-    // Coaching is not a run. The tutorial opens its own run when it hands off
-    // in [_finishTutorial], which is the same boundary [AdsService] already
-    // draws with `notifyRunEnded`.
-    if (!widget.startTutorial) _startTrackedRun();
+    // Coaching is not a run, and it has no boosters and no roll (§3.1). Every
+    // other entry into this screen opens on the roll, and the run — and the
+    // tracker with it — starts when that closes.
+    _showRoll = !widget.startTutorial;
     final onGameCreated = widget.onGameCreated;
     if (onGameCreated != null) onGameCreated(_game);
   }
@@ -144,7 +174,30 @@ class _GameplayScreenState extends State<GameplayScreen> {
   void dispose() {
     _game.engine.removeEventListener(_onEngineEvent);
     _tutorial?.dispose();
+    _lifecycle.dispose();
+    // Anything the ticker had not yet written out belongs to the player.
+    widget.economy.clearSkies.flush();
     super.dispose();
+  }
+
+  /// Pauses the run when the app goes to the background.
+  ///
+  /// Nothing else in the app did this, which was already a bug — a run left
+  /// mid-piece kept its rise timer going in the player's pocket. Ad-free time
+  /// is metered off the same clock, so leaving it unfixed would also have
+  /// billed them for a game they were not playing.
+  ///
+  /// Created in [initState], not lazily: nothing reads it until [dispose], so a
+  /// lazy field would only ever be built on the way out and never listen.
+  late final AppLifecycleListener _lifecycle;
+
+  void _onAppLifecycleChange(AppLifecycleState state) {
+    if (state != AppLifecycleState.paused &&
+        state != AppLifecycleState.hidden) {
+      return;
+    }
+    widget.economy.clearSkies.flush();
+    if (!_game.paused) _game.pauseEngine();
   }
 
   /// Hands off from the tutorial into the real run. The board is restarted so
@@ -162,8 +215,48 @@ class _GameplayScreenState extends State<GameplayScreen> {
     final tutorial = _tutorial;
     if (tutorial == null) return;
     _dropTutorial(tutorial);
-    _game.restart();
+    // The first runs after the tutorial are the starter kit, so the hand-off
+    // goes through the roll like any other run start (§3.6).
+    _game.holdForOverlay();
+    setState(() {
+      _showRoll = true;
+      _rollIsReplay = false;
+    });
+  }
+
+  /// Closes the roll and opens the run it picked.
+  void _beginRunWith(Loadout loadout) {
+    widget.storage.setBoosterLastLoadout(loadout.encode());
+    _game.releaseOverlayHold();
+    _game.startRun();
+    _game.boosters.beginRun(loadout);
+    // A refill is bought with Coins, not with an ad, so its availability no
+    // longer depends on ad inventory — and an empty wallet is not a reason to
+    // hide the badge, because the sheet routes to the earn screen rather than
+    // dead-ending (§4.9 rule 4 is satisfied by the purchase always being
+    // completable, one way or another).
+    _game.boosters.refillAvailable = BoosterTuning.adRefillEnabled;
     _startTrackedRun();
+    setState(() {
+      _showRoll = false;
+      _gameOverReason = null;
+      _refillSlot = null;
+    });
+  }
+
+  /// Puts the roll back up over a board that is still standing, freezing the
+  /// run behind it.
+  void _openRoll({required bool replay}) {
+    // A pause-menu restart arrives with the pause overlay up. Drop it first,
+    // then take the quieter hold: two overlays must never stack.
+    if (_game.pausedNotifier.value) _game.resumeEngine();
+    _game.holdForOverlay();
+    setState(() {
+      _showRoll = true;
+      _rollIsReplay = replay;
+      _gameOverReason = null;
+      _confirmingQuit = false;
+    });
   }
 
   /// Detaches the controller and schedules its disposal for after the frame
@@ -181,6 +274,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
 
   void _onEngineEvent(GameEvent event) {
     _tracker.onEvent(event);
+    // The tutorial's rigged board is not something the player achieved.
+    if (_tutorial == null) widget.economy.daily.onEvent(event);
     if (event is GameOverEvent) {
       _runElapsedAtGameOver = Duration(
         milliseconds: (_game.engine.riseController.elapsed * 1000).round(),
@@ -194,10 +289,14 @@ class _GameplayScreenState extends State<GameplayScreen> {
         _dropTutorial(tutorial);
       }
       _endTrackedRun(event.reason.name, _runElapsedAtGameOver);
+      // Drives the starter kit: the first runs after the tutorial are fixed,
+      // and rolls start from run 4 (§3.6).
+      widget.storage.setBoosterRunsCompleted(
+        widget.storage.boosterRunsCompleted + 1,
+      );
       // Reported here rather than from `build`, which reruns on every pause
       // and every rebuild behind the overlay.
-      if (widget.ads.isRewardedContinueReady &&
-          !_game.engine.hasUsedContinueThisRun) {
+      if (!_game.engine.hasUsedContinueThisRun) {
         AnalyticsService.design('continue:offered');
       }
       setState(() {
@@ -225,9 +324,9 @@ class _GameplayScreenState extends State<GameplayScreen> {
         ),
       );
     }
-    _game.restart();
-    _startTrackedRun();
-    setState(() => _gameOverReason = null);
+    // A restart discards the loadout's charges and the refill counter; the
+    // loadout itself is remembered, so the roll offers it back (§4.7).
+    _openRoll(replay: true);
   }
 
   /// Freezes the run behind the prompt so the board can't advance (or the
@@ -255,7 +354,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
   void _restartAfterGameOver() {
     AnalyticsService.design('run:again');
     widget.ads.notifyRunEnded(_runElapsedAtGameOver);
-    _restart();
+    _openRoll(replay: true);
   }
 
   void _goHome() {
@@ -276,14 +375,111 @@ class _GameplayScreenState extends State<GameplayScreen> {
     Navigator.of(context).pop();
   }
 
-  Future<void> _continueAfterAd() async {
-    AnalyticsService.design('continue:accepted');
-    final earned = await widget.ads.showRewardedContinue();
-    if (!earned) {
-      AnalyticsService.design('continue:declined');
-      setState(() {});
+  Widget _refillSheet(int index) {
+    final boosters = _game.boosters;
+    final type = boosters.loadout![index];
+    final left = BoosterTuning.adRefillsPerRun - boosters.refillsThisRun;
+    return BoosterCoinSheet(
+      title: 'Recharge ${type.displayName}?',
+      // The sheet names the booster and then says what it gets back, in that
+      // order (§4.9 Copy).
+      message:
+          'This booster comes back for the rest of the run. '
+          '$left left this run.',
+      // Priced by slot, which is the game's own power ladder: a Board booster
+      // costs nearly three times a Small one because it does nearly three
+      // times as much.
+      price: EconomyTuning.chargePrice(type.slot),
+      balance: widget.economy.wallet.coins,
+      onSpend: () => _buyRefill(index),
+      onEarn: _openCoinVault,
+      onDecline: _closeRefillSheet,
+    );
+  }
+
+  /// Opens the earn screen from a purchase the player cannot afford.
+  ///
+  /// The run stays held for the whole trip, so going to fetch Coins never
+  /// costs the player the board they were looking at.
+  Future<void> _openCoinVault() async {
+    await openCoinVault(
+      context,
+      ads: widget.ads,
+      wallet: widget.economy.wallet,
+    );
+    if (mounted) setState(() {});
+  }
+
+  /// A tap on a slot in the bar. Arming, firing and the refill offer are all
+  /// decided here, because only the screen can open a sheet (§4.3, §4.9).
+  void _onSlotTapped(int index) {
+    final boosters = _game.boosters;
+    if (boosters.offersRefill(index)) {
+      // A charge the player already owns (bought in the shop, or from a
+      // daily reward or chest) is spent without a sheet: they paid for it
+      // once already, and asking again would be a second checkout for one
+      // purchase. The per-run refill cap still applies — offersRefill checks
+      // it — because the cap is what keeps the run a game.
+      final type = boosters.loadout![index];
+      if (widget.economy.wallet.chargesOf(type) > 0) {
+        _useHeldCharge(index, type);
+        return;
+      }
+      // The run freezes the way a pause does: the rise, the piece and the
+      // difficulty clock all stop while the sheet is open (§4.9 rule 2).
+      _game.holdForOverlay();
+      setState(() => _refillSlot = index);
       return;
     }
+    boosters.tapSlot(index);
+  }
+
+  Future<void> _useHeldCharge(int index, BoosterType type) async {
+    if (!await widget.economy.wallet.consumeCharge(type)) return;
+    if (!mounted) return;
+    _game.boosters.grantRefill(index);
+  }
+
+  Future<void> _buyRefill(int index) async {
+    final type = _game.boosters.loadout![index];
+    if (!await widget.economy.wallet.trySpend(
+      EconomyTuning.chargePrice(type.slot),
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    _game.boosters.grantRefill(index);
+    _closeRefillSheet();
+  }
+
+  void _closeRefillSheet() {
+    _game.releaseOverlayHold();
+    setState(() => _refillSlot = null);
+  }
+
+  /// Buys the run back for Coins.
+  ///
+  /// Game over is the most urgent moment in the game, which is exactly why
+  /// there is an earn route inline here: sending a broke player away to watch
+  /// an ad would cost them the run they were trying to save, and that is the
+  /// one thing this economy must never do.
+  Future<void> _continueWithCoins() async {
+    AnalyticsService.design('continue:accepted');
+    if (!widget.economy.wallet.canAfford(EconomyTuning.continuePrice)) {
+      await _openCoinVault();
+      if (!mounted) return;
+      if (!widget.economy.wallet.canAfford(EconomyTuning.continuePrice)) {
+        AnalyticsService.design('continue:declined');
+        setState(() {});
+        return;
+      }
+    }
+    if (!await widget.economy.wallet.trySpend(EconomyTuning.continuePrice)) {
+      AnalyticsService.design('continue:declined');
+      if (mounted) setState(() {});
+      return;
+    }
+    if (!mounted) return;
     AnalyticsService.design('continue:earned');
     // The run the player is buying back into was already closed out by the
     // GameOverEvent, so this opens a fresh one rather than resuming the old
@@ -313,19 +509,22 @@ class _GameplayScreenState extends State<GameplayScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: Tokens.colorBg,
+        backgroundColor: _game.theme.background,
         body: ValueListenableBuilder<bool>(
           valueListenable: _game.pausedNotifier,
           builder: (context, paused, _) {
             final tutorial = _tutorial;
             final showPause =
-                paused && _gameOverReason == null && !_confirmingQuit;
+                paused &&
+                _gameOverReason == null &&
+                !_confirmingQuit &&
+                !_showRoll &&
+                _refillSlot == null;
             return Stack(
               children: [
                 _GameplayBody(
                   game: _game,
                   storage: widget.storage,
-                  ads: widget.ads,
                   boardKey: _boardKey,
                   immersive: widget.immersive,
                   // Lets the coached caption duck out of the way while a
@@ -335,14 +534,34 @@ class _GameplayScreenState extends State<GameplayScreen> {
                   // Coaching is not a run — the same line drawn for
                   // RunTracker above and for the interstitial cadence.
                   recordsBest: tutorial == null,
+                  // No bar in the tutorial run (§4.1). Everywhere else it is
+                  // the bottom row of the screen, and the banner is gone.
+                  showBoosterBar: tutorial == null,
+                  onSlotTapped: _onSlotTapped,
                   // A coach step must never dim: the dim treatment applies
                   // `IgnorePointer`, which would swallow the very gestures the
                   // step is teaching.
                   dimmed:
                       showPause ||
                       _confirmingQuit ||
+                      _showRoll ||
+                      _refillSlot != null ||
                       (tutorial?.dimsBoard ?? false),
                 ),
+                if (_showRoll)
+                  LoadoutOverlay(
+                    theme: _game.theme,
+                    previousLoadout: _rollIsReplay
+                        ? Loadout.decode(widget.storage.boosterLastLoadout)
+                        : null,
+                    useStarterKit:
+                        widget.storage.boosterRunsCompleted <
+                        BoosterTuning.starterKitRuns,
+                    wallet: widget.economy.wallet,
+                    onEarnCoins: _openCoinVault,
+                    onStart: _beginRunWith,
+                  ),
+                if (_refillSlot != null) _refillSheet(_refillSlot!),
                 if (tutorial != null &&
                     !showPause &&
                     !_confirmingQuit &&
@@ -370,10 +589,10 @@ class _GameplayScreenState extends State<GameplayScreen> {
                     best: widget.storage.bestScore,
                     onRestart: _restartAfterGameOver,
                     onHome: _goHome,
-                    canContinueWithAd:
-                        widget.ads.isRewardedContinueReady &&
-                        !_game.engine.hasUsedContinueThisRun,
-                    onContinueWithAd: _continueAfterAd,
+                    canContinue: !_game.engine.hasUsedContinueThisRun,
+                    continuePrice: EconomyTuning.continuePrice,
+                    coinBalance: widget.economy.wallet.coins,
+                    onContinue: _continueWithCoins,
                   ),
               ],
             );
@@ -388,17 +607,17 @@ class _GameplayBody extends StatelessWidget {
   const _GameplayBody({
     required this.game,
     required this.storage,
-    required this.ads,
     required this.dimmed,
     required this.boardKey,
     required this.immersive,
+    required this.showBoosterBar,
+    required this.onSlotTapped,
     this.onBoardTouched,
     this.recordsBest = true,
   });
 
   final TetrofallGame game;
   final StorageService storage;
-  final AdsService ads;
   final bool dimmed;
   final GlobalKey boardKey;
 
@@ -413,6 +632,12 @@ class _GameplayBody extends StatelessWidget {
   /// tutorial is coaching over it.
   final bool recordsBest;
 
+  /// False in the tutorial run, which has no boosters — and so gives the
+  /// board the strip the bar would have taken (`boosters.md` §4.1).
+  final bool showBoosterBar;
+
+  final ValueChanged<int> onSlotTapped;
+
   /// Aspect ratio of the visible grid — 18:32, which is exactly 9:16. That
   /// equality is why the layout below is so miserly with vertical space: on a
   /// 9:16 phone the board is height-bound, so every point of chrome above or
@@ -426,28 +651,34 @@ class _GameplayBody extends StatelessWidget {
     final viewPadding = MediaQuery.viewPaddingOf(context);
 
     // Every input here is known before layout — which is the whole reason
-    // ScoreHud has a fixed height and the banner slot reserves synchronously.
-    final bannerHeight = immersive
+    // ScoreHud has a fixed height and why the booster bar has one too. The
+    // banner slot that used to sit here is gone: it cost 50pt of play area on
+    // every run for the lowest-value unit in the build, and the boosters buy
+    // that income back through rewarded video the player opts into (§4.1).
+    final barHeight = immersive || !showBoosterBar
         ? 0.0
-        : ads.reservedBannerHeight(
-            size.width.truncate(),
-            screenHeight: size.height,
-          );
+        : ui.px(Tokens.boosterBarHeight);
     final chrome = immersive
         ? 0.0
-        : viewPadding.top + ui.hudHeight + bannerHeight + ui.spaceXs * 2;
+        : viewPadding.top + ui.hudHeight + barHeight + ui.spaceXs * 2;
 
     // What the board would want if it were width-bound: filling the screen
     // edge to edge. Anything left over after that is genuine slack.
     final boardWantsHeight = (size.width - ui.spaceSm * 2) / _boardAspect;
     final slack = size.height - chrome - boardWantsHeight;
 
-    // Spend whatever slack exists on holding the banner clear of the home
-    // indicator. When there is none, the banner runs edge to edge rather than
-    // taking the inset out of the board.
-    final bannerBottomInset = slack <= 0
+    // Spend whatever slack exists on holding the bar clear of the home
+    // indicator. When there is none, the bar sits at the very bottom rather
+    // than taking the inset out of the board.
+    final barBottomInset = slack <= 0
         ? 0.0
         : math.min(viewPadding.bottom, slack);
+
+    final boosterBar = BoosterBar(
+      state: game.boosters,
+      theme: game.theme,
+      onSlotTapped: onSlotTapped,
+    );
 
     // Immersive drops the frame entirely rather than merely thinning it: a
     // rounded gold border is a nicety when the board floats on a background,
@@ -479,20 +710,20 @@ class _GameplayBody extends StatelessWidget {
             onPointerDown: (e) {
               if (game.paused) return;
               onBoardTouched?.call(true);
-              game.gestureHandler.onPointerDown(e);
+              game.onBoardPointerDown(e);
             },
             onPointerMove: (e) {
               if (game.paused) return;
-              game.gestureHandler.onPointerMove(e);
+              game.onBoardPointerMove(e);
             },
             onPointerUp: (e) {
               if (game.paused) return;
-              game.gestureHandler.onPointerUp(e);
+              game.onBoardPointerUp(e);
               onBoardTouched?.call(false);
             },
             onPointerCancel: (e) {
               if (game.paused) return;
-              game.gestureHandler.onPointerCancel(e);
+              game.onBoardPointerCancel(e);
               onBoardTouched?.call(false);
             },
             child: GameWidget(game: game),
@@ -501,7 +732,11 @@ class _GameplayBody extends StatelessWidget {
       ),
     );
 
-    final hud = ScoreHud(game: game, storage: storage, recordsBest: recordsBest);
+    final hud = ScoreHud(
+      game: game,
+      storage: storage,
+      recordsBest: recordsBest,
+    );
 
     final content = DecoratedBox(
       decoration: const BoxDecoration(gradient: Tokens.bgWoodGradient),
@@ -521,17 +756,38 @@ class _GameplayBody extends StatelessWidget {
               children: [
                 hud,
                 Expanded(
-                  child: Padding(
-                    padding: boardPadding,
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: _boardAspect,
-                        child: KeyedSubtree(key: boardKey, child: board),
+                  child: Stack(
+                    children: [
+                      Padding(
+                        padding: boardPadding,
+                        child: Center(
+                          child: AspectRatio(
+                            aspectRatio: _boardAspect,
+                            child: KeyedSubtree(key: boardKey, child: board),
+                          ),
+                        ),
                       ),
-                    ),
+                      // The first-use tip and the aim hint float over the
+                      // bottom of the board, so a line of coaching can never
+                      // push the board around mid-run (§4.8).
+                      if (showBoosterBar)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: ui.spaceXs,
+                          child: BoosterTipLine(
+                            state: game.boosters,
+                            theme: game.theme,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                BannerAdSlot(ads: ads, bottomInset: bannerBottomInset),
+                if (showBoosterBar)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: barBottomInset),
+                    child: boosterBar,
+                  ),
               ],
             ),
     );

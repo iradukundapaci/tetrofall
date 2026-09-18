@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="ad.orientation" content="portrait,landscape">
+<script type="text/javascript" src="https://tpc.googlesyndication.com/pagead/gadgets/html5/api/exitapi.js"></script>
+<title>{{TITLE}}</title>
+<style>
+{{FONT_FACE}}
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #2B1C12;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+canvas {
+  display: block;
+  touch-action: none;
+}
+</style>
+</head>
+<body>
+<canvas id="tf-canvas" width="320" height="480"></canvas>
+<script>
+window.TF = {};
+{{ASSETS_JS}}
+</script>
+<script>
+{{CORE_JS}}
+</script>
+<script>
+{{AD_JS}}
+</script>
+<script>
+TF.boot("{{SLUG}}");
+</script>
+</body>
+</html>

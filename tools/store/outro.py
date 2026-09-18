@@ -110,13 +110,19 @@ def build_card(w: int, h: int, tagline=TAGLINE, kicker=KICKER) -> Image.Image:
     # than a small one.
     safe = round(w * 0.80)
 
-    cell = round(w * 0.088)
+    # Type and mark scale off the width on a portrait card. A square or
+    # landscape card sized that way overflows its own height, so the scale is
+    # capped at three quarters of the height; on 9:16 the cap never binds and
+    # the card is exactly what it always was.
+    base = min(w, round(h * 0.75))
+
+    cell = round(base * 0.088)
     gap = round(cell * 0.09)
     mark_w = 3 * cell + 2 * gap
     mark_h = 2 * cell + gap
-    name_font = _fit(draw, NAME, DISPLAY_FONT, safe, round(w * 0.20))
+    name_font = _fit(draw, NAME, DISPLAY_FONT, safe, round(base * 0.20))
     name_h = draw.textbbox((0, 0), NAME, font=name_font)[3]
-    tag_font = _fit(draw, tagline, BODY_FONT, safe, round(w * 0.048))
+    tag_font = _fit(draw, tagline, BODY_FONT, safe, round(base * 0.048))
     tag_h = draw.textbbox((0, 0), tagline, font=tag_font)[3]
 
     pad_a = round(h * 0.045)   # mark -> name
@@ -125,7 +131,7 @@ def build_card(w: int, h: int, tagline=TAGLINE, kicker=KICKER) -> Image.Image:
 
     kick_font = kick_h = None
     if kicker:
-        kick_font = _fit(draw, kicker, BODY_FONT, safe, round(w * 0.040))
+        kick_font = _fit(draw, kicker, BODY_FONT, safe, round(base * 0.040))
         kick_h = draw.textbbox((0, 0), kicker, font=kick_font)[3]
 
     total = mark_h + pad_a + name_h + pad_b + tag_h
@@ -137,7 +143,7 @@ def build_card(w: int, h: int, tagline=TAGLINE, kicker=KICKER) -> Image.Image:
         # Letter-spaced, muted and small — a label over the mark, not a
         # second headline competing with the wordmark.
         spaced = " ".join(kicker.upper())
-        kick_font = _fit(draw, spaced, BODY_FONT, safe, round(w * 0.040))
+        kick_font = _fit(draw, spaced, BODY_FONT, safe, round(base * 0.040))
         kw = draw.textlength(spaced, font=kick_font)
         draw.text(((w - kw) / 2, y), spaced, font=kick_font, fill=TEXT_MUTED)
         y += kick_h + pad_k

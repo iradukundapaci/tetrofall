@@ -21,8 +21,8 @@ The mockups carry their icons as inline `<svg>` with the presentational attribut
 | Group | Icons |
 |---|---|
 | Gameplay & navigation | `pause` `home` `chevron_right` `settings` `trophy` `star` |
-| Currency | `coin` `coin_detailed` `coin_simple` `coin_stack` |
-| Boosters | `hammer` `bomb` `drill` `lightning` |
+| Currency | `coin` `coin_detailed` `coin_simple` `coin_stack` — only `coin` is in the repo so far, hand-drawn as an all-stroke `currentColor` glyph from `.icon-coin` in `shop.html` (the extraction script is not in the repo) |
+| Boosters | `hammer` `bomb` `patch` `drill` `slide` `pillar` `sweep` `lightning` `mortar` `earthquake` `tilt` `wildfire` `circle_play` — Lucide, see below |
 | Rewards & progress | `treasure_chest` `gift` `gift_simple` `medal` `medal_outline` `check_circle` `check_circle_light` `lock` `video` |
 | Settings | `music` `sound` `sound_low` `sound_off` `vibrate` `message` `bell` `restore` `shield` `document` `palette` `shop` |
 
@@ -37,6 +37,26 @@ SvgPicture.asset(
 ```
 
 **Three icons are deliberately multicolor** and must be rendered *without* a `colorFilter`, or they'll flatten to a silhouette: `medal` (red ribbons + gold disc), `coin_detailed` (gold + shine + rim), `coin_stack` (three-tone stack). `AppIcons.multicolor` holds this set so it can be asserted in code.
+
+## Booster glyphs are Lucide now
+
+The mockups no longer hand-draw booster icons. `screens/gameplay.html` carries all
+twelve of them (plus `circle-play` for the rewarded-ad badge) as inline Lucide
+paths — see `boosters.md` §9.5 — and `shop.html` / `daily-reward.html` draw from
+the same set.
+
+**All thirteen are now in `assets/images/icons/`** and registered in
+`app_icons.dart`: `hammer` `bomb` `patch` `drill` `slide` `pillar` `sweep`
+`lightning` `mortar` `earthquake` `tilt` `wildfire`, plus `circle_play`. They were
+taken straight out of `gameplay.html`'s reference sheet — the same source the
+extractor reads — and stroked in `currentColor` at 1.8, so one file covers the
+ready, muted, greyed and armed tints. The four old hand-drawn shapes are gone.
+Re-running `extract_icons.py` should reproduce these byte for byte; if it does
+not, the mockup is the one that changed.
+
+Lucide is **ISC licensed**: keep the copyright notice with the copies (it lives in
+the `components.css` booster block). Never hand-edit a Lucide path either — a glyph
+that doesn't fit is a different icon, pulled from `lucide-static`.
 
 ## Variants worth knowing
 

@@ -134,9 +134,9 @@ def _split_headline(text: str) -> list[str]:
     return [" ".join(words[:mid]), " ".join(words[mid:])]
 
 
-def caption(captions: dict[str, str]) -> int:
-    src = GAMEPLAY / "phone"
-    out = GAMEPLAY / "phone_captioned"
+def caption(captions: dict[str, str], src=None, out=None) -> int:
+    src = src or GAMEPLAY / "phone"
+    out = out or GAMEPLAY / "phone_captioned"
     out.mkdir(parents=True, exist_ok=True)
 
     made = 0
@@ -237,10 +237,14 @@ def main() -> int:
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--caption", metavar="JSON",
                     help="path to {scene: caption} JSON")
+    ap.add_argument("--src", metavar="DIR", help="raw captures (default gameplay/phone)")
+    ap.add_argument("--out", metavar="DIR", help="captioned output (default gameplay/phone_captioned)")
     args = ap.parse_args()
 
     if args.caption:
-        return caption(json.loads(Path(args.caption).read_text()))
+        src = Path(args.src).resolve() if args.src else None
+        out = Path(args.out).resolve() if args.out else None
+        return caption(json.loads(Path(args.caption).read_text()), src=src, out=out)
     if args.verify:
         return verify()
     ap.print_help()

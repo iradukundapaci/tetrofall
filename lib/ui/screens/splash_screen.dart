@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../services/ads_service.dart';
 import '../../services/analytics_service.dart';
 import '../../services/storage_service.dart';
+import '../../services/economy.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
 import '../widgets/logo_mark.dart';
@@ -20,10 +21,16 @@ import 'main_menu_screen.dart';
 /// both the animation and the real load are done, handing off to the
 /// main menu.
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key, required this.storage, required this.ads});
+  const SplashScreen({
+    super.key,
+    required this.storage,
+    required this.ads,
+    required this.economy,
+  });
 
   final StorageService storage;
   final AdsService ads;
+  final Economy economy;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -109,8 +116,11 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) =>
-            MainMenuScreen(storage: widget.storage, ads: widget.ads),
+        builder: (_) => MainMenuScreen(
+          storage: widget.storage,
+          ads: widget.ads,
+          economy: widget.economy,
+        ),
       ),
     );
   }

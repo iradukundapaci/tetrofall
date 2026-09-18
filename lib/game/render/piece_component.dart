@@ -96,7 +96,10 @@ class PieceComponent extends PositionComponent
         ..position = Vector2(visualCol * cellSize, localRow * cellSize);
     }
 
-    final showGhost = game.showGhost;
+    // The ghost goes while a booster is armed: the board is dimmed to the
+    // preview outline and a second hint under the piece would compete with it
+    // (`boosters.md` §4.4).
+    final showGhost = game.showGhost && game.boosters.armedIndex == null;
     final ghostRow = engine.pieceController.ghostLandingRow();
     final ghostVisible =
         showGhost && ghostRow != null && ghostRow != piece.anchorRow;

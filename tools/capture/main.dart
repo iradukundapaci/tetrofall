@@ -32,6 +32,7 @@ import 'package:tetrofall/game/tetrofall_game.dart';
 import 'package:tetrofall/services/ads_service.dart';
 import 'package:tetrofall/services/audio_service.dart';
 import 'package:tetrofall/services/storage_service.dart';
+import 'package:tetrofall/services/economy.dart';
 import 'package:tetrofall/ui/screens/gameplay_screen.dart';
 import 'package:tetrofall/ui/screens/main_menu_screen.dart';
 import 'package:tetrofall/ui/theme/tokens.dart';
@@ -115,11 +116,16 @@ class _CaptureApp extends StatelessWidget {
 
 Widget _mountScene(Scene scene, StorageService storage, AdsService ads) {
   if (scene.screen == SceneScreen.menu) {
-    return MainMenuScreen(storage: storage, ads: ads);
+    return MainMenuScreen(
+      storage: storage,
+      ads: ads,
+      economy: Economy(storage),
+    );
   }
   return GameplayScreen(
     storage: storage,
     ads: ads,
+    economy: Economy(storage),
     immersive: true,
     startTutorial: scene.screen == SceneScreen.tutorial,
     onGameCreated: (game) => _StillDirector(scene, game).run(),
@@ -316,6 +322,7 @@ Future<Widget> _mountReel(
   return GameplayScreen(
     storage: storage,
     ads: ads,
+    economy: Economy(storage),
     immersive: true,
     onGameCreated: (game) => _ReelDirector(reel, game).run(),
   );
@@ -348,12 +355,16 @@ class _ReelDirector {
       engine.scoring.awardLineClear(lines: 0, chainIndex: 0, elapsedSeconds: 0);
 
       engine.addEventListener((event) {
-        if (event is! PieceSpawnedEvent) return;
-        final piece = engine.pieceController.piece;
-        if (piece != null) _bot.onPieceSpawned(engine.grid, piece.type);
+        if (event is PieceSpawnedEvent) _onSpawn(engine);
       });
-      if (engine.pieceController.piece case final p?) {
-        _bot.onPieceSpawned(engine.grid, p.type);
+      if (reel.dealFirst) {
+        // The engine dealt its opening piece from the bag before the reel
+        // got here, so `pieces[0]` would otherwise arrive second and every
+        // script entry would land on the wrong piece. Abandon that piece and
+        // deal the queue from the top.
+        engine.respawnPiece();
+      } else if (engine.pieceController.piece != null) {
+        _onSpawn(engine);
       }
 
       // Slower than a bot could go: the reels are meant to be watched, and a
@@ -361,7 +372,7 @@ class _ReelDirector {
       // someone playing.
       void startBot() {
         Timer.periodic(Duration(milliseconds: reel.tickMs), (_) {
-          _bot.tick(engine);
+          if (!_feinting) _bot.tick(engine);
         });
       }
 
@@ -395,6 +406,50 @@ class _ReelDirector {
         debugPrint(_readyMarker);
       });
     });
+  }
+
+  int _spawns = 0;
+  bool _feinting = false;
+
+  void _onSpawn(GameEngine engine) {
+    final piece = engine.pieceController.piece;
+    if (piece == null) return;
+    _bot.onPieceSpawned(engine.grid, piece.type);
+    if (_spawns++ == reel.feintPiece) unawaited(_feint(engine));
+  }
+
+  /// The hover: the piece is steered over the columns in [Reel.feintColumns],
+  /// pausing over each one, before the bot gets it back and drives it to the
+  /// placement it was always going to make. It is ordinary input — moves and
+  /// rotations through the engine's intent queue — so the piece falls under
+  /// gravity the whole time, exactly as it would under a hesitating thumb.
+  Future<void> _feint(GameEngine engine) async {
+    _feinting = true;
+    final step = Duration(milliseconds: reel.tickMs);
+    bool live() =>
+        engine.phase == GamePhase.playing &&
+        engine.pieceController.piece != null;
+
+    for (var i = 0; i < reel.feintRotations && live(); i++) {
+      engine.enqueueIntent(GameIntentType.rotateCW);
+      await Future<void>.delayed(step);
+    }
+    for (var i = 0; i < reel.feintColumns.length; i++) {
+      final col = reel.feintColumns[i];
+      // Bounded, so a move blocked by the stack cannot spin here forever.
+      for (var n = 0; n < 24 && live(); n++) {
+        final at = engine.pieceController.piece!.anchorCol;
+        if (at == col) break;
+        engine.enqueueIntent(
+          at < col ? GameIntentType.moveRight : GameIntentType.moveLeft,
+        );
+        await Future<void>.delayed(step);
+      }
+      final dwells = reel.feintDwellMs;
+      final dwell = dwells.isEmpty ? 900 : dwells[math.min(i, dwells.length - 1)];
+      await Future<void>.delayed(Duration(milliseconds: dwell));
+    }
+    _feinting = false;
   }
 
   void _seedBoard(GameEngine engine) {

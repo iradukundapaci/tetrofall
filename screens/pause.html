@@ -159,29 +159,11 @@
       transform: rotate(-28deg);
     }
 
-    /* ---------- Banner ad slot (frozen, matches gameplay.html) ---------- */
-    .game-ad-banner {
-      flex: 0 0 auto;
-      width: 100%;
-      height: 50px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px dashed rgba(255, 255, 255, 0.25);
-      border-radius: 6px;
-      box-sizing: border-box;
-    }
-
-    .game-ad-banner-label {
-      font-size: var(--font-size-xs);
-      font-weight: 700;
-      color: var(--color-text-muted);
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-    }
-
     .pause-bg {
+      /* Fill the frame — without this the frozen stage is only as tall as its
+         own content and the board collapses to a sliver at the top. */
+      flex: 1 1 auto;
+      min-height: 0;
       filter: blur(4px);
       opacity: 0.4;
       pointer-events: none;
@@ -490,8 +472,34 @@
             </div>
           </div>
 
-          <div class="game-ad-banner">
-            <span class="game-ad-banner-label">Ad banner — 320×50</span>
+
+          <!-- Booster bar, frozen with the rest of the run (boosters.md §4.7):
+               pausing cancels any aiming and keeps the charge, so the bar is
+               just dimmed here, never reset. Hammer has been spent — greyed
+               out, with the ▶ badge that offers it back for a rewarded video
+               once play resumes (§4.9). No banner under it: that strip is
+               play area now (§4.1). -->
+          <div class="booster-bar">
+              <div class="booster-slot is-spent" aria-label="Hammer">
+                <svg class="booster-glyph" viewBox="0 0 24 24"><path d="m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>
+                <span class="booster-charge">1</span>
+                <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              </div>
+              <div class="booster-slot" aria-label="Drill">
+                <svg class="booster-glyph" viewBox="0 0 24 24"><path d="M10 18a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a3 3 0 0 1-3-3 1 1 0 0 1 1-1z"/><path d="M13 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1l-.81 3.242a1 1 0 0 1-.97.758H8"/><path d="M14 4h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3"/><path d="M18 6h4"/><path d="m5 10-2 8"/><path d="m7 18 2-8"/></svg>
+                <span class="booster-charge">1</span>
+                <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              </div>
+              <div class="booster-slot" aria-label="Mortar">
+                <svg class="booster-glyph" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 9v6"/><path d="M16 15v6"/><path d="M16 3v6"/><path d="M3 15h18"/><path d="M3 9h18"/><path d="M8 15v6"/><path d="M8 3v6"/></svg>
+                <span class="booster-charge">1</span>
+                <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              </div>
+              <div class="booster-slot" aria-label="Tilt">
+                <svg class="booster-glyph" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 15 9 9"/><path d="M9 15h6V9"/></svg>
+                <span class="booster-charge">1</span>
+                <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              </div>
           </div>
 
         </div>

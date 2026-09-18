@@ -62,3 +62,6 @@ app.*.map.json
 # from `tools/capture/capture.sh reel`, so they stay out of history. Every
 # image under gameplay/ IS tracked — those are the upload artefacts.
 /gameplay/video/
+# The Google Ads video cuts and their synthesised stingers are rebuilt by
+# tools/store/ad_videos.py and ad_sfx.py; only the contact sheet is tracked.
+**/gameplay/

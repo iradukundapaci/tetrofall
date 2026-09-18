@@ -30,6 +30,11 @@ class Reel {
     this.elapsedSeconds = 0,
     this.tickMs = 150,
     this.openingHoldMs = 0,
+    this.dealFirst = false,
+    this.feintPiece = -1,
+    this.feintRotations = 0,
+    this.feintColumns = const [],
+    this.feintDwellMs = const [],
   });
 
   final String name;
@@ -70,21 +75,200 @@ class Reel {
   /// started recording, so the take opened on the aftermath — an empty board
   /// and a score that had already jumped.
   final int openingHoldMs;
+
+  /// Throw away the piece the engine dealt from the bag at start, so the
+  /// first piece on screen is `pieces[0]`. Without it the bag piece comes
+  /// first and every `script` entry lands on the piece before the one it was
+  /// written for.
+  final bool dealFirst;
+
+  /// Index (counting spawns from the seed) of the piece that hovers: rotated
+  /// [feintRotations] times, steered over each of [feintColumns] in turn with
+  /// a pause of [feintDwellMs] over each, then handed back to the bot. The
+  /// "don't do it… don't do it…" beat of the frustration cuts. -1 is off.
+  final int feintPiece;
+  final int feintRotations;
+  final List<int> feintColumns;
+  final List<int> feintDwellMs;
 }
 
-/// A one-wide well nine rows deep on the right — the shape every player
-/// recognises as "the I-piece goes there".
-const _wellBoard = <String>[
+// Every layout is BOTTOM-FIRST: `layout[0]` is seeded into the floor row and
+// each later string sits one row higher. Every row must keep at least one gap
+// — the clear check scans the whole board on each lock, so a seeded full row
+// would vanish the first time any piece landed.
+
+/// Three rows of old garbage, then a one-wide well nine rows deep on the
+/// right — the shape every player recognises as "the I-piece goes there" —
+/// under a ragged left surface that leaves the mouth of the well wide open.
+///
+/// This replaces an earlier `_wellBoard` that was written top-first. Seeded
+/// bottom-first it put the "well" under a pyramid, sealed, so the blunder the
+/// reel was built around could not happen.
+const _deepWellBoard = <String>[
+  '######..##########',
+  '#####.######..####',
+  '###############..#',
   '#################.',
   '#################.',
   '#################.',
   '#################.',
   '#################.',
   '#################.',
-  '######.....#######',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#####..###........',
+  '###...............',
+];
+
+/// A four-deep, one-wide slot at column 9: a vertical I there clears four.
+const _slotBoard = <String>[
+  '#############.##.#',
+  '###.####.###.#####',
+  '######.########.##',
+  '##########.#.#####',
+  '#####.##########..',
+  '#########.########',
+  '#########.########',
+  '#########.########',
+  '#########.########',
+  '######.......#####',
+  '#####.........####',
+];
+
+/// Stacked to row 3 of 32, with the top four rows one I from clearing — the
+/// only move on the board that survives the next few rises.
+const _lastChanceBoard = <String>[
+  '#####.##########.#',
+  '.###########.#.###',
+  '##.########.######',
+  '####.####.########',
+  '##.#####.##.######',
+  '###.##.###########',
+  '#############..###',
+  '.###.#############',
+  '############.###.#',
+  '###.###.##.#######',
+  '.###.####.########',
+  '######.#########.#',
+  '.##.##############',
+  '############.#.###',
+  '#.##.#############',
+  '.#######..########',
+  '###.#######.#.####',
+  '####.#.###########',
+  '#####.#######..###',
+  '##########..######',
+  '.#.#.#############',
+  '###########.#.####',
+  '####.##########..#',
+  '#########.#.######',
+  '#######.######.###',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+];
+
+/// A low ragged base, column 8 solid on top, for the tower to stand on.
+const _towerBoard = <String>[
+  '#####.###.##.#####',
+  '#######.###.###.##',
+  '####.#####.#######',
+  '#########.#####.##',
+  '####..##########.#',
+  '##############..##',
+  '#####..##########.',
+  '#######.###.######',
+];
+
+/// Two slots. Column 4 runs eight deep and its lower four rows are complete
+/// but for it, so an I there clears four. Column 13 is a decoy: the four rows
+/// around it are also missing column 4, so filling it clears nothing.
+const _twoSlotsBoard = <String>[
+  '#########.##.#.###',
+  '######.###.#######',
+  '##.############.##',
+  '#.###############.',
+  '######.#######.###',
+  '############.###.#',
+  '####.#############',
+  '####.#############',
+  '####.#############',
+  '####.#############',
+  '####.########.####',
+  '####.########.####',
+  '####.########.####',
+  '####.########.####',
+];
+
+/// A three-wide trough one row deep that an L fills exactly lying flat.
+const _troughBoard = <String>[
+  '##..###.##########',
+  '###########.#####.',
+  '##############...#',
+  '#.#####.#########.',
+  '############.##.##',
+  '.###.########.####',
+  '###########.##.###',
+  '########...#######',
   '#####.......######',
-  '####.........#####',
-  '###...........####',
+];
+
+/// A sixteen-deep well on the right, for a reel that never deals an I.
+const _longWellBoard = <String>[
+  '#.###.############',
+  '#######.###.######',
+  '#########..#######',
+  '#.#############..#',
+  '####.#..##########',
+  '.##.#.############',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+  '#################.',
+];
+
+/// The never-an-I reel's pieces, and where each goes: all flat, all left of
+/// the well, so the well stays open the whole way up. Twenty-eight, so the
+/// floor wins before the queue runs out and the bag can deal the I.
+const _waitingPieces = <TetrominoType>[
+  TetrominoType.O, TetrominoType.L, TetrominoType.J, TetrominoType.T,
+  TetrominoType.O, TetrominoType.S, TetrominoType.Z, TetrominoType.O,
+  TetrominoType.L, TetrominoType.T, TetrominoType.J, TetrominoType.O,
+  TetrominoType.S, TetrominoType.Z, TetrominoType.T, TetrominoType.L,
+  TetrominoType.O, TetrominoType.J, TetrominoType.O, TetrominoType.T,
+  TetrominoType.Z, TetrominoType.L, TetrominoType.O, TetrominoType.S,
+  TetrominoType.J, TetrominoType.T, TetrominoType.O, TetrominoType.Z,
+];
+
+const _waitingScript = <BotPlacement>[
+  (RotationState.spawn, 0), (RotationState.spawn, 2),
+  (RotationState.spawn, 5), (RotationState.spawn, 8),
+  (RotationState.spawn, 11), (RotationState.spawn, 13),
+  (RotationState.spawn, 0), (RotationState.spawn, 15),
+  (RotationState.spawn, 3), (RotationState.spawn, 6),
+  (RotationState.spawn, 10), (RotationState.spawn, 13),
+  (RotationState.spawn, 0), (RotationState.spawn, 4),
+  (RotationState.spawn, 8), (RotationState.spawn, 12),
+  (RotationState.spawn, 15), (RotationState.spawn, 1),
+  (RotationState.spawn, 6), (RotationState.spawn, 10),
+  (RotationState.spawn, 13), (RotationState.spawn, 0),
+  (RotationState.spawn, 4), (RotationState.spawn, 7),
+  (RotationState.spawn, 10), (RotationState.spawn, 13),
+  (RotationState.spawn, 15), (RotationState.spawn, 2),
 ];
 
 /// The opening board for the honest reel: a built stack that already reads as
@@ -211,8 +395,11 @@ const reels = <Reel>[
         'The well is nine deep, the I-piece arrives, and it gets laid flat '
         'across the top. The comment-bait cut.',
     seconds: 20,
-    layout: _wellBoard,
+    layout: _deepWellBoard,
     startScore: 9840,
+    elapsedSeconds: 20,
+    openingHoldMs: 2500,
+    dealFirst: true,
     // Two O pieces of ordinary play first, so the viewer settles in and reads
     // the board, and then the I. Handing it over on frame one gives them
     // nothing to anticipate.
@@ -220,16 +407,19 @@ const reels = <Reel>[
       TetrominoType.O,
       TetrominoType.O,
       TetrominoType.I,
+      TetrominoType.T,
       TetrominoType.S,
+      TetrominoType.L,
       TetrominoType.Z,
+      TetrominoType.J,
     ],
     policy: BotPolicy.scripted,
-    // Rotation `spawn` is the I lying flat; column 13 puts it across the mouth
-    // of the well instead of into it.
+    // The Os fill the notches in the left surface. Rotation `spawn` is the I
+    // lying flat; column 14 spans 14–17, across the mouth of the well.
     script: [
-      (RotationState.spawn, 4),
-      (RotationState.spawn, 6),
-      (RotationState.spawn, 13),
+      (RotationState.spawn, 5),
+      (RotationState.spawn, 3),
+      (RotationState.spawn, 14),
     ],
     tickMs: 170,
   ),
@@ -238,13 +428,18 @@ const reels = <Reel>[
   Reel(
     name: '03_blunder_ignore_rise',
     blurb:
-        'Stacks the left while the floor climbs under it and the right half '
-        'sits empty. Tops out with room to spare.',
-    seconds: 25,
+        'Walks up to every clear on the board and refuses it while the floor '
+        'climbs, until it tops out.',
+    seconds: 30,
     policy: BotPolicy.blunder,
     blunderRate: 1.0,
-    riseSpeed: 2.6,
+    // From an empty board at 2.6 this ran five rises in 25 seconds and never
+    // came near the top, so it starts on a built stack, with an open slot the
+    // blunder policy will conspicuously never fill, and a faster floor.
+    layout: _slotBoard,
+    riseSpeed: 5.0,
     elapsedSeconds: 150,
+    openingHoldMs: 2000,
     startScore: 4180,
     tickMs: 140,
   ),
@@ -259,7 +454,8 @@ const reels = <Reel>[
         'One placement from a five-chain, and it buries the whole thing '
         'instead. Plays well between the mistakes.',
     seconds: 25,
-    layout: _wellBoard,
+    layout: _deepWellBoard,
+    openingHoldMs: 2000,
     policy: BotPolicy.blunder,
     blunderRate: 0.34,
     startScore: 15600,
@@ -343,6 +539,205 @@ const reels = <Reel>[
     elapsedSeconds: 180,
     layout: _cascadeBoard,
     openingHoldMs: 1200,
+  ),
+
+  // ── 8–14 ── the paid frustration cuts ────────────────────────────────
+  // Built for the Google Ads video set (`tools/store/ad_videos.json`). Each
+  // one is a single legible mistake on a board authored so the right move is
+  // obvious. All of them are the shipped game played badly on purpose —
+  // nothing is drawn on, and the bot is steering the real piece.
+
+  // The hover. The I goes vertical, hangs over the well, drifts off it and
+  // back twice — and then lies down flat across the top of it.
+  Reel(
+    name: '08_edge_hover',
+    blurb:
+        'The I hovers over the nine-deep well, wobbles off it and back, and '
+        'then goes down flat across the top.',
+    seconds: 25,
+    layout: _deepWellBoard,
+    startScore: 11260,
+    elapsedSeconds: 20,
+    openingHoldMs: 2500,
+    dealFirst: true,
+    pieces: [
+      TetrominoType.O,
+      TetrominoType.I,
+      TetrominoType.T,
+      TetrominoType.S,
+      TetrominoType.L,
+      TetrominoType.Z,
+      TetrominoType.J,
+      TetrominoType.O,
+    ],
+    policy: BotPolicy.scripted,
+    script: [(RotationState.spawn, 5), (RotationState.spawn, 14)],
+    // `right` puts the I's cells in anchor column + 2, so 15 is over the well.
+    feintPiece: 1,
+    feintRotations: 1,
+    feintColumns: [15, 13, 15, 14, 15],
+    feintDwellMs: [1400, 500, 1100, 350, 900],
+    tickMs: 170,
+  ),
+
+  Reel(
+    name: '09_one_off',
+    blurb:
+        'A four-deep slot, a vertical I, and it lands one column to the right '
+        'of it.',
+    seconds: 15,
+    layout: _slotBoard,
+    startScore: 7420,
+    elapsedSeconds: 20,
+    openingHoldMs: 2000,
+    dealFirst: true,
+    pieces: [
+      TetrominoType.O,
+      TetrominoType.I,
+      TetrominoType.T,
+      TetrominoType.L,
+      TetrominoType.J,
+      TetrominoType.S,
+      TetrominoType.Z,
+    ],
+    policy: BotPolicy.scripted,
+    script: [(RotationState.spawn, 11), (RotationState.right, 8)],
+    tickMs: 170,
+  ),
+
+  Reel(
+    name: '10_last_chance_topout',
+    blurb:
+        'Stacked to the ceiling with a four-row clear waiting in the well. The '
+        'I goes flat in the middle and the floor finishes it.',
+    seconds: 22,
+    layout: _lastChanceBoard,
+    startScore: 18950,
+    elapsedSeconds: 150,
+    riseSpeed: 4.0,
+    openingHoldMs: 3000,
+    dealFirst: true,
+    pieces: [
+      TetrominoType.I,
+      TetrominoType.O,
+      TetrominoType.O,
+      TetrominoType.T,
+      TetrominoType.O,
+    ],
+    policy: BotPolicy.scripted,
+    script: [(RotationState.spawn, 7)],
+    tickMs: 180,
+  ),
+
+  Reel(
+    name: '11_tower_middle',
+    blurb:
+        'Six I-pieces stood on end in the same column while the floor rises '
+        'underneath the tower.',
+    seconds: 25,
+    layout: _towerBoard,
+    startScore: 5310,
+    elapsedSeconds: 30,
+    riseSpeed: 3.0,
+    openingHoldMs: 2000,
+    dealFirst: true,
+    pieces: [
+      TetrominoType.I,
+      TetrominoType.I,
+      TetrominoType.I,
+      TetrominoType.I,
+      TetrominoType.I,
+      TetrominoType.I,
+      TetrominoType.O,
+      TetrominoType.T,
+      TetrominoType.O,
+      TetrominoType.L,
+    ],
+    policy: BotPolicy.scripted,
+    script: [
+      (RotationState.right, 6),
+      (RotationState.right, 6),
+      (RotationState.right, 6),
+      (RotationState.right, 6),
+      (RotationState.right, 6),
+      (RotationState.right, 6),
+    ],
+    tickMs: 190,
+  ),
+
+  // The same hover, the other way round: it hangs over the slot that clears
+  // four, then drives across the board into the decoy that clears nothing.
+  Reel(
+    name: '12_wrong_slot',
+    blurb:
+        'Two slots. The I hovers over the one that clears four rows, then '
+        'goes into the one that clears none.',
+    seconds: 20,
+    layout: _twoSlotsBoard,
+    startScore: 8830,
+    elapsedSeconds: 20,
+    openingHoldMs: 2000,
+    dealFirst: true,
+    pieces: [
+      TetrominoType.I,
+      TetrominoType.O,
+      TetrominoType.T,
+      TetrominoType.S,
+      TetrominoType.Z,
+      TetrominoType.L,
+      TetrominoType.J,
+    ],
+    policy: BotPolicy.scripted,
+    script: [(RotationState.right, 11)],
+    feintPiece: 0,
+    feintRotations: 1,
+    feintColumns: [2, 3, 2, 6],
+    feintDwellMs: [1300, 400, 900, 300],
+    tickMs: 170,
+  ),
+
+  Reel(
+    name: '13_wrong_rotation',
+    blurb:
+        'An L that fills the trough lying flat gets turned upside down and '
+        'leaves two holes under it.',
+    seconds: 15,
+    layout: _troughBoard,
+    startScore: 6140,
+    elapsedSeconds: 20,
+    openingHoldMs: 2000,
+    dealFirst: true,
+    pieces: [
+      TetrominoType.L,
+      TetrominoType.O,
+      TetrominoType.T,
+      TetrominoType.S,
+      TetrominoType.Z,
+      TetrominoType.J,
+      TetrominoType.I,
+    ],
+    policy: BotPolicy.scripted,
+    // `flip` hangs the L's foot down on the left; flat (`spawn`) was the fit.
+    script: [(RotationState.flip, 8)],
+    tickMs: 200,
+  ),
+
+  Reel(
+    name: '14_waiting_for_i',
+    blurb:
+        'A sixteen-deep well, kept open for an I that never comes, while the '
+        'floor pushes the whole stack into the ceiling.',
+    seconds: 30,
+    layout: _longWellBoard,
+    startScore: 14720,
+    elapsedSeconds: 150,
+    riseSpeed: 3.0,
+    openingHoldMs: 2000,
+    dealFirst: true,
+    pieces: _waitingPieces,
+    policy: BotPolicy.scripted,
+    script: _waitingScript,
+    tickMs: 140,
   ),
 ];
 

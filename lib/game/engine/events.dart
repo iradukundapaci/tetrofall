@@ -1,3 +1,7 @@
+import '../boosters/block_path.dart';
+import '../boosters/booster_effects.dart';
+import '../boosters/booster_target.dart';
+import '../boosters/booster_type.dart';
 import 'cell.dart';
 
 sealed class GameEvent {
@@ -91,4 +95,42 @@ class GameOverEvent extends GameEvent {
 
 class RiseCommittedEvent extends GameEvent {
   const RiseCommittedEvent();
+}
+
+/// A booster committed its edit to the grid. The render layer plays the
+/// effect from here; the engine has already moved on to the resolve.
+///
+/// Booster events live in this file rather than next to the boosters because
+/// [GameEvent] is sealed: every event the engine can emit is declared here, so
+/// a listener that switches over one is told when a new kind appears.
+class BoosterFiredEvent extends GameEvent {
+  const BoosterFiredEvent(this.type, this.target, this.result);
+
+  final BoosterType type;
+  final BoosterTarget target;
+  final BoosterResult result;
+}
+
+/// One block's journey, with the flight time the engine budgeted for it.
+class BlockPathEvent {
+  const BlockPathEvent({required this.path, required this.durationSeconds});
+
+  final BlockPath path;
+  final double durationSeconds;
+}
+
+/// Blocks that travelled somewhere a [BlocksFellEvent] could not describe —
+/// sideways, or around a corner (`boosters.md` §6.0).
+class BlocksMovedEvent extends GameEvent {
+  const BlocksMovedEvent(this.paths);
+
+  final List<BlockPathEvent> paths;
+}
+
+/// A booster was armed, or the armed one was cancelled. Null means nothing is
+/// armed any more.
+class BoosterArmedEvent extends GameEvent {
+  const BoosterArmedEvent(this.type);
+
+  final BoosterType? type;
 }

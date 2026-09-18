@@ -3,12 +3,15 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 
 import '../../models/theme_definition.dart';
+import '../boosters/booster_run_state.dart';
+import '../boosters/booster_type.dart';
 import '../config/board_config.dart';
 import '../config/motion.dart';
 import '../engine/events.dart';
 import '../engine/game_engine.dart';
 import 'board_blocks_component.dart';
 import 'board_frame.dart';
+import 'booster_preview_layer.dart';
 import 'fall_animator.dart';
 import 'pending_row_component.dart';
 import 'piece_component.dart';
@@ -18,10 +21,12 @@ import 'tile_cache.dart';
 class BoardComponent extends PositionComponent with HasGameReference {
   BoardComponent({
     required this.engine,
+    required this.boosters,
     this.theme = ThemeDefinition.classicWood,
   });
 
   final GameEngine engine;
+  final BoosterRunState boosters;
   final ThemeDefinition theme;
 
   late final BoardFrame frame;
@@ -32,6 +37,7 @@ class BoardComponent extends PositionComponent with HasGameReference {
   late final PendingRowComponent pendingRowComponent;
   late final ShatterLayer shatterLayer;
   late final BoardBlocksComponent blocksComponent;
+  late final BoosterPreviewLayer boosterPreviewLayer;
 
   double get cellSize => frame.cellSize;
 
@@ -85,12 +91,19 @@ class BoardComponent extends PositionComponent with HasGameReference {
     shatterLayer = ShatterLayer(theme: theme);
     await _contentLayer.add(shatterLayer);
 
+    boosterPreviewLayer = BoosterPreviewLayer(state: boosters, theme: theme);
+    await _contentLayer.add(boosterPreviewLayer);
+
     engine.addEventListener(_onEngineEvent);
 
     _layout(game.size);
   }
 
   void resetForRestart() {
+    // The roll overlay can close on the very first frame, before Flame has
+    // run `onLoad` and built the layers — and a board with no layers has
+    // nothing to reset.
+    if (!isLoaded) return;
     fallAnimator.reset();
     shatterLayer.reset();
   }
@@ -98,6 +111,8 @@ class BoardComponent extends PositionComponent with HasGameReference {
   void _onEngineEvent(GameEvent event) {
     if (event is BlocksFellEvent) {
       fallAnimator.addFalls(event.falls);
+    } else if (event is BlocksMovedEvent) {
+      fallAnimator.addPaths(event.paths);
     } else if (event is RowsClearedEvent) {
       shatterLayer.addClear(
         event.cells,
@@ -105,6 +120,78 @@ class BoardComponent extends PositionComponent with HasGameReference {
         linesCleared: event.rows.length,
         timeScale: event.timeScale,
       );
+    } else if (event is BoosterFiredEvent) {
+      _playBoosterEffect(event);
+    }
+  }
+
+  /// A booster's cells coming apart (`boosters.md` §6). The shards, the pool
+  /// and the budget are the ones a line clear already uses; what changes per
+  /// booster is the order the cells break in and where they are thrown.
+  void _playBoosterEffect(BoosterFiredEvent event) {
+    final removed = event.result.removed;
+    if (removed.isEmpty) return;
+
+    final scale = engine.resolveTimeScale;
+    switch (event.type) {
+      case BoosterType.bomb:
+        // Ring by ring, out from the centre, shards biased away from it.
+        shatterLayer.addBoosterBurst(
+          removed,
+          BoardConfig.cols,
+          origin: (event.target.row ?? 0, event.target.col ?? 0),
+          stepSeconds: Motion.boosterBombRing.inMilliseconds / 1000,
+          leadSeconds: Motion.boosterBombFuse.inMilliseconds / 1000,
+          timeScale: scale,
+        );
+      case BoosterType.drill:
+        // In sweep order, from the edge the bit entered by — the nearer one.
+        final row = event.target.row ?? 0;
+        final entry = (event.target.col ?? 0) < BoardConfig.cols / 2
+            ? 0
+            : BoardConfig.cols - 1;
+        shatterLayer.addBoosterBurst(
+          removed,
+          BoardConfig.cols,
+          origin: (row, entry),
+          spread: BurstSpread.sweep,
+          stepSeconds: Motion.boosterDrillCellStep.inMilliseconds / 1000,
+          timeScale: scale,
+        );
+      case BoosterType.sweep:
+        // The gust crosses left to right and cells go as it reaches them.
+        shatterLayer.addBoosterBurst(
+          removed,
+          BoardConfig.cols,
+          origin: (removed.first.row, 0),
+          spread: BurstSpread.sweep,
+          stepSeconds:
+              Motion.boosterSweep.inMilliseconds / 1000 / BoardConfig.cols,
+          timeScale: scale,
+        );
+      case BoosterType.wildfire:
+        // Outward from the cell the fire was started in, one layer at a time.
+        shatterLayer.addBoosterBurst(
+          removed,
+          BoardConfig.cols,
+          origin: (event.target.row ?? 0, event.target.col ?? 0),
+          stepSeconds: Motion.boosterFireLayer.inMilliseconds / 1000,
+          timeScale: scale,
+        );
+      case BoosterType.hammer:
+        shatterLayer.addBoosterBurst(
+          removed,
+          BoardConfig.cols,
+          origin: (event.target.row ?? 0, event.target.col ?? 0),
+          leadSeconds: Motion.boosterHammerSwing.inMilliseconds / 1000,
+          timeScale: scale,
+        );
+      case _:
+        shatterLayer.addBoosterBurst(
+          removed,
+          BoardConfig.cols,
+          timeScale: scale,
+        );
     }
   }
 
@@ -137,6 +224,7 @@ class BoardComponent extends PositionComponent with HasGameReference {
     pendingRowComponent.updateLayout(newCellSize);
     shatterLayer.cellSize = newCellSize;
     blocksComponent.cellSize = newCellSize;
+    boosterPreviewLayer.cellSize = newCellSize;
   }
 
   @override

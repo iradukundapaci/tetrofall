@@ -159,30 +159,147 @@
       transform: rotate(-28deg);
     }
 
-    /* ---------- Banner ad slot ---------- */
-    /* Reserved space below the play area for a standard mobile banner
-       (320x50 adaptive). Swap the placeholder for the real ad SDK's view
-       once integrated — the height is fixed so the board above it doesn't
-       shift when the ad loads. */
-    .game-ad-banner {
+    /* No banner slot. The 50 px strip that used to sit under the board is
+       now play area (boosters.md §4.1): the board takes every pixel between
+       the HUD and the booster bar, and the ad money comes from the rewarded
+       videos the boosters themselves offer. */
+
+    /* ---------- Booster bar (boosters.md §4) ---------- */
+    /* One line of room above the bar for the first-use tip (§4.8). The row
+       keeps its height whether or not a tip is showing, so switching states
+       never resizes the board underneath. */
+    .booster-tip-row {
       flex: 0 0 auto;
-      width: 100%;
-      height: 50px;
+      min-height: 26px;
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       justify-content: center;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px dashed rgba(255, 255, 255, 0.25);
-      border-radius: 6px;
-      box-sizing: border-box;
     }
 
-    .game-ad-banner-label {
-      font-size: var(--font-size-xs);
+    .booster-tip-row .booster-tip {
+      display: none;
+    }
+
+    .game-stage[data-state="aiming"] .booster-tip-row .booster-tip {
+      display: inline-block;
+    }
+
+    /* ---------- Aiming mode (§4.4) ---------- */
+    /* The board dims to 70 % except the preview cells, the ghost piece is
+       hidden and the falling piece freezes where it stands. */
+    .game-board.is-aiming .board-cell:not(.is-preview) {
+      opacity: 0.7;
+    }
+
+    .game-board.is-aiming .block--wood.is-falling {
+      animation: none;
+    }
+
+    /* Preview — exactly the cells the booster would affect, 2 px gold
+       outline over a 20 % gold fill. Drill previews its whole row. */
+    .board-cell.is-preview::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: rgba(242, 182, 50, 0.2);
+      outline: 2px solid var(--color-gold);
+      outline-offset: -2px;
+    }
+
+    /* ---------- Reference sheet (outside the device frame) ---------- */
+    /* Not part of the screen — it's the spec sheet the icon extractor reads
+       (§9.7 step 1) and the quickest way to eyeball all five slot states and
+       all twelve glyphs side by side. */
+    .spec-sheet {
+      width: 100%;
+      max-width: 760px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+
+    .spec-block h3 {
+      font-size: var(--font-size-md);
       font-weight: 700;
+      margin-bottom: var(--space-xs);
+    }
+
+    .spec-note {
+      font-size: var(--font-size-xs);
       color: var(--color-text-muted);
-      letter-spacing: 0.03em;
+      margin: 0 0 var(--space-md);
+    }
+
+    .spec-states {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-md);
+    }
+
+    .spec-state {
+      width: 76px;
+      text-align: center;
+    }
+
+    .spec-state .booster-slot {
+      margin: 0 auto 6px;
+    }
+
+    .spec-caption {
+      display: block;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+
+    .spec-groups {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-md);
+    }
+
+    .spec-group-title {
+      display: block;
+      font-family: var(--font-display);
+      font-size: var(--font-size-sm);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-gold);
+      margin-bottom: var(--space-sm);
+    }
+
+    .bst-card {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-sm);
+    }
+
+    .bst-card .booster-slot {
+      flex: 0 0 auto;
+    }
+
+    .bst-card-name {
+      display: block;
+      font-size: var(--font-size-sm);
+      font-weight: 800;
+      color: var(--color-text);
+      line-height: 1.2;
+    }
+
+    .bst-card-effect {
+      display: block;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      line-height: 1.3;
+    }
+
+    @media (max-width: 720px) {
+      .spec-groups { grid-template-columns: repeat(2, 1fr); }
     }
 
   </style>
@@ -193,9 +310,14 @@
       <button type="button" class="is-active" data-size="mobile">Mobile</button>
       <button type="button" data-size="tablet">Tablet</button>
     </div>
+    <div class="device-toggle" id="stateToggle">
+      <button type="button" class="is-active" data-state="playing">Playing</button>
+      <button type="button" data-state="aiming">Aiming — Drill</button>
+      <button type="button" data-state="late">Late run</button>
+    </div>
     <div class="device-frame" id="frame">
       <div class="device-frame__screen bg-wood-grain">
-        <div class="game-stage">
+        <div class="game-stage" data-state="playing" id="gameStage">
 
           <div class="game-topbar">
             <div class="game-score">
@@ -407,10 +529,282 @@
             </div>
           </div>
 
-          <div class="game-ad-banner">
-            <span class="game-ad-banner-label">Ad banner — 320×50</span>
+
+          <!-- Booster bar — §4.1: the bottom row of the screen, directly under
+               the board, at a fixed height (--booster-bar-height) the board's
+               vertical budget subtracts before layout. Hidden in the tutorial
+               run and for the experiment's control group (§10.2). This run
+               rolled Hammer / Drill / Mortar / Tilt — one booster per slot.
+               A spent slot greys out and offers a rewarded video (§4.9): tap
+               it to bring the booster back. -->
+          <div class="booster-tip-row">
+            <span class="booster-tip">Tap a row to bore it out</span>
           </div>
 
+          <div class="booster-bar" id="boosterBar">
+              <div class="booster-slot" role="button" aria-label="Hammer">
+                <svg class="booster-glyph" viewBox="0 0 24 24"><path d="m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>
+                <span class="booster-charge">1</span>
+                <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+                <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+              </div>
+              <div class="booster-slot" role="button" aria-label="Drill">
+                <svg class="booster-glyph" viewBox="0 0 24 24"><path d="M10 18a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a3 3 0 0 1-3-3 1 1 0 0 1 1-1z"/><path d="M13 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1l-.81 3.242a1 1 0 0 1-.97.758H8"/><path d="M14 4h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3"/><path d="M18 6h4"/><path d="m5 10-2 8"/><path d="m7 18 2-8"/></svg>
+                <span class="booster-charge">1</span>
+                <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+                <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+              </div>
+              <div class="booster-slot" role="button" aria-label="Mortar">
+                <svg class="booster-glyph" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 9v6"/><path d="M16 15v6"/><path d="M16 3v6"/><path d="M3 15h18"/><path d="M3 9h18"/><path d="M8 15v6"/><path d="M8 3v6"/></svg>
+                <span class="booster-charge">1</span>
+                <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+                <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+              </div>
+              <div class="booster-slot" role="button" aria-label="Tilt">
+                <svg class="booster-glyph" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 15 9 9"/><path d="M9 15h6V9"/></svg>
+                <span class="booster-charge">1</span>
+                <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+                <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+              </div>
+          </div>
+
+        </div>
+
+        <!-- Rewarded-ad sheet (§4.9). Opens when a spent slot is tapped; the
+             offer always names the booster it buys back. -->
+        <div class="ad-prompt" id="adPrompt">
+          <div class="panel ad-prompt__panel">
+            <div class="ad-prompt__offer">
+              <svg class="ad-prompt__icon" viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg>
+              <span class="ad-prompt__title" id="adPromptTitle">Recharge Hammer?</span>
+              <span class="ad-prompt__body">Watch a short video and this booster comes back for the rest of the run. <span id="adPromptLeft">2 left this run.</span></span>
+              <button type="button" class="btn-primary" id="adPromptWatch">Watch</button>
+              <button type="button" class="ad-prompt__decline" id="adPromptDecline">Not now</button>
+            </div>
+            <div class="ad-prompt__playing">
+              <div class="ad-prompt__video">Rewarded video</div>
+              <div class="progress-bar"><div class="progress-bar-fill" id="adPromptBar" style="width: 0%;"></div></div>
+              <span class="ad-prompt__body">Reward unlocks when the video ends</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="spec-sheet">
+      <div class="spec-block">
+        <h3>Booster slot — the five states (§9.3)</h3>
+        <p class="spec-note">Ready and armed carry gold; no target keeps its charge badge but mutes the glyph; a spent slot greys right out and swaps the charge badge for the ▶ ad badge that buys it back (§4.9). No state leans on hue alone — desaturate the row and all five still read apart. One badge corner, bottom-right: a number, a ▶, or nothing.</p>
+        <div class="spec-states">
+        <div class="spec-state">
+          <div class="booster-slot" role="button" aria-label="Hammer">
+            <svg class="booster-glyph" viewBox="0 0 24 24"><path d="m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>
+            <span class="booster-charge">1</span>
+            <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+            <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+          </div>
+          <span class="spec-caption">Ready</span>
+        </div>
+        <div class="spec-state">
+          <div class="booster-slot is-armed" role="button" aria-label="Drill">
+            <svg class="booster-glyph" viewBox="0 0 24 24"><path d="M10 18a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a3 3 0 0 1-3-3 1 1 0 0 1 1-1z"/><path d="M13 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1l-.81 3.242a1 1 0 0 1-.97.758H8"/><path d="M14 4h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3"/><path d="M18 6h4"/><path d="m5 10-2 8"/><path d="m7 18 2-8"/></svg>
+            <span class="booster-charge">1</span>
+            <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+            <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+          </div>
+          <span class="spec-caption">Armed</span>
+        </div>
+        <div class="spec-state">
+          <div class="booster-slot is-no-target" role="button" aria-label="Mortar">
+            <svg class="booster-glyph" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 9v6"/><path d="M16 15v6"/><path d="M16 3v6"/><path d="M3 15h18"/><path d="M3 9h18"/><path d="M8 15v6"/><path d="M8 3v6"/></svg>
+            <span class="booster-charge">1</span>
+            <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+            <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+          </div>
+          <span class="spec-caption">No target</span>
+        </div>
+        <div class="spec-state">
+          <div class="booster-slot is-busy" role="button" aria-label="Tilt">
+            <svg class="booster-glyph" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 15 9 9"/><path d="M9 15h6V9"/></svg>
+            <span class="booster-charge">1</span>
+            <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+            <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+          </div>
+          <span class="spec-caption">Busy</span>
+        </div>
+        <div class="spec-state">
+          <div class="booster-slot is-spent" role="button" aria-label="Hammer">
+            <svg class="booster-glyph" viewBox="0 0 24 24"><path d="m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>
+            <span class="booster-charge">1</span>
+            <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+            <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+          </div>
+          <span class="spec-caption">Spent · ▶ ad</span>
+        </div>
+        </div>
+      </div>
+
+      <div class="spec-block">
+        <h3>The twelve boosters (§9.6)</h3>
+        <p class="spec-note">Four slots, three boosters each — one rolls per slot before a run. Glyphs are Lucide (ISC), 24 × 24 and stroked in currentColor at 1.8, so the extractor can take them straight out of this page.</p>
+        <div class="spec-groups">
+        <div>
+          <span class="spec-group-title">Small</span>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Hammer">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><path d="m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Hammer</span>
+              <span class="bst-card-effect">Smash one block</span>
+            </span>
+          </div>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Bomb">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><circle cx="11" cy="13" r="9"/><path d="M14.35 4.65 16.3 2.7a2.41 2.41 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4l-1.95 1.95"/><path d="m22 2-1.5 1.5"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Bomb</span>
+              <span class="bst-card-effect">Blast a 3 × 3 area</span>
+            </span>
+          </div>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Patch">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Patch</span>
+              <span class="bst-card-effect">Plug one gap</span>
+            </span>
+          </div>
+        </div>
+        <div>
+          <span class="spec-group-title">Line</span>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Drill">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><path d="M10 18a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a3 3 0 0 1-3-3 1 1 0 0 1 1-1z"/><path d="M13 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1l-.81 3.242a1 1 0 0 1-.97.758H8"/><path d="M14 4h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3"/><path d="M18 6h4"/><path d="m5 10-2 8"/><path d="m7 18 2-8"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Drill</span>
+              <span class="bst-card-effect">Bore out a whole row</span>
+            </span>
+          </div>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Slide">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><rect width="13" height="7" x="8" y="3" rx="1"/><path d="m2 9 3 3-3 3"/><rect width="13" height="7" x="8" y="14" rx="1"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Slide</span>
+              <span class="bst-card-effect">Shift a row one column</span>
+            </span>
+          </div>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Pillar">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><rect width="6" height="20" x="4" y="2" rx="2"/><rect width="6" height="20" x="14" y="2" rx="2"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Pillar</span>
+              <span class="bst-card-effect">Fill every hole in a column</span>
+            </span>
+          </div>
+        </div>
+        <div>
+          <span class="spec-group-title">Area</span>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Sweep">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><path d="M13.5 10.5 22 2"/><path d="M14.734 13.841a2 2 0 0 0-.314-2.42L12.58 9.58a2 2 0 0 0-2.421-.314l-7.657 4.461A1 1 0 0 0 2.3 15.3l6.403 6.403a1 1 0 0 0 1.571-.204z"/><path d="m5 18 2-2"/><path d="m7.699 10.7 5.602 5.601"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Sweep</span>
+              <span class="bst-card-effect">Clear the top 2 rows</span>
+            </span>
+          </div>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Lightning">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><path d="M15.914 4a1.5 1.5 0 0 0-2.474-1.561l-9 9A1.5 1.5 0 0 0 5.5 14h4.002a.5.5 0 0 1 .471.666L8.086 20a1.5 1.5 0 0 0 2.475 1.56l9-9A1.5 1.5 0 0 0 18.5 10h-3.997a.5.5 0 0 1-.472-.667z"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Lightning</span>
+              <span class="bst-card-effect">4 bolts fill the fullest rows</span>
+            </span>
+          </div>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Mortar">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 9v6"/><path d="M16 15v6"/><path d="M16 3v6"/><path d="M3 15h18"/><path d="M3 9h18"/><path d="M8 15v6"/><path d="M8 3v6"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Mortar</span>
+              <span class="bst-card-effect">Seal holes under overhangs</span>
+            </span>
+          </div>
+        </div>
+        <div>
+          <span class="spec-group-title">Board</span>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Earthquake">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><path d="m7 6 5 5 5-5"/><path d="m7 13 5 5 5-5"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Earthquake</span>
+              <span class="bst-card-effect">Every block falls until supported</span>
+            </span>
+          </div>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Tilt">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 15 9 9"/><path d="M9 15h6V9"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Tilt</span>
+              <span class="bst-card-effect">Board tilts, blocks slide</span>
+            </span>
+          </div>
+          <div class="bst-card">
+            <div class="booster-slot" role="button" aria-label="Wildfire">
+              <svg class="booster-glyph" viewBox="0 0 24 24"><path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/></svg>
+              <span class="booster-charge">1</span>
+              <span class="booster-ad-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg></span>
+              <svg class="booster-aim-ring" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="48" pathLength="100"/></svg>
+            </div>
+            <span>
+              <span class="bst-card-name">Wildfire</span>
+              <span class="bst-card-effect">Fire spreads through the pile</span>
+            </span>
+          </div>
+        </div>
         </div>
       </div>
     </div>
@@ -418,7 +812,7 @@
 
   <script>
     var frame = document.getElementById('frame');
-    var buttons = document.querySelectorAll('.device-toggle button');
+    var buttons = document.querySelectorAll('.device-toggle:not(#stateToggle) button');
     buttons.forEach(function (btn) {
       btn.addEventListener('click', function () {
         buttons.forEach(function (b) { b.classList.remove('is-active'); });
@@ -456,6 +850,100 @@
         window.addEventListener('resize', sizeBoard);
         sizeBoard();
       }
+    })();
+
+    // Booster bar state preview — the three moments worth seeing side by
+    // side. Not part of the screen's behaviour; the real bar is driven by
+    // the engine phase and the loadout's remaining charges (boosters.md §4.2).
+    (function () {
+      var stage = document.getElementById('gameStage');
+      var board = document.querySelector('.game-board');
+      var slots = document.querySelectorAll('#boosterBar .booster-slot');
+      var cells = document.querySelectorAll('.game-board .board-cell');
+      var stateButtons = document.querySelectorAll('#stateToggle button');
+
+      // Drill aims at a whole row — row 12 is the top of the stack here.
+      var PREVIEW_ROW = 12, COLS = 10;
+
+      var STATES = {
+        playing: ['', '', '', ''],
+        aiming:  ['', 'is-armed', '', ''],
+        late:    ['is-spent', 'is-spent', 'is-no-target', '']
+      };
+
+      function apply(state) {
+        stage.dataset.state = state;
+        board.classList.toggle('is-aiming', state === 'aiming');
+
+        for (var i = 0; i < COLS; i++) {
+          cells[PREVIEW_ROW * COLS + i].classList.toggle('is-preview', state === 'aiming');
+        }
+
+        STATES[state].forEach(function (cls, i) {
+          slots[i].className = 'booster-slot' + (cls ? ' ' + cls : '');
+        });
+      }
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          stateButtons.forEach(function (b) { b.classList.remove('is-active'); });
+          btn.classList.add('is-active');
+          apply(btn.dataset.state);
+        });
+      });
+
+      apply('playing');
+
+      // Rewarded-ad refill (§4.9). A spent slot is still tappable: the tap is
+      // the offer, never an accident — the sheet always says what the video
+      // buys, and declining costs nothing.
+      var prompt = document.getElementById('adPrompt');
+      var promptTitle = document.getElementById('adPromptTitle');
+      var promptLeft = document.getElementById('adPromptLeft');
+      var promptBar = document.getElementById('adPromptBar');
+      var pending = null;
+      var refillsLeft = 2;              // BoosterTuning.adRefillsPerRun
+
+      function openPrompt(slot) {
+        pending = slot;
+        promptTitle.textContent = 'Recharge ' + slot.getAttribute('aria-label') + '?';
+        promptLeft.textContent = refillsLeft + ' left this run.';
+        prompt.classList.add('is-open');
+      }
+
+      function closePrompt() {
+        prompt.classList.remove('is-open', 'is-playing');
+        promptBar.style.transition = 'none';
+        promptBar.style.width = '0%';
+        pending = null;
+      }
+
+      document.getElementById('boosterBar').addEventListener('click', function (event) {
+        var slot = event.target.closest('.booster-slot');
+        if (!slot || !slot.classList.contains('is-spent')) return;
+        if (slot.classList.contains('is-exhausted')) return;
+        openPrompt(slot);
+      });
+
+      document.getElementById('adPromptDecline').addEventListener('click', closePrompt);
+
+      document.getElementById('adPromptWatch').addEventListener('click', function () {
+        if (!pending) return;
+        var slot = pending;
+        prompt.classList.add('is-playing');
+        // Mocked video: the SDK's view and its own close button would own
+        // this window. The reward only lands if it runs to the end.
+        promptBar.style.transition = 'width 1.7s linear';
+        requestAnimationFrame(function () { promptBar.style.width = '100%'; });
+        window.setTimeout(function () {
+          slot.className = 'booster-slot';
+          refillsLeft--;
+          if (refillsLeft === 0) {
+            slots.forEach(function (s) { s.classList.add('is-exhausted'); });
+          }
+          closePrompt();
+        }, 1800);
+      });
     })();
   </script>
 </body>

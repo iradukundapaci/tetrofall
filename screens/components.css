@@ -354,3 +354,427 @@
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.25);
 }
+
+/*
+  Booster bar & slots (boosters.md §4.1–4.2, §9.3)
+  Glyphs are Lucide (https://lucide.dev, ISC) — see boosters.md §9.5.
+  Shared by gameplay.html (live), pause.html (frozen snapshot) and
+  loadout.html (the roll overlay), so the four slots read identically
+  wherever they appear. Colors come only from the --booster-* / --effect-*
+  tokens, never straight from the palette — §9.1.
+*/
+.booster-bar {
+  flex: 0 0 auto;
+  height: var(--booster-bar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+}
+
+/* Round buttons, sized at the tap target rather than stretched to the
+   width of the screen: four discs read as controls instead of as a second
+   frame under the board, and the row costs less height than the tiles did,
+   which is board space back. */
+.booster-slot {
+  position: relative;
+  flex: 0 0 auto;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--booster-face);
+  border: 1.5px solid var(--booster-rim);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--booster-glyph);
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.15s ease;
+}
+
+.booster-slot:active {
+  transform: scale(0.94);
+}
+
+.booster-glyph {
+  width: 25px;
+  height: 25px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Charge badge — always "1" in the test build, but the pill is here so
+   multi-charge needs no new layout later. */
+.booster-charge {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  box-shadow: 0 0 0 1.5px var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* READY is the base look above — the four states below are deltas on it. */
+
+/* NO TARGET — an instant booster that would do nothing right now. */
+.booster-slot.is-no-target {
+  cursor: default;
+  border-color: rgba(200, 155, 106, 0.3);
+  color: var(--booster-glyph-muted);
+}
+
+.booster-slot.is-no-target .booster-glyph {
+  opacity: 0.4;
+}
+
+/* The charge is still there — only the board has nothing to hit — so the
+   badge stays at full strength. That is what separates this state from
+   spent at a glance. */
+.booster-slot.is-no-target .booster-charge {
+  opacity: 0.75;
+}
+
+/* BUSY — a resolve is running, nothing is tappable. */
+.booster-slot.is-busy {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ARMED — player is aiming. Rim pulses at 2 Hz and a ring drains around
+   the slot for the 4 s aim window. */
+.booster-slot.is-armed {
+  color: var(--color-text);
+  animation: boosterArmPulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes boosterArmPulse {
+  from { border-color: var(--booster-rim); }
+  to   { border-color: var(--color-gold); }
+}
+
+.booster-aim-ring {
+  position: absolute;
+  inset: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  pointer-events: none;
+  display: none;
+}
+
+.booster-slot.is-armed .booster-aim-ring {
+  display: block;
+}
+
+.booster-aim-ring circle {
+  fill: none;
+  stroke: var(--color-gold);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  /* Path length is normalized on the element so one dash covers the rim. */
+  stroke-dasharray: 100;
+  animation: boosterAimDrain 4s linear infinite;
+}
+
+@keyframes boosterAimDrain {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 100; }
+}
+
+/* SPENT — greyed out, not engraved: the charge is gone, the whole slot
+   desaturates, and the charge badge is replaced by the gold ▶ ad badge that
+   says the booster can be brought back by watching a rewarded video (§4.9).
+   It stays tappable, because that tap is the offer. */
+.booster-slot.is-spent {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-inset);
+  color: var(--booster-glyph-muted);
+}
+
+.booster-slot.is-spent .booster-glyph {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.booster-slot.is-spent .booster-charge {
+  display: none;
+}
+
+/* Ad badge — same corner as the charge badge it replaces, so the eye lands
+   in one place whether the slot is loaded or spent. */
+.booster-ad-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 17px;
+  height: 17px;
+  display: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  color: var(--color-gold);
+  box-shadow: 0 0 0 1.5px var(--color-bg);
+}
+
+.booster-ad-badge svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.booster-slot.is-spent .booster-ad-badge {
+  display: block;
+  animation: boosterAdBadgePulse 2.4s ease-in-out infinite;
+}
+
+@keyframes boosterAdBadgePulse {
+  0%, 70%, 100% { transform: scale(1); }
+  80%           { transform: scale(1.18); }
+}
+
+/* No offer left (the per-run cap is used up) — the slot is simply dead. */
+.booster-slot.is-spent.is-exhausted {
+  cursor: default;
+}
+
+.booster-slot.is-spent.is-exhausted .booster-ad-badge {
+  display: none;
+}
+
+/* First-use tip — one line above the bar, 2.5 s (§4.8). */
+.booster-tip {
+  align-self: center;
+  max-width: 100%;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(20, 12, 6, 0.85);
+  border: 1px solid var(--color-panel-border);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  animation: boosterTipIn 0.2s ease both;
+}
+
+@keyframes boosterTipIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/*
+  Reel window (boosters.md §9.4) — a recessed wooden drum. Used by the
+  loadout roll; the landed icon sits in the middle row with its blurred
+  neighbours above and below, and the top/bottom fifths fade into the panel
+  so the strip reads as rolling over a drum.
+*/
+.reel {
+  position: relative;
+  height: 108px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--color-wood-dark) 0%, var(--color-bg) 100%);
+  border: 1.5px solid var(--booster-rim);
+  box-shadow: var(--shadow-inset);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.reel-strip {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.reel-cell {
+  flex: 0 0 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--booster-glyph-muted);
+  opacity: 0.5;
+  filter: blur(1.4px);
+}
+
+/* The middle row of the window is the only one in focus. */
+.reel-cell.is-landed {
+  color: var(--booster-glyph);
+  opacity: 1;
+  filter: none;
+}
+
+.reel-cell svg {
+  width: 26px;
+  height: 26px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Drum fade, drawn over the strip. */
+.reel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    var(--color-bg) 0%,
+    rgba(43, 28, 18, 0) 20%,
+    rgba(43, 28, 18, 0) 80%,
+    var(--color-bg) 100%
+  );
+}
+
+/* Stop flash — a 2 px gold rim for 180 ms as the drum lands. */
+.reel.is-flashing {
+  animation: reelStopFlash 0.18s ease-out;
+}
+
+@keyframes reelStopFlash {
+  from { box-shadow: var(--shadow-inset), inset 0 0 0 2px var(--color-gold); }
+  to   { box-shadow: var(--shadow-inset), inset 0 0 0 2px rgba(242, 182, 50, 0); }
+}
+
+/*
+  Rewarded-ad prompt (boosters.md §3.5, §4.9)
+  One sheet, two callers: re-spinning a reel once the free re-spin is gone,
+  and bringing a spent booster back during a run. It always states what the
+  video buys before it plays, and "Not now" is always the easy out.
+*/
+.ad-prompt {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.ad-prompt.is-open {
+  display: flex;
+}
+
+.ad-prompt__panel {
+  width: 100%;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  text-align: center;
+  background: rgba(20, 12, 6, 0.95);
+  animation: modalIn 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.ad-prompt__icon {
+  width: 34px;
+  height: 34px;
+  stroke: var(--color-gold);
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ad-prompt__title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.ad-prompt__body {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.ad-prompt__panel .btn-primary {
+  width: 100%;
+  margin-top: var(--space-xs);
+  padding: 12px 20px;
+  font-size: var(--font-size-md);
+}
+
+.ad-prompt__decline {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.ad-prompt__decline:hover {
+  color: var(--color-text);
+}
+
+/* The video itself, mocked: the SDK's view would fill this. */
+.ad-prompt__playing {
+  display: none;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.ad-prompt.is-playing .ad-prompt__offer {
+  display: none;
+}
+
+.ad-prompt.is-playing .ad-prompt__playing {
+  display: flex;
+}
+
+.ad-prompt__offer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+}
+
+.ad-prompt__video {
+  width: 100%;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}

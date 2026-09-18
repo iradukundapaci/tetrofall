@@ -25,8 +25,47 @@ abstract final class AppIcons {
   static const document = '$_base/document.svg';
   static const palette = '$_base/palette.svg';
 
+  // Boosters. Lucide (ISC), one glyph each, stroked in `currentColor` so a
+  // single file takes the ready, muted, greyed and armed tints — see
+  // `boosters.md` §9.6 for the map and `tools/ICONS.md` for the licence.
+  static const hammer = '$_base/hammer.svg';
+  static const bomb = '$_base/bomb.svg';
+  static const patch = '$_base/patch.svg';
+  static const drill = '$_base/drill.svg';
+  static const slide = '$_base/slide.svg';
+  static const pillar = '$_base/pillar.svg';
+  static const sweep = '$_base/sweep.svg';
+  static const lightning = '$_base/lightning.svg';
+  static const mortar = '$_base/mortar.svg';
+  static const earthquake = '$_base/earthquake.svg';
+  static const tilt = '$_base/tilt.svg';
+  static const wildfire = '$_base/wildfire.svg';
+
+  /// The rewarded-ad badge on a spent slot (§9.3), and the empty-wallet state
+  /// of the booster purchase sheet.
+  static const circlePlay = '$_base/circle_play.svg';
+
+  /// Coins — the only currency. Geometry taken from `.icon-coin` in
+  /// `screens/shop.html`, redrawn as an all-stroke `currentColor` glyph so it
+  /// tints at the call site like the booster icons rather than baking in gold.
+  static const coin = '$_base/coin.svg';
+
   static const all = <String, String>{
     'bell': bell,
+    'bomb': bomb,
+    'circle_play': circlePlay,
+    'coin': coin,
+    'drill': drill,
+    'earthquake': earthquake,
+    'hammer': hammer,
+    'lightning': lightning,
+    'mortar': mortar,
+    'patch': patch,
+    'pillar': pillar,
+    'slide': slide,
+    'sweep': sweep,
+    'tilt': tilt,
+    'wildfire': wildfire,
     'check_circle': checkCircle,
     'check_circle_light': checkCircleLight,
     'chevron_right': chevronRight,

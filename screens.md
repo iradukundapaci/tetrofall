@@ -149,8 +149,19 @@ Reserve space above the board for floating combo text (GOOD! / AWESOME! / INCRED
 Booster panel (bottom):
 
 ```text
-Hammer | Bomb | Drill | Lightning
+Small | Line | Area | Board     — one rolled booster per slot
 ```
+
+The panel is the booster bar from `boosters.md` §4: four equal-width slots at a
+fixed `--booster-bar-height`, each a 50 px round button showing the booster that
+slot rolled before the run with a single badge on its rim (bottom-right). It is
+the bottom row of the screen — **there is no banner ad slot any more**, and the
+50 px it used to hold is play area (`boosters.md` §4.1). The five slot states —
+ready, armed, no target, busy, spent — are mocked on the reference sheet below
+the device frame, together with all twelve glyphs; the state toggle above the
+frame switches the screen between playing, aiming (board dimmed to 70 %, preview
+row outlined, first-use tip above the bar) and a late run where spent slots are
+greyed out and offer themselves back for a rewarded video. See Phase 13.
 
 Build notes: each block cell should be a square with consistent padding so the grid reads cleanly at any board size. Booster icons sit in equal-width slots with a small coin-cost or charge-count badge. Combo text should be styled as large, bold, centered overlay text with a scale/fade animation on trigger — mock the resting state and one "triggered" state as two static frames. Render inside the shared `.device-frame` (mobile default, tablet toggle), portrait only.
 
@@ -250,14 +261,14 @@ Build notes: each row = icon + title + progress bar + reward indicator. Complete
 Layout: sectioned scroll page.
 
 ```text
-Coins (packs, priced)
-Boosters (individual + bundles)
-Themes (link to Theme Screen or inline preview)
-Remove Ads (one-time purchase, prominent)
-Starter Pack (best-value, visually distinct)
+Get Coins (earn card → Coin Vault; rewarded video is the only source)
+Clear Skies (timed ad-free play: 30 min / 2 h / 6 h of game time)
+Boosters (all 12, one charge or a 3-pack, priced by slot tier)
+Mystery Chest
+Themes (link to Theme Screen)
 ```
 
-Build notes: Starter Pack should stand out with a banner/ribbon ("Best Value"). Group items into cards within labeled sections; keep pricing consistent (coin icon + amount, or currency + price for real-money items). Render inside the shared `.device-frame` (mobile default, tablet toggle), portrait only.
+Build notes: **everything is priced in Coins — no real-money prices anywhere** (`phase11_monetization_plan.md` §0). The earn card leads, because an empty wallet should always be one tap from a fix. Clear Skies replaces Remove Ads and must say that rewarded videos stay available. Any item the player cannot afford opens the same confirm sheet as in-game purchases, whose primary becomes **Earn Coins**. Built as `lib/ui/screens/shop_screen.dart`, with the earn loop in `coin_vault_screen.dart`. Render inside the shared `.device-frame` (mobile default, tablet toggle), portrait only.
 
 ---
 
@@ -267,7 +278,12 @@ Keep this as a living checklist while building screens — not a separate HTML f
 
 Gameplay icons: Coin, Trophy, Pause, Play, Restart, Home, Settings, Sound, Music.
 
-Booster icons: Hammer, Bomb, Drill, Lightning, Stopwatch, Star.
+Booster icons: Hammer, Bomb, Drill, Lightning, Stopwatch, Star. The test roster
+in `boosters.md` §2 adds eight more — Patch, Slide, Pillar, Sweep, Mortar,
+Earthquake, Tilt, Wildfire. All twelve now come from **Lucide (ISC)** rather
+than being drawn per brief, at 24 × 24 with a 1.8 stroke, and they are laid out
+on `gameplay.html`'s reference sheet (Phase 13). `shop.html` and
+`daily-reward.html` use the same paths for the boosters they hand out.
 
 Reward icons: Treasure Chest, Gift Box, Diamond, Coin Stack, Crown, Medal.
 
@@ -286,6 +302,9 @@ Audit against the built screens:
 [x] Sound     – settings.html mute buttons (speaker glyph)
 [x] Music     – settings.html Music row (music-note glyph)
 [x] Hammer / Bomb / Drill / Lightning – gameplay booster panel + shop
+      (all four replaced with their Lucide equivalents; the old Lightning was
+      a filled gold shape that couldn't take the muted or greyed states, and
+      the old hammer read as a pencil at bar size — boosters.md §9.5)
 [ ] Stopwatch – not used anywhere yet; reserved for a future time-freeze
       booster (would need a 5th booster slot, which Phase 4's spec fixes
       at 4 — revisit if a time-based booster is added to the design)
@@ -346,3 +365,62 @@ icons and .btn-icon are 48x48; settings.html's slider-mute-btn was bumped from
 32x32 to 44x44 to meet this); color-as-sole-signal checked across
 locked/unlocked theme cards and claimed/claimable/in-progress achievement rows
 - all pair their color with a distinct icon.
+
+
+---
+
+## Phase 13 — Boosters (`loadout.html`, booster bar on `gameplay.html`)
+
+Built from `boosters.md`. Two pieces of UI, one shared set of components.
+
+**Loadout roll (`loadout.html`)** — §3. An overlay on the gameplay screen while
+the engine sits in `ready`, so the board you're about to play is already behind
+it, dimmed the way `pause.html` dims it. Four wooden reels, one per slot, each
+rolling only its own pool of three:
+
+```text
+YOUR BOOSTERS
+[reel][reel][reel][reel]     stop at 500 / 750 / 1000 / 1250 ms
+Hammer Drill Mortar Tilt     the landed booster's name, and nothing else
+↻ Tap a booster to re-spin (1 left)
+[ START ]                    active once the last reel settles
+```
+
+The mockup is interactive, because the feel is the point: tapping a landed reel
+re-spins that slot alone (never onto the booster it already shows), tapping
+anywhere mid-spin snaps every reel to its already-decided result, and the toggle
+above the frame switches between the three entry points — a random roll, the
+fixed starter kit of the first three runs, and the replay opening with the
+previous loadout and a `Same boosters` / `Spin` pair. `PLAY` on the main menu and
+`Play Again` on game over now route here rather than straight to gameplay.
+
+**Booster bar (`gameplay.html`, frozen on `pause.html`)** — §4. The bottom row
+of the screen, with the banner slot removed and the board grown into it.
+Covered in the Phase 4 notes above.
+
+**Rewarded ads.** Both screens share one sheet (`.ad-prompt` in
+`components.css`), and it always names what the video buys before it plays:
+
+```text
+loadout.html   free re-spin spent → "▶ Watch an ad to re-spin (3 left)"
+               tap a reel → "Re-spin the Line slot?" → Watch / Not now
+gameplay.html  spent slot greys out, charge badge → ▶ badge
+               tap it → "Recharge Hammer?" → Watch / Not now → slot is Ready again
+```
+
+Both mockups run the flow end to end with a mocked video, so the pacing can be
+felt rather than imagined. The caps (3 bought re-spins, 2 refills) are the ones
+in `BoosterTuning`.
+
+**Shared pieces.** `tokens.css` gains the six `--booster-*` / `--effect-*` fields
+of `boosters.md` §9.2, which are the only colors booster UI reads, plus
+`--booster-bar-height`. `components.css` gains `.booster-bar`, `.booster-slot`
+and its five states, the charge and ad badges, the first-use tip and the `.reel`
+drum. No blue, purple or green appears anywhere in booster visuals, and
+red stays reserved for Wildfire's ember (§9.1) — every state is carried by shape
+and engraving, so the bar still reads when desaturated.
+
+**Icons.** All twelve glyphs live on `gameplay.html`'s reference sheet in the
+§9.5 style (Lucide paths, 24 × 24, `currentColor`, 1.8 stroke, no fills), which
+is what `tools/extract_icons.py` reads. `shop.html` and `daily-reward.html` were
+moved onto the same set, so no two screens draw the same booster differently.

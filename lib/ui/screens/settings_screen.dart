@@ -24,9 +24,9 @@ const _privacyPolicyUrl = 'https://tetrofall.vercel.app/privacy.html';
 /// (Ghost Piece, adaptive start speed, vibration), Privacy & Legal, and
 /// About. The mockup also shows Combo Callouts, push notifications, a
 /// daily-reward reminder and Restore Purchases — those belong to systems
-/// this MVP doesn't have (the combo banner and the coin/shop economy were
-/// both cut, and there's no IAP), so porting their rows would just be dead
-/// switches.
+/// this app doesn't have (the combo banner was cut, there are no push
+/// notifications, and the Coin economy has no real-money purchases to
+/// restore), so porting their rows would just be dead switches.
 ///
 /// The mockup's Privacy row *is* ported, as of Phase 3.3: consent has to be
 /// withdrawable to satisfy GDPR and several US state laws, so it re-opens the

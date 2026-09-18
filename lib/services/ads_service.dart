@@ -7,6 +7,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'ad_unit_ids.dart';
 import 'analytics_service.dart';
+import 'clear_skies_service.dart';
 import 'connectivity_service.dart';
 import 'firebase_analytics_service.dart';
 import 'storage_service.dart';
@@ -48,8 +49,23 @@ class AdsService {
   /// [connectivity] is optional so tests can build a service that never
   /// touches a platform channel; when it is absent the network is assumed to
   /// be up and this class behaves as it did before it was connectivity-aware.
-  AdsService(this._storage, {ConnectivityService? connectivity})
-    : _connectivity = connectivity;
+  /// [clearSkies] is optional for the same reason as [connectivity]: tests
+  /// build a service without one, and its absence simply means no player has
+  /// any ad-free balance to honour.
+  AdsService(
+    this._storage, {
+    ConnectivityService? connectivity,
+    ClearSkiesService? clearSkies,
+  }) : _connectivity = connectivity,
+       _clearSkies = clearSkies;
+
+  /// How many Coin-faucet ads to keep in hand.
+  ///
+  /// Two, so the earn screen's "Watch next" button is armed the instant the
+  /// previous ad closes. A spinner between views is the difference between a
+  /// six-ad sitting and a two-ad one, and the faucet's throughput is what sets
+  /// the size of the whole Coin economy.
+  static const _rewardedCoinsPoolSize = 2;
 
   static const _interstitialRunCap = 4;
   static const _interstitialPlaySecondsCap = 6 * 60;
@@ -58,17 +74,24 @@ class AdsService {
 
   final StorageService _storage;
   final ConnectivityService? _connectivity;
+  final ClearSkiesService? _clearSkies;
 
-  RewardedAd? _rewardedAd;
+  final List<RewardedAd> _rewardedCoinsPool = [];
   InterstitialAd? _interstitialAd;
   AppOpenAd? _appOpenAd;
 
   bool _canRequestAds = false;
   bool _hasEndedARunThisSession = false;
-  bool _justWatchedRewardedContinue = false;
+  bool _justWatchedRewarded = false;
   DateTime? _backgroundedAt;
 
-  bool get isRewardedContinueReady => _rewardedAd != null;
+  /// How many Coin-faucet ads are in hand, as a listenable so the earn screen
+  /// can arm and disarm its button without polling.
+  ///
+  /// The earn button must never be drawn when this is zero: `boosters.md` §4.9
+  /// rule 4 — never offer what can't be delivered.
+  ValueListenable<int> get rewardedCoinsReady => _rewardedCoinsReady;
+  final ValueNotifier<int> _rewardedCoinsReady = ValueNotifier(0);
 
   bool get canRequestAds => _canRequestAds;
 
@@ -340,7 +363,7 @@ class AdsService {
       _adsStarted = true;
     }
 
-    _loadRewarded();
+    _loadRewardedCoins();
     _loadInterstitial();
     _loadAppOpen();
   }
@@ -349,7 +372,7 @@ class AdsService {
   void _onOnlineChanged() {
     if (!_isOnline) {
       // Every pending retry would fail. Hold them rather than spend them.
-      _rewardedRetry.pause();
+      _rewardedCoinsRetry.pause();
       _interstitialRetry.pause();
       _appOpenRetry.pause();
       return;
@@ -361,7 +384,7 @@ class AdsService {
   /// again if it never completed, refill anything empty, and tell the slots
   /// that own their own loads (the banner) to do the same.
   void _retryNow() {
-    _rewardedRetry.reset();
+    _rewardedCoinsRetry.reset();
     _interstitialRetry.reset();
     _appOpenRetry.reset();
     _adRetryPulse.value++;
@@ -408,10 +431,10 @@ class AdsService {
     // what's cached and refill under the new request.
     _adConfigRevision.value++;
     _discardCachedAds();
-    _rewardedRetry.reset();
+    _rewardedCoinsRetry.reset();
     _interstitialRetry.reset();
     _appOpenRetry.reset();
-    _loadRewarded();
+    _loadRewardedCoins();
     _loadInterstitial();
     _loadAppOpen();
   }
@@ -423,8 +446,11 @@ class AdsService {
   /// ads from the same stale answer, and what tells the banner to replace the
   /// one it is already showing.
   void _discardCachedAds() {
-    _rewardedAd?.dispose();
-    _rewardedAd = null;
+    for (final ad in _rewardedCoinsPool) {
+      ad.dispose();
+    }
+    _rewardedCoinsPool.clear();
+    _rewardedCoinsReady.value = 0;
     _interstitialAd?.dispose();
     _interstitialAd = null;
     _appOpenAd?.dispose();
@@ -440,97 +466,106 @@ class AdsService {
   bool _isCurrent(int revision) =>
       _canRequestAds && revision == _adConfigRevision.value;
 
-  final _rewardedRetry = _AdRetry();
+  final _rewardedCoinsRetry = _AdRetry();
 
-  /// Non-null while a load is in flight, holding the revision it went out
-  /// under. Doubles as the guard against a second overlapping load, which
-  /// would strand the first ad undisposed when the later one overwrote it.
-  int? _rewardedLoadRevision;
+  /// How many loads are in flight. Counted rather than flagged because the
+  /// pool fills more than one slot at a time, and without this the top-up
+  /// would request a fresh ad for a slot a pending load already covers.
+  int _rewardedCoinsLoadsInFlight = 0;
 
-  void _loadRewarded() {
-    // Reachable from the ad-dismissed callbacks and from both consent paths,
-    // so it has to re-check consent rather than assume the boot-time answer
-    // still holds.
-    if (!_canRequestAds ||
-        _rewardedAd != null ||
-        _rewardedLoadRevision != null) {
-      return;
+  /// Tops the pool back up to [_rewardedCoinsPoolSize].
+  void _loadRewardedCoins() {
+    if (!_canRequestAds) return;
+    while (_rewardedCoinsPool.length + _rewardedCoinsLoadsInFlight <
+        _rewardedCoinsPoolSize) {
+      _loadOneRewardedCoins();
     }
+  }
+
+  void _loadOneRewardedCoins() {
     final revision = _adConfigRevision.value;
-    _rewardedLoadRevision = revision;
+    _rewardedCoinsLoadsInFlight++;
 
     RewardedAd.load(
-      adUnitId: AdUnitIds.rewardedContinue,
+      adUnitId: AdUnitIds.rewardedCoins,
       request: adRequest,
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
-          _rewardedLoadRevision = null;
-          _rewardedRetry.reset();
+          _rewardedCoinsLoadsInFlight--;
+          _rewardedCoinsRetry.reset();
           if (!_isCurrent(revision)) {
             ad.dispose();
-            // The change that stranded this one found the slot in flight and
-            // couldn't refill it, so that job lands here.
-            _loadRewarded();
+            _loadRewardedCoins();
             return;
           }
-          _rewardedAd = ad;
+          _rewardedCoinsPool.add(ad);
+          _rewardedCoinsReady.value = _rewardedCoinsPool.length;
+          // The pool may still be short of full — one call per ad landed.
+          _loadRewardedCoins();
         },
         onAdFailedToLoad: (error) {
-          _reportNoFill(AdPlacements.rewardedContinue, AdKind.rewardedVideo, error);
-          _rewardedLoadRevision = null;
-          _rewardedAd = null;
-          // Without this the slot is dead for the session: the only other
-          // path back into this method is a dismissal callback, and there is
-          // no ad to dismiss.
-          _rewardedRetry.schedule(_loadRewarded);
+          _reportNoFill(
+            AdPlacements.rewardedCoins,
+            AdKind.rewardedVideo,
+            error,
+          );
+          _rewardedCoinsLoadsInFlight--;
+          // Backoff rather than an immediate retry, and scheduled once for the
+          // pool rather than once per empty slot.
+          _rewardedCoinsRetry.schedule(_loadRewardedCoins);
         },
       ),
     );
   }
 
-  /// Shows the continue ad and reports whether the reward was earned, but
-  /// only once the ad has actually left the screen. The reward callback
-  /// fires while the ad is still up (often several seconds before the user
-  /// can close it), and the caller resumes the run on this future — so
-  /// completing early would play the board wipe behind the ad.
-  Future<bool> showRewardedContinue() async {
-    final ad = _rewardedAd;
-    if (ad == null) return false;
-    _rewardedAd = null;
+  /// Plays one Coin-faucet ad and reports whether the reward was earned, once
+  /// the ad has left the screen.
+  ///
+  /// Completes on dismissal rather than on the reward callback, which fires
+  /// while the ad is still up (often seconds before it can be closed), so the
+  /// caller credits Coins against an ad the player has actually finished with.
+  Future<bool> showRewardedCoins() async {
+    if (_rewardedCoinsPool.isEmpty) return false;
+    final ad = _rewardedCoinsPool.removeAt(0);
+    _rewardedCoinsReady.value = _rewardedCoinsPool.length;
 
     var earned = false;
     final closed = Completer<bool>();
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      // Refill while this ad is still on screen rather than waiting for the
+      // dismissal: that is what buys the replacement its whole load time and
+      // keeps the next tap instant.
+      onAdShowedFullScreenContent: (_) => _loadRewardedCoins(),
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
-        _loadRewarded();
+        _loadRewardedCoins();
         if (!closed.isCompleted) closed.complete(earned);
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
         AnalyticsService.ad(
           outcome: AdOutcome.failed,
           kind: AdKind.rewardedVideo,
-          placement: AdPlacements.rewardedContinue,
+          placement: AdPlacements.rewardedCoins,
         );
         ad.dispose();
-        _loadRewarded();
+        _loadRewardedCoins();
         if (!closed.isCompleted) closed.complete(false);
       },
     );
     AnalyticsService.ad(
       outcome: AdOutcome.shown,
       kind: AdKind.rewardedVideo,
-      placement: AdPlacements.rewardedContinue,
+      placement: AdPlacements.rewardedCoins,
     );
     ad.show(
       onUserEarnedReward: (_, _) {
         AnalyticsService.ad(
           outcome: AdOutcome.rewarded,
           kind: AdKind.rewardedVideo,
-          placement: AdPlacements.rewardedContinue,
+          placement: AdPlacements.rewardedCoins,
         );
         earned = true;
-        _justWatchedRewardedContinue = true;
+        _justWatchedRewarded = true;
       },
     );
     return closed.future;
@@ -603,9 +638,19 @@ class AdsService {
 
   Future<void> notifyRunEnded(Duration runDuration) async {
     final skipThisOne =
-        !_hasEndedARunThisSession || _justWatchedRewardedContinue;
+        !_hasEndedARunThisSession || _justWatchedRewarded;
     _hasEndedARunThisSession = true;
-    _justWatchedRewardedContinue = false;
+    _justWatchedRewarded = false;
+
+    // Clear Skies is paid for in Coins, which are paid for in rewarded views,
+    // so these runs have already earned their keep. The counters are zeroed
+    // rather than banked: banking them would fire an interstitial the instant
+    // the balance ran out, which is not what "no interruptions" sounds like.
+    if (_clearSkies?.isActive ?? false) {
+      await _storage.saveRunsSinceLastInterstitial(0);
+      await _storage.savePlaySecondsSinceLastInterstitial(0);
+      return;
+    }
 
     final runs = _storage.runsSinceLastInterstitial + 1;
     final seconds =
@@ -667,7 +712,7 @@ class AdsService {
       _backgroundedAt = DateTime.now();
       // Nothing requested from the background can be shown, and the network
       // may well be asleep with the device.
-      _rewardedRetry.pause();
+      _rewardedCoinsRetry.pause();
       _interstitialRetry.pause();
       _appOpenRetry.pause();
     } else if (state == AppLifecycleState.resumed) {
@@ -691,6 +736,15 @@ class AdsService {
     final lastShown = _storage.lastAppOpenAdShownAt;
     if (lastShown != null &&
         DateTime.now().difference(lastShown) < _appOpenMinInterval) {
+      return;
+    }
+
+    // Checked after the cooldowns so the balance is only charged for an ad the
+    // player would genuinely have been shown. Foregrounding is not game time,
+    // so without a debit this suppression would be free.
+    final clearSkies = _clearSkies;
+    if (clearSkies != null && clearSkies.isActive) {
+      clearSkies.debitAppOpen();
       return;
     }
 
@@ -745,7 +799,7 @@ class AdsService {
   /// The app holds one of these for its whole life, so this exists for tests —
   /// which would otherwise leave retry timers running past the end of a case.
   void dispose() {
-    _rewardedRetry.pause();
+    _rewardedCoinsRetry.pause();
     _interstitialRetry.pause();
     _appOpenRetry.pause();
     _connectivity?.isOnline.removeListener(_onOnlineChanged);
@@ -754,5 +808,6 @@ class AdsService {
     _discardCachedAds();
     _adConfigRevision.dispose();
     _adRetryPulse.dispose();
+    _rewardedCoinsReady.dispose();
   }
 }

@@ -2,15 +2,22 @@ import 'package:flutter/material.dart';
 
 import 'services/ads_service.dart';
 import 'services/storage_service.dart';
+import 'services/economy.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/theme/tokens.dart';
 import 'ui/theme/ui_scale.dart';
 
 class TetrofallApp extends StatelessWidget {
-  const TetrofallApp({super.key, required this.storage, required this.ads});
+  const TetrofallApp({
+    super.key,
+    required this.storage,
+    required this.ads,
+    required this.economy,
+  });
 
   final StorageService storage;
   final AdsService ads;
+  final Economy economy;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +50,7 @@ class TetrofallApp extends StatelessWidget {
           ),
         );
       },
-      home: SplashScreen(storage: storage, ads: ads),
+      home: SplashScreen(storage: storage, ads: ads, economy: economy),
     );
   }
 }

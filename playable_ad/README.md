@@ -24,6 +24,52 @@ just base64-inlines the small files already checked into `assets/`. Current
 sizes: ~70KB per `index.html`, ~35KB zipped — still far under Meta's ~2MB
 soft target and Google's ~5MB cap.
 
+## Google Ads playables (5 concepts)
+
+```
+python3 build_ads.py
+node tests/engine_test.js
+```
+
+A second, separate build for Google Ads / AdMob App campaigns. The HTML5
+spec is a `.zip` per creative, ≤5 MB, ≤512 files, 320x480 or 480x320. Each
+ad is a single responsive `index.html` declaring
+`ad.orientation="portrait,landscape"`. It has Google's `exitapi.js` tag in
+`<head>` and opens the store only through `ExitApi.exit()` on a tap.
+
+| Slug | Hook | What the viewer plays |
+|---|---|---|
+| `deep_well` | SEE THAT GAP? | Rotate, drag and flick two I pieces into an 8-deep well, then 20s of free play |
+| `chain_reaction` | CLEAR ONE ROW… AND THE STACK COMES DOWN | One I sets off a x3 ripple chain, then a x4 on a second board, then 20s of free play |
+| `floor_rises` | THE FLOOR IS RISING | Survive 25s on a half-full board with a fast rise (idle viewers get crushed) |
+| `where_does_it_go` | WHERE DOES THE I GO? 3-2-1 | Three countdown puzzles (I, T, S); idle viewers get steered into the decoy slot |
+| `real_game` | NO FAKE ADS. | The unscripted engine at its 3-minute difficulty checkpoint, 45s |
+
+The build writes to `dist/ads/`:
+- `tetrofall_<slug>.zip`: upload these.
+- `<slug>/index.html`
+- `preview.html`: iframes every ad at both sizes. Serve `dist/ads/` with `python3 -m http.server` to use it.
+
+`build_ads.py` fails if a zip breaks Google's upload rules:
+- size or file count over the limit, or an unsupported file type;
+- a missing orientation meta tag or exitapi tag;
+- any external URL;
+- storage, MRAID or iframe use.
+
+Sources live in `src/ads/`:
+- **`core/engine.js`:** a headless port of the real engine (SRS kicks, 7-bag, lock delay, ripple cascade, rise, scoring), with a node-tested `DemoBot` port for autopilot.
+- **`core/input.js`:** a port of `gesture_handler.dart`: tap rotates, drag moves, a slow drag down soft drops, and a flick hard drops.
+- **`core/render.js`, `core/director.js`:** canvas and show logic shared by every ad.
+- **`ads/<slug>.js`:** the rig and script for each concept.
+
+The board is 18 columns like the game, but only 20 rows tall so it fits the ad frame.
+
+The captions are set in Baloo 2 ExtraBold, subset to `assets/display.woff2` by `python3 tools/prepare_assets.py display_font`.
+
+Before submitting, run each zip through Google's HTML5 validator
+(h5validator.appspot.com/adwords/asset) or the Google Ads asset upload
+preview.
+
 ## Regenerating assets (occasional — not part of every build)
 
 `assets/` (block/board textures, sfx, subsetted wordmark font) is derived

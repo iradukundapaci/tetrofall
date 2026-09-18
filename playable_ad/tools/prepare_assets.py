@@ -87,13 +87,39 @@ def wordmark_font():
     ])
 
 
+def display_font():
+    src = os.path.join(GAME_FONTS, "Baloo_2", "static", "Baloo2-ExtraBold.ttf")
+    dst = os.path.join(OUT, "display.woff2")
+    # The five Google Ads playables (build_ads.py) set every caption, hook
+    # and button in Baloo 2, so they get printable ASCII plus the ellipsis
+    # and multiplication sign rather than the wordmark's handful of glyphs.
+    run([
+        sys.executable, "-m", "fontTools.subset", src,
+        f"--output-file={dst}",
+        "--unicodes=U+0020-007E,U+00D7,U+2026",
+        "--flavor=woff2",
+        "--layout-features=kern,liga",
+    ])
+
+
+STEPS = {
+    "block_tile": block_tile,
+    "board_tile": board_tile,
+    "sfx": lambda: (
+        sfx("lock", "block_settle.wav", "sfx_lock.mp3"),
+        sfx("clear", "wood_crush.wav", "sfx_clear.mp3"),
+    ),
+    "wordmark_font": wordmark_font,
+    "display_font": display_font,
+}
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
-    block_tile()
-    board_tile()
-    sfx("lock", "block_settle.wav", "sfx_lock.mp3")
-    sfx("clear", "wood_crush.wav", "sfx_clear.mp3")
-    wordmark_font()
+    # `python3 tools/prepare_assets.py display_font` regenerates one asset
+    # without re-encoding (and re-diffing) the rest.
+    for name in sys.argv[1:] or STEPS.keys():
+        STEPS[name]()
 
     print("\nOutput sizes:")
     for f in sorted(os.listdir(OUT)):

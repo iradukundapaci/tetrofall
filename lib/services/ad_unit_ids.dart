@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 
 abstract final class AdUnitIds {
-  static const rewardedContinue = kReleaseMode
+  /// The Coin faucet — the only rewarded placement. There used to be a
+  /// second one for continuing after a loss; the continue is bought with Coins
+  /// now, so this unit (the one that placement used) pays for everything.
+  static const rewardedCoins = kReleaseMode
       ? 'ca-app-pub-5422471961828877/1955998895'
       : 'ca-app-pub-3940256099942544/5224354917';
 
@@ -18,7 +21,7 @@ abstract final class AdUnitIds {
       : 'ca-app-pub-3940256099942544/6300978111';
 }
 
-/// Stable names for the four ad slots, reported to GameAnalytics instead of
+/// Stable names for the ad slots, reported to GameAnalytics instead of
 /// the unit ids above.
 ///
 /// Kept separate from [AdUnitIds] on purpose: a unit can be replaced, split
@@ -26,7 +29,7 @@ abstract final class AdUnitIds {
 /// dashboard were keyed on the id, that would silently start a brand new
 /// series rather than continuing the old one.
 abstract final class AdPlacements {
-  static const rewardedContinue = 'rewarded_continue';
+  static const rewardedCoins = 'rewarded_coins';
   static const interstitial = 'interstitial';
   static const appOpen = 'app_open';
   static const banner = 'banner';

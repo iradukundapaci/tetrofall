@@ -40,7 +40,7 @@
     }
 
     /* Middle: play button, vertically centered in remaining space, with
-       the "No Ads" upsell sitting just below it. */
+       the Daily / Shop / Themes row sitting just below it. */
     .menu-center {
       flex: 1 1 auto;
       width: 100%;
@@ -62,7 +62,7 @@
     }
 
     /* PLAY — the one large/bright element on the whole screen. It's an <a>
-       (links to gameplay.html) styled as .btn-primary, so strip link defaults. */
+       (links to loadout.html, the pre-run booster roll) styled as .btn-primary, so strip link defaults. */
     .btn-play {
       width: 100%;
       max-width: 160px;
@@ -75,9 +75,16 @@
       text-align: center;
     }
 
-    /* No Ads — secondary upsell CTA below PLAY. Triggers a mock purchase
-       directly (no navigation) — in the real app this opens the platform
-       payment sheet; here the button just flips to a "purchased" state. */
+    /* Daily / Shop / Themes, below PLAY. Replaces the old "No Ads — $2.99"
+       upsell: nothing costs real money now, and ad-free play is Clear Skies,
+       bought with Coins in the shop (phase11_monetization_plan.md §0). */
+    .menu-nav {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      width: 100%;
+    }
+
     .btn-noads {
       width: 100%;
       max-width: 200px;
@@ -137,12 +144,13 @@
             <!-- Video placeholder: drop a <video muted autoplay loop playsinline> in here once the gameplay clip is ready -->
             <div class="menu-video-slot"></div>
 
-            <a href="gameplay.html" class="btn-primary btn-play">PLAY</a>
+            <a href="loadout.html" class="btn-primary btn-play">PLAY</a>
 
-            <button type="button" class="btn-secondary btn-noads" id="noAdsBtn">
-              <svg id="noAdsIcon" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M2 2l20 20"/><path d="M17.5 8.5a5 5 0 0 1 0 7"/></svg>
-              <span id="noAdsLabel">No Ads — $2.99</span>
-            </button>
+            <div class="menu-nav">
+              <a href="daily-reward.html" class="btn-secondary btn-noads">Daily</a>
+              <a href="shop.html" class="btn-secondary btn-noads">Shop</a>
+              <a href="themes.html" class="btn-secondary btn-noads">Themes</a>
+            </div>
           </div>
 
         </div>
@@ -161,20 +169,6 @@
       });
     });
 
-    // No Ads — mock the platform payment sheet completing successfully.
-    // No navigation: the button just flips to a purchased/disabled state.
-    var noAdsBtn = document.getElementById('noAdsBtn');
-    var noAdsLabel = document.getElementById('noAdsLabel');
-    var noAdsIcon = document.getElementById('noAdsIcon');
-    if (noAdsBtn) {
-      noAdsBtn.addEventListener('click', function () {
-        if (noAdsBtn.classList.contains('is-purchased')) return;
-        noAdsBtn.classList.add('is-purchased');
-        noAdsLabel.textContent = 'Ads Removed';
-        noAdsIcon.innerHTML = '<path d="M20 6 9 17l-5-5"/>';
-        noAdsBtn.disabled = true;
-      });
-    }
   </script>
 </body>
 </html>

@@ -20,6 +20,24 @@ class StorageService {
   static const _bannerAdHeightKey = 'ads_banner_height';
   static const _personalizedAdsKey = 'ads_personalized_enabled';
 
+  // Boosters (`boosters.md` §3.8).
+  static const _boosterLastLoadoutKey = 'booster_last_loadout';
+  static const _boosterRunsCompletedKey = 'booster_runs_completed';
+
+  // Coin economy. Rewarded video is the only faucet; see `EconomyTuning`.
+  static const _coinBalanceKey = 'coin_balance';
+  static const _boosterChargesKey = 'booster_charges';
+  static const _ownedThemesKey = 'owned_themes';
+  static const _equippedThemeKey = 'equipped_theme';
+  static const _clearSkiesSecondsKey = 'clear_skies_seconds';
+  static const _dailyStreakDayKey = 'daily_streak_day';
+  static const _dailyLastClaimEpochKey = 'daily_last_claim_epoch';
+  static const _dailyChallengeStateKey = 'daily_challenge_state';
+  static const _adViewsTodayKey = 'ad_views_today';
+  static const _adViewsDayEpochKey = 'ad_views_day_epoch';
+  static const _chestSinceBonusKey = 'chest_since_bonus';
+  static const _starterGrantGivenKey = 'starter_grant_given';
+
   final SharedPreferences _prefs;
 
   static Future<StorageService> load() async {
@@ -57,7 +75,8 @@ class StorageService {
   /// has a score has already learned the game the hard way, and must not be
   /// dragged back through a tutorial for it.
   bool get tutorialSeen =>
-      _prefs.getBool(_tutorialSeenKey) ?? (_prefs.getInt(_bestScoreKey) ?? 0) > 0;
+      _prefs.getBool(_tutorialSeenKey) ??
+      (_prefs.getInt(_bestScoreKey) ?? 0) > 0;
 
   /// Interstitial frequency cap (phase11_monetization_plan.md §3) — number
   /// of completed runs since the last interstitial was shown.
@@ -140,4 +159,106 @@ class StorageService {
 
   Future<void> savePersonalizedAdsEnabled(bool value) =>
       _prefs.setBool(_personalizedAdsKey, value);
+
+  /// The loadout the last run was played with, as "hammer,drill,..." — what
+  /// "Same boosters" replays (§3.7). A corrupted or unknown id falls back to a
+  /// fresh roll, which [Loadout.decode] handles by returning null.
+  String? get boosterLastLoadout => _prefs.getString(_boosterLastLoadoutKey);
+
+  Future<void> setBoosterLastLoadout(String value) =>
+      _prefs.setString(_boosterLastLoadoutKey, value);
+
+  /// Runs finished since the tutorial. Drives the starter kit (§3.6).
+  int get boosterRunsCompleted => _prefs.getInt(_boosterRunsCompletedKey) ?? 0;
+
+  Future<void> setBoosterRunsCompleted(int value) =>
+      _prefs.setInt(_boosterRunsCompletedKey, value);
+
+  // --- Coin economy -------------------------------------------------------
+
+  /// Coin balance. Plain prefs, exactly like [bestScore], so it is editable on
+  /// a rooted device. Accepted deliberately: no real money is at stake, and a
+  /// player who cheats their own wallet has only spoiled their own game.
+  int get coinBalance => _prefs.getInt(_coinBalanceKey) ?? 0;
+
+  Future<void> setCoinBalance(int value) =>
+      _prefs.setInt(_coinBalanceKey, value);
+
+  /// Owned booster charges, encoded "hammer:2,drill:1" — the same comma style
+  /// as [boosterLastLoadout]. Unknown or malformed ids are dropped on decode.
+  String? get boosterCharges => _prefs.getString(_boosterChargesKey);
+
+  Future<void> setBoosterCharges(String value) =>
+      _prefs.setString(_boosterChargesKey, value);
+
+  /// Theme ids the player owns, comma-joined. `classicWood` is free and always
+  /// owned, so it is never written here.
+  String? get ownedThemes => _prefs.getString(_ownedThemesKey);
+
+  Future<void> setOwnedThemes(String value) =>
+      _prefs.setString(_ownedThemesKey, value);
+
+  String? get equippedTheme => _prefs.getString(_equippedThemeKey);
+
+  Future<void> setEquippedTheme(String value) =>
+      _prefs.setString(_equippedThemeKey, value);
+
+  /// Remaining Clear Skies balance in *game-clock* seconds. It only drains
+  /// while a run is actually live — see `ClearSkiesService`.
+  double get clearSkiesSeconds => _prefs.getDouble(_clearSkiesSecondsKey) ?? 0;
+
+  Future<void> setClearSkiesSeconds(double value) =>
+      _prefs.setDouble(_clearSkiesSecondsKey, value);
+
+  /// How far into the 7-day login calendar the player is, 0 when unstarted.
+  int get dailyStreakDay => _prefs.getInt(_dailyStreakDayKey) ?? 0;
+
+  Future<void> setDailyStreakDay(int value) =>
+      _prefs.setInt(_dailyStreakDayKey, value);
+
+  /// When the login reward was last claimed, or null if never. Used to decide
+  /// whether the streak advances or resets.
+  DateTime? get dailyLastClaimAt {
+    final epochMs = _prefs.getInt(_dailyLastClaimEpochKey);
+    return epochMs == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(epochMs);
+  }
+
+  Future<void> setDailyLastClaimAt(DateTime value) =>
+      _prefs.setInt(_dailyLastClaimEpochKey, value.millisecondsSinceEpoch);
+
+  /// Today's challenge set and progress, opaque to this class.
+  String? get dailyChallengeState =>
+      _prefs.getString(_dailyChallengeStateKey);
+
+  Future<void> setDailyChallengeState(String value) =>
+      _prefs.setString(_dailyChallengeStateKey, value);
+
+  /// Rewarded views taken today. Drives the earn taper in `EconomyTuning`;
+  /// only meaningful alongside [adViewsDayEpoch].
+  int get adViewsToday => _prefs.getInt(_adViewsTodayKey) ?? 0;
+
+  Future<void> setAdViewsToday(int value) =>
+      _prefs.setInt(_adViewsTodayKey, value);
+
+  /// Local-midnight epoch ms that the [adViewsToday] tally belongs to. Stored
+  /// rather than derived so the taper survives a restart without resetting.
+  int get adViewsDayEpoch => _prefs.getInt(_adViewsDayEpochKey) ?? 0;
+
+  Future<void> setAdViewsDayEpoch(int value) =>
+      _prefs.setInt(_adViewsDayEpochKey, value);
+
+  /// Chests opened since the last guaranteed non-Coin reward (the pity rule).
+  int get chestsSinceBonus => _prefs.getInt(_chestSinceBonusKey) ?? 0;
+
+  Future<void> setChestsSinceBonus(int value) =>
+      _prefs.setInt(_chestSinceBonusKey, value);
+
+  /// Whether the one-off first-launch Coin grant has been paid.
+  bool get starterGrantGiven =>
+      _prefs.getBool(_starterGrantGivenKey) ?? false;
+
+  Future<void> setStarterGrantGiven(bool value) =>
+      _prefs.setBool(_starterGrantGivenKey, value);
 }

@@ -1,6 +1,10 @@
 import 'dart:collection';
 import 'dart:math';
 
+import '../boosters/block_path.dart';
+import '../boosters/booster_effects.dart';
+import '../boosters/booster_target.dart';
+import '../boosters/booster_type.dart';
 import '../config/difficulty.dart';
 import '../config/motion.dart';
 import 'clear_detector.dart';
@@ -74,6 +78,20 @@ class GameEngine {
   /// gesture at a time against a board that is standing perfectly still.
   bool freezeRise = false;
   bool freezeGravity = false;
+
+  /// A booster is armed and the player is aiming (`boosters.md` §4.4).
+  ///
+  /// Holds the rise and the piece the way [freezeRise] and [freezeGravity]
+  /// do, with one deliberate difference: the difficulty clock keeps running.
+  /// The tutorial hold stops it because coaching is not play; aiming is, and
+  /// without this a player could park on an armed booster to slow the curve
+  /// down for free.
+  bool boosterAimHold = false;
+
+  /// Set while a booster's edit is being resolved, so the first clear out of
+  /// it is forced — not scored, not counted as something the player did
+  /// (§4.6 rule 2).
+  bool _forcedClearPending = false;
 
   /// Pieces to deal before falling back to the bag, used by the tutorial to
   /// hand the player the exact piece its rigged board needs. Empty in a real
@@ -155,6 +173,8 @@ class GameEngine {
     _scriptedPieces.clear();
     riseController.reset(initialElapsed: initialElapsed);
     scoring.reset();
+    boosterAimHold = false;
+    _forcedClearPending = false;
     hasUsedContinueThisRun = false;
     phase = GamePhase.spawning;
     _trySpawn();
@@ -170,6 +190,131 @@ class GameEngine {
     phase = GamePhase.spawning;
   }
 
+  /// Cells the active piece is standing in. Not grid cells, but solid for
+  /// every booster that moves or adds blocks (`boosters.md` §4.5 rule 1).
+  Set<(int, int)> get activePieceCells {
+    final piece = pieceController.piece;
+    if (piece == null) return const {};
+    return {for (final c in piece.absoluteCells()) (c.row, c.col)};
+  }
+
+  /// Whether [type] could fire at [target] right now. The bar asks this every
+  /// frame for instant boosters, to drive the "no target" look (§4.2).
+  bool canUseBooster(BoosterType type, BoosterTarget target) {
+    if (phase != GamePhase.playing) return false;
+    return BoosterEffects.isValid(type, grid, target, activePieceCells);
+  }
+
+  /// The cells [type] would touch, for the aim preview (§4.4).
+  List<(int, int)> boosterPreview(BoosterType type, BoosterTarget target) =>
+      BoosterEffects.preview(type, grid, target, activePieceCells);
+
+  /// Fires a booster: edit the grid, then hand the result to the shared
+  /// resolve (§4.6). Returns false — changing nothing — if the phase or the
+  /// target will not have it.
+  bool useBooster(BoosterType type, BoosterTarget target) {
+    if (phase != GamePhase.playing) return false;
+    final solid = activePieceCells;
+    if (!BoosterEffects.isValid(type, grid, target, solid)) return false;
+
+    final result = BoosterEffects.apply(type, grid, target, solid);
+    boosterAimHold = false;
+    _emit(BoosterFiredEvent(type, target, result));
+    _beginBoosterResolve(result);
+    return true;
+  }
+
+  /// The existing `resolving` phase, entered from a booster's edit instead of
+  /// from a locked piece. Three differences, all from §4.6:
+  ///
+  ///  1. the gravity floor is the booster's own lowest changed row, so the
+  ///     wave releases exactly what a line clear there would have;
+  ///  2. the first clear out of it is forced, and so unscored;
+  ///  3. the booster's own motion is given time to land before the ripple
+  ///     starts, so nothing falls through a block still visibly in flight.
+  void _beginBoosterResolve(BoosterResult result) {
+    _beginResolve();
+    _forcedClearPending = true;
+    _gravityFloor = result.fullBoardSettle ? null : result.lowestChangedRow;
+
+    var leadIn = Motion.boosterEffectBeat.inMilliseconds / 1000;
+    if (result.moved.isNotEmpty) {
+      final paths = <BlockPathEvent>[];
+      for (final path in result.moved) {
+        final seconds = _pathSeconds(path);
+        leadIn = max(leadIn, seconds);
+        paths.add(BlockPathEvent(path: path, durationSeconds: seconds));
+      }
+      _emit(BlocksMovedEvent(paths));
+      _flightRemaining = leadIn + Motion.impactSquash.inMilliseconds / 1000;
+    } else if (result.removed.isNotEmpty) {
+      // Wait out the shatter, the same beat a line clear takes.
+      leadIn = max(
+        leadIn,
+        Motion.shatterSequenceSeconds(grid.cols) * resolveTimeScale,
+      );
+    }
+
+    // A whole-board settle has already happened in the grid, so its clears
+    // are looked for after the motion lands rather than before it starts.
+    _schedule(_ResolveStage.settle, max(leadIn, _flightRemaining));
+  }
+
+  /// Flight time for one path: the vertical part on the normal gravity curve,
+  /// the sideways part at a flat [Motion.boosterSlideStep] per cell.
+  double _pathSeconds(BlockPath path) {
+    var down = 0;
+    var across = 0;
+    for (var i = 1; i < path.cells.length; i++) {
+      final (pr, pc) = path.cells[i - 1];
+      final (cr, cc) = path.cells[i];
+      down += (cr - pr).abs();
+      across += (cc - pc).abs();
+    }
+    final vertical = down == 0
+        ? 0.0
+        : sqrt(2 * down / Motion.gravityCellsPerS2);
+    final sideways = across * Motion.boosterSlideStep.inMilliseconds / 1000;
+    return max(vertical + sideways, 1e-3) * resolveTimeScale;
+  }
+
+  /// Where a resolve hands control back. A locked piece is gone by the time
+  /// its resolve ends, so the next one is dealt; a booster's piece is still
+  /// on the board and mid-fall, so play simply resumes around it.
+  void _finishResolve() {
+    if (pieceController.piece == null) {
+      phase = GamePhase.spawning;
+      return;
+    }
+    // A forced lock starts a resolve of its own, and that one owns the phase
+    // from here.
+    if (_settlePieceOverlap()) return;
+    phase = GamePhase.playing;
+  }
+
+  /// §4.5 rule 4. Every booster treats the piece's cells as solid, so this
+  /// should never find an overlap — but if one ever appears, the rise's own
+  /// rule applies: push the piece up a row, and lock it where it stands if it
+  /// has nowhere to go.
+  /// Returns whether the piece had to be force-locked, which starts a second
+  /// resolve the caller must not step on.
+  bool _settlePieceOverlap() {
+    final piece = pieceController.piece;
+    if (piece == null) return false;
+    if (!pieceController.collidesAt(piece.anchorRow, piece.anchorCol)) {
+      return false;
+    }
+
+    for (var row = piece.anchorRow - 1; row >= grid.minRow; row--) {
+      if (!pieceController.collidesAt(row, piece.anchorCol)) {
+        piece.anchorRow = row;
+        return false;
+      }
+    }
+    _lockAndResolve();
+    return true;
+  }
+
   void tick(double dt) {
     _drainIntents(dt);
 
@@ -179,6 +324,10 @@ class GameEngine {
       case GamePhase.spawning:
         _trySpawn();
       case GamePhase.playing:
+        if (boosterAimHold) {
+          riseController.tickElapsedOnly(dt);
+          return;
+        }
         if (!freezeRise && riseController.tick(dt)) {
           _handleRiseCommit();
         }
@@ -349,6 +498,7 @@ class GameEngine {
     _flightRemaining = 0;
     _flushed = false;
     _gravityFloor = null;
+    _forcedClearPending = false;
     scoring.startResolve();
   }
 
@@ -373,10 +523,11 @@ class GameEngine {
     final fullRows = ClearDetector.findFullRows(grid);
     if (fullRows.isEmpty) {
       // Gravity only runs as part of a clear. On a plain lock the stack keeps
-      // its overhangs — dropping those would rewrite how the game stacks.
-      if (chainIndex == 0) {
+      // its overhangs — dropping those would rewrite how the game stacks. A
+      // booster sets the floor itself, so it gets a wave without one.
+      if (chainIndex == 0 && _gravityFloor == null) {
         _resolveTimer = 0;
-        phase = GamePhase.spawning;
+        _finishResolve();
         return;
       }
       _beginRipple();
@@ -386,15 +537,31 @@ class GameEngine {
     final removedCells = _stripRows(fullRows);
     _lowerGravityFloor(fullRows);
 
+    // The row a booster completed is the booster's doing, not the player's:
+    // it shatters and sounds like a clear, but it is not scored and does not
+    // count toward anything the player achieved (§4.6 rule 2). Everything
+    // further down the chain is theirs, and scores normally.
+    final forced = _forcedClearPending;
+    _forcedClearPending = false;
+
     scoring.addDestroyed(removedCells.length);
-    scoring.awardLineClear(
-      lines: fullRows.length,
-      chainIndex: chainIndex,
-      elapsedSeconds: riseController.elapsed,
-    );
+    if (!forced) {
+      scoring.awardLineClear(
+        lines: fullRows.length,
+        chainIndex: chainIndex,
+        elapsedSeconds: riseController.elapsed,
+      );
+    }
 
     final scale = _chainTimeScale();
-    _emit(RowsClearedEvent(fullRows, removedCells, timeScale: scale));
+    _emit(
+      RowsClearedEvent(
+        fullRows,
+        removedCells,
+        timeScale: scale,
+        forced: forced,
+      ),
+    );
     _emit(ChainAdvancedEvent(chainIndex));
     chainIndex++;
 
@@ -454,7 +621,7 @@ class GameEngine {
         : RippleCascade.nextFloatingRow(grid, fromRow: floor - 1);
     if (row == null) {
       _resolveTimer = 0;
-      phase = GamePhase.spawning;
+      _finishResolve();
       return;
     }
     _rippleRow = row;
@@ -538,14 +705,23 @@ class GameEngine {
       if (fullRows.isEmpty) break;
       final removedCells = _stripRows(fullRows);
       _lowerGravityFloor(fullRows);
+      final forced = _forcedClearPending;
+      _forcedClearPending = false;
       scoring.addDestroyed(removedCells.length);
-      scoring.awardLineClear(
-        lines: fullRows.length,
-        chainIndex: chainIndex,
-        elapsedSeconds: riseController.elapsed,
-      );
+      if (!forced) {
+        scoring.awardLineClear(
+          lines: fullRows.length,
+          chainIndex: chainIndex,
+          elapsedSeconds: riseController.elapsed,
+        );
+      }
       _emit(
-        RowsClearedEvent(fullRows, removedCells, timeScale: _chainTimeScale()),
+        RowsClearedEvent(
+          fullRows,
+          removedCells,
+          timeScale: _chainTimeScale(),
+          forced: forced,
+        ),
       );
       _emit(ChainAdvancedEvent(chainIndex));
       chainIndex++;

@@ -120,6 +120,102 @@ Three limits on how far to push it:
   on paid social, where the cut *is* the ad; on the listing itself prefer
   "those ads", which references the genre rather than asserting a history.
 
+## Google Ads images
+
+An App campaign ad group takes up to 20 images and Google places them across
+YouTube, Discover, Display and AdMob. `ads/` holds exactly twenty, built by
+`tools/store/ad_images.py` from the shot list in `tools/store/ads.json`.
+
+| Slot | Size | Have |
+| --- | --- | --- |
+| Landscape 1.91:1 | 1200×628 | 7 (`ads/landscape/`) |
+| Square 1:1 | 1200×1200 | 6 (`ads/square/`) |
+| Portrait 4:5 | 1200×1500 | 7 (`ads/portrait/`) |
+
+Max 5120KB each. `ads/contact_sheet.png` shows all twenty at once.
+
+Fifteen carry no text: Google sets the app name, icon and headline next to the
+image itself, and a board with nothing on it reads at thumbnail size. Five
+carry copy — two on the "no fake ads" angle, three challenge questions. The
+challenge lines are questions ("Where does this piece go?") rather than
+statistics ("only 2% can…"), which Google can flag as an unverifiable claim.
+
+Same rule as the reels: every board is a capture from this folder or a frame
+decoded out of a reel. The tool only crops, scales, blurs the ground and draws
+a frame; it never paints on a board and adds no fake buttons. Images 13–16
+decode from `video/`, which is gitignored — without the reels they print
+`skip` and the committed PNGs stay as they are.
+
+## Google Ads videos
+
+The same ad group takes up to 20 videos (uploaded to YouTube, then linked).
+`ads_video/` holds twenty, every one with sound, built by
+`tools/store/ad_videos.py` from the cut list in `tools/store/ad_videos.json`.
+
+| Ratio | Size | Have |
+| --- | --- | --- |
+| Portrait 9:16 | 1080×1920 | 10 (`ads_video/portrait/`) |
+| Square 1:1 | 1080×1080 | 5 (`ads_video/square/`) |
+| Landscape 16:9 | 1920×1080 | 5 (`ads_video/landscape/`) |
+
+All 10–30s, H.264 + AAC, peak −1.5dBFS. `ads_video/contact_sheet.png` shows a
+frame from each. The mp4s are gitignored; regenerate them.
+
+Most are frustration bait — a move the viewer can plainly see is wrong: the I
+laid flat over a nine-deep well, a piece one column off its slot, the slot
+that clears nothing, an L upside down, a tower of I-pieces, a roof over a
+hole. The rest are the payoff (the four-row shatter, chain reactions), the
+mechanic explained, and the "no fake ads" angle.
+
+The rules that keep them honest:
+
+- **Every board is real footage.** The blunders are the shipped game, driven
+  badly on purpose by the capture bot (`tools/capture/reels.dart`, reels
+  08–14). The hover in `02_dont_do_it` is ordinary move/rotate input steered
+  over the columns before the bot takes the piece back. Nothing is drawn on a
+  board.
+- **Nothing is sped up.** A held frame punches in; a slowed clip always
+  carries a red REPLAY label.
+- **No fake buttons, arrows or stats.** Challenge copy is a question or a
+  reaction ("Would YOU have missed that?"), never "only 1% can…". Captions
+  describe what is on screen, so check them against the frame when a reel is
+  re-recorded — a clear that happens a frame early makes "0 ROWS" a lie.
+- **Sound is the game's own**, levelled, plus stingers (buzzer, record
+  scratch, riser…) synthesised by `tools/store/ad_sfx.py` — no samples, no
+  music, nothing to license.
+
+Layouts: `full` (portrait), `pillar` (square — the whole board, full height,
+over a blurred copy of itself, so a piece hovering near the top stays in
+frame), `crop`, `split` (BAD / GOOD side by side, two different boards,
+labelled), and `panel` (landscape — the board on the right, copy on the left).
+
+```bash
+# Record the reels with audio (emulator only — see below)
+tools/capture/capture.sh audio-reel gameplay/video 08_edge_hover 09_one_off …
+
+python3 tools/store/ad_sfx.py                    # stingers
+python3 tools/store/ad_videos.py                 # all twenty + contact sheet
+python3 tools/store/ad_videos.py --only 04_one_column
+python3 tools/store/ad_videos.py --verify        # sizes, lengths, audio present
+```
+
+### Recording with sound
+
+`screenrecord` has no audio, and scrcpy — which does — is unusable on this
+emulator: while any guest-side audio capture runs, the guest's software H.264
+encoder stops after ~5 seconds, so the file has a full soundtrack under five
+seconds of picture, and nothing reports an error. That held for every audio
+codec, `--audio-source=playback`, and a separate audio-only session beside
+`screenrecord`. `audio-reel` therefore records with the emulator console
+(`adb emu screenrecord`), which encodes on the host: ~21fps with even frame
+spacing, and the game's audio. Check a take's picture length per stream
+(`ffprobe -show_entries stream=duration`), not the container's — the capture
+script prints it.
+
+A take that sits on the GAME OVER overlay ends early: the host recorder writes
+no frames while the screen is static. That is fine for the cuts, which only
+use the first second of the overlay.
+
 ## Regenerating
 
 ```bash

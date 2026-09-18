@@ -11,6 +11,7 @@ import 'services/connectivity_service.dart';
 import 'services/firebase_analytics_service.dart';
 import 'services/music_service.dart';
 import 'services/storage_service.dart';
+import 'services/economy.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +21,15 @@ void main() async {
   ]);
   final storage = await StorageService.load();
   await FirebaseAnalyticsService.init();
-  final ads = AdsService(storage, connectivity: ConnectivityService());
+  // Built before the ad service, which has to consult Clear Skies before
+  // showing an interstitial or an app-open ad.
+  final economy = Economy(storage);
+  unawaited(economy.wallet.grantStarterIfNeeded());
+  final ads = AdsService(
+    storage,
+    connectivity: ConnectivityService(),
+    clearSkies: economy.clearSkies,
+  );
   unawaited(ads.init());
   unawaited(
     AnalyticsService.init().then((_) {
@@ -30,5 +39,5 @@ void main() async {
   );
   unawaited(AudioService.warmUp());
   unawaited(MusicService.warmUp());
-  runApp(TetrofallApp(storage: storage, ads: ads));
+  runApp(TetrofallApp(storage: storage, ads: ads, economy: economy));
 }

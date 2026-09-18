@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tetrofall — Loadout Roll</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="components.css" />
+  <style>
+    /* ---------- Background: the arena you're about to play in ---------- */
+    /* boosters.md §3.1 — the roll is an overlay on the gameplay screen while
+       the engine sits in GamePhase.ready, so the board is already laid out
+       behind it, dimmed the same way pause.html dims it. engine.start() is
+       only called when the overlay closes. The board cells are generated
+       from LAYOUT below rather than hand-written, since this one is pure
+       backdrop; gameplay.html stays the authored copy. */
+    .game-stage {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: var(--space-md);
+      box-sizing: border-box;
+      gap: var(--space-sm);
+    }
+
+    .game-topbar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .game-score {
+      text-align: center;
+      line-height: 1.1;
+    }
+
+    .game-score-current {
+      font-family: var(--font-display);
+      font-size: var(--font-size-xl);
+      font-weight: 800;
+      color: var(--color-text);
+    }
+
+    .game-score-best {
+      font-size: var(--font-size-xs);
+      font-weight: 700;
+      color: var(--color-text-muted);
+      letter-spacing: 0.04em;
+    }
+
+    .game-pause svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .game-board-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+    }
+
+    .game-board-frame {
+      max-height: 100%;
+      max-width: 100%;
+      padding: 4px;
+      border-radius: 12px;
+      border: 3px solid rgba(245, 234, 217, 0.3);
+      background: rgba(0, 0, 0, 0.28);
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+      box-sizing: border-box;
+    }
+
+    .game-board {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      grid-template-rows: repeat(16, 1fr);
+      gap: 3px;
+    }
+
+    .board-cell {
+      position: relative;
+      border-radius: 7px;
+    }
+
+    .block--empty {
+      background: rgba(0, 0, 0, 0.18);
+      border: 1px dashed rgba(255, 255, 255, 0.08);
+    }
+
+    .block--wood {
+      background: linear-gradient(160deg, var(--color-wood-light) 0%, var(--color-wood-mid) 55%, var(--color-wood-dark) 100%);
+      border: 1px solid rgba(0, 0, 0, 0.35);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.25), inset 0 -2px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .block--stone {
+      background: linear-gradient(160deg, #a3a3a3 0%, #6d6d6d 55%, #444444 100%);
+      border: 1px solid rgba(0, 0, 0, 0.4);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.18), inset 0 -2px 3px rgba(0, 0, 0, 0.35);
+    }
+
+    .block--ice {
+      background:
+        linear-gradient(rgba(58, 160, 217, 0.38), rgba(58, 160, 217, 0.38)),
+        linear-gradient(160deg, var(--color-wood-light) 0%, var(--color-wood-mid) 55%, var(--color-wood-dark) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.35), inset 0 -2px 3px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Same "frozen sliver of the screen behind" treatment as pause.html. */
+    .roll-bg {
+      /* Fill the frame — without this the frozen stage is only as tall as its
+         own content and the board collapses to a sliver at the top. */
+      flex: 1 1 auto;
+      min-height: 0;
+      filter: blur(4px);
+      opacity: 0.4;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .roll-bg,
+    .roll-bg * {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    /* ---------- The roll overlay (§3.2) ---------- */
+    .roll-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-lg);
+      box-sizing: border-box;
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    .roll-panel {
+      width: 100%;
+      max-width: 300px;
+      padding: var(--space-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      text-align: center;
+      background: rgba(20, 12, 6, 0.9);
+      backdrop-filter: blur(2px);
+      animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.92); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    .roll-title {
+      font-family: var(--font-display);
+      font-size: var(--font-size-xl);
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      color: var(--color-text);
+    }
+
+    /* Starter kit caption — first 3 runs after the tutorial land on a fixed
+       loadout, so the reels are labelled rather than re-spinnable (§3.6). */
+    .roll-kit-label {
+      display: none;
+      font-family: var(--font-display);
+      font-size: var(--font-size-sm);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-gold);
+      margin-top: calc(-1 * var(--space-sm));
+    }
+
+    .roll-panel[data-variant="starter"] .roll-kit-label {
+      display: block;
+    }
+
+    .roll-reels {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-sm);
+    }
+
+    .roll-reel-col {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    /* The booster's name is the only label under a drum (§9.4) — which slot it
+       came from is clear from the order, and its class is design language, not
+       something the player needs read back to them. */
+    .roll-booster-name {
+      font-family: var(--font-display);
+      font-size: 11px;
+      padding-top: 2px;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1.1;
+      /* Long names (Earthquake) must not widen the 4-up grid. */
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Re-spin line — one free re-spin per run, per slot (§3.5). */
+    .roll-respin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: var(--font-size-xs);
+      font-weight: 700;
+      color: var(--color-text-muted);
+      min-height: 18px;
+    }
+
+    .roll-respin-count {
+      color: var(--color-gold);
+    }
+
+    /* Free re-spin gone — the line turns into the ad offer and picks up the
+       gold the rest of the rewarded-video affordances use (§3.5). */
+    .roll-respin.is-ad {
+      color: var(--color-gold);
+      cursor: pointer;
+    }
+
+    .roll-respin.is-ad .roll-respin-count {
+      color: var(--color-text-muted);
+    }
+
+    .roll-respin svg {
+      width: 13px;
+      height: 13px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* Nothing left to offer. */
+    .roll-respin.is-done {
+      opacity: 0.45;
+    }
+
+    .roll-panel[data-variant="starter"] .roll-respin,
+    .roll-panel.is-spinning .roll-respin {
+      opacity: 0.35;
+    }
+
+    .roll-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .roll-buttons .btn-primary,
+    .roll-buttons .btn-secondary {
+      width: 100%;
+      text-decoration: none;
+    }
+
+    /* START only becomes active once the last reel has settled (≈1.5 s). */
+    .roll-panel.is-spinning .roll-buttons .btn-primary {
+      opacity: 0.5;
+      pointer-events: none;
+      box-shadow: none;
+    }
+
+    /* "Same boosters" / "Spin" pair is the replay-only button set (§3.7). */
+    .roll-secondary-action {
+      display: none;
+    }
+
+    .roll-panel[data-variant="replay"] .roll-secondary-action {
+      display: inline-flex;
+    }
+
+    .roll-panel.is-spinning .reel {
+      cursor: default;
+    }
+
+    /* ---------- Mockup-only controls ---------- */
+    .variant-toggle button {
+      padding: 6px 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="device-stage">
+    <div class="device-toggle">
+      <button type="button" class="is-active" data-size="mobile">Mobile</button>
+      <button type="button" data-size="tablet">Tablet</button>
+    </div>
+
+    <div class="device-toggle variant-toggle" id="variantToggle">
+      <button type="button" class="is-active" data-variant="roll">Random roll</button>
+      <button type="button" data-variant="starter">Starter kit</button>
+      <button type="button" data-variant="replay">Replay</button>
+    </div>
+
+    <div class="device-frame" id="frame">
+      <div class="device-frame__screen bg-wood-grain">
+
+        <div class="roll-bg">
+          <div class="game-stage">
+            <div class="game-topbar">
+              <div class="game-score">
+                <div class="game-score-current">0</div>
+                <div class="game-score-best">BEST 10,140</div>
+              </div>
+              <span class="btn-icon game-pause" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+              </span>
+            </div>
+
+            <div class="game-board-wrap">
+              <div class="game-board-frame">
+                <div class="game-board" id="bgBoard"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="roll-overlay" id="rollOverlay">
+          <div class="panel roll-panel is-spinning" data-variant="roll" id="rollPanel">
+            <span class="roll-title">YOUR BOOSTERS</span>
+            <span class="roll-kit-label">Starter kit</span>
+
+            <div class="roll-reels" id="rollReels"></div>
+
+            <!-- Rendered by renderRespinLine(): free re-spin, then the
+                 rewarded-ad offer, then nothing left. -->
+            <div class="roll-respin" id="rollRespin"></div>
+
+            <div class="roll-buttons">
+              <a href="gameplay.html" class="btn-primary" id="rollStart">START</a>
+              <button type="button" class="btn-secondary roll-secondary-action" id="rollSpinAgain">Spin</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rewarded-ad sheet (§3.5). Only reachable once the free re-spin
+             is gone; it names the slot the video would re-roll. -->
+        <div class="ad-prompt" id="adPrompt">
+          <div class="panel ad-prompt__panel">
+            <div class="ad-prompt__offer">
+              <svg class="ad-prompt__icon" viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg>
+              <span class="ad-prompt__title" id="adPromptTitle">Re-spin the Small slot?</span>
+              <span class="ad-prompt__body">Your free re-spin is used. Watch a short video to roll this slot again. <span id="adPromptLeft">3 left this run.</span></span>
+              <button type="button" class="btn-primary" id="adPromptWatch">Watch</button>
+              <button type="button" class="ad-prompt__decline" id="adPromptDecline">Not now</button>
+            </div>
+            <div class="ad-prompt__playing">
+              <div class="ad-prompt__video">Rewarded video</div>
+              <div class="progress-bar"><div class="progress-bar-fill" id="adPromptBar" style="width: 0%;"></div></div>
+              <span class="ad-prompt__body">Reward unlocks when the video ends</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var frame = document.getElementById('frame');
+    var buttons = document.querySelectorAll('.device-toggle:not(.variant-toggle) button');
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        buttons.forEach(function (b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        frame.classList.toggle('is-tablet', btn.dataset.size === 'tablet');
+      });
+    });
+
+    // Backdrop board — a mid-run stack, blurred behind the overlay.
+    (function () {
+      var LAYOUT = [
+        '..........', '..........', '..........', '..........',
+        '..........', '..........', '..........', '..........',
+        '..........', '..........', '..........', '..........',
+        'swiwww.wiw', 'swwwiwiwww', 'wwwswswiww', 'wwswiwswsw'
+      ];
+      var TYPE = { '.': 'empty', w: 'wood', s: 'stone', i: 'ice' };
+      var board = document.getElementById('bgBoard');
+      var html = '';
+      LAYOUT.forEach(function (row) {
+        for (var i = 0; i < row.length; i++) {
+          html += '<div class="board-cell block--' + TYPE[row[i]] + '"></div>';
+        }
+      });
+      board.innerHTML = html;
+    })();
+
+    // Same pixel-exact square-cell sizing as gameplay.html.
+    (function () {
+      var COLS = 10, ROWS = 16, GAP = 3, PAD = 4;
+      var wrap = document.querySelector('.game-board-wrap');
+      var boardFrame = document.querySelector('.game-board-frame');
+
+      function sizeBoard() {
+        var availW = wrap.clientWidth;
+        var availH = wrap.clientHeight;
+        if (!availW || !availH) return;
+        var cellFromWidth = (availW - 2 * PAD - (COLS - 1) * GAP) / COLS;
+        var cellFromHeight = (availH - 2 * PAD - (ROWS - 1) * GAP) / ROWS;
+        var cell = Math.floor(Math.min(cellFromWidth, cellFromHeight));
+        boardFrame.style.width = (cell * COLS + (COLS - 1) * GAP + 2 * PAD) + 'px';
+        boardFrame.style.height = (cell * ROWS + (ROWS - 1) * GAP + 2 * PAD) + 'px';
+      }
+
+      if (window.ResizeObserver) {
+        new ResizeObserver(sizeBoard).observe(wrap);
+      } else {
+        window.addEventListener('resize', sizeBoard);
+        sizeBoard();
+      }
+    })();
+
+    // ---------------------------------------------------------------------
+    // The roll (boosters.md §3)
+    // Four wooden drums, one per slot, each rolling only its own slot's pool
+    // of three. The result is decided before the animation starts — the spin
+    // only reveals it, which is why a tap can cut it short at any point.
+    // ---------------------------------------------------------------------
+    (function () {
+      var CELL = 36;              // .reel-cell height
+      var SPEED = 14 * CELL;      // ~14 icons/s (§3.4)
+      var EASE = 'cubic-bezier(0.17, 0.89, 0.32, 1.18)';   // drum overshoot + settle
+      var STOPS = [500, 750, 1000, 1250];                  // ms, reel 1 → 4
+      var RESPIN_MS = 500;
+
+      var GLYPHS = {
+        hammer: '<path d="m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/>',
+        bomb: '<circle cx="11" cy="13" r="9"/><path d="M14.35 4.65 16.3 2.7a2.41 2.41 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4l-1.95 1.95"/><path d="m22 2-1.5 1.5"/>',
+        patch: '<path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/>',
+        drill: '<path d="M10 18a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a3 3 0 0 1-3-3 1 1 0 0 1 1-1z"/><path d="M13 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1l-.81 3.242a1 1 0 0 1-.97.758H8"/><path d="M14 4h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3"/><path d="M18 6h4"/><path d="m5 10-2 8"/><path d="m7 18 2-8"/>',
+        slide: '<rect width="13" height="7" x="8" y="3" rx="1"/><path d="m2 9 3 3-3 3"/><rect width="13" height="7" x="8" y="14" rx="1"/>',
+        pillar: '<rect width="6" height="20" x="4" y="2" rx="2"/><rect width="6" height="20" x="14" y="2" rx="2"/>',
+        sweep: '<path d="M13.5 10.5 22 2"/><path d="M14.734 13.841a2 2 0 0 0-.314-2.42L12.58 9.58a2 2 0 0 0-2.421-.314l-7.657 4.461A1 1 0 0 0 2.3 15.3l6.403 6.403a1 1 0 0 0 1.571-.204z"/><path d="m5 18 2-2"/><path d="m7.699 10.7 5.602 5.601"/>',
+        lightning: '<path d="M15.914 4a1.5 1.5 0 0 0-2.474-1.561l-9 9A1.5 1.5 0 0 0 5.5 14h4.002a.5.5 0 0 1 .471.666L8.086 20a1.5 1.5 0 0 0 2.475 1.56l9-9A1.5 1.5 0 0 0 18.5 10h-3.997a.5.5 0 0 1-.472-.667z"/>',
+        mortar: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 9v6"/><path d="M16 15v6"/><path d="M16 3v6"/><path d="M3 15h18"/><path d="M3 9h18"/><path d="M8 15v6"/><path d="M8 3v6"/>',
+        earthquake: '<path d="m7 6 5 5 5-5"/><path d="m7 13 5 5 5-5"/>',
+        tilt: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 15 9 9"/><path d="M9 15h6V9"/>',
+        wildfire: '<path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/>'
+      };
+
+      var NAMES = {
+        hammer: 'Hammer', bomb: 'Bomb', patch: 'Patch',
+        drill: 'Drill', slide: 'Slide', pillar: 'Pillar',
+        sweep: 'Sweep', lightning: 'Lightning', mortar: 'Mortar',
+        earthquake: 'Earthquake', tilt: 'Tilt', wildfire: 'Wildfire'
+      };
+
+      // Each slot rolls from its own pool of three, never another slot's (§3.3).
+      var SLOTS = [
+        { label: 'Small', pool: ['hammer', 'bomb', 'patch'] },
+        { label: 'Line',  pool: ['drill', 'slide', 'pillar'] },
+        { label: 'Area',  pool: ['sweep', 'lightning', 'mortar'] },
+        { label: 'Board', pool: ['earthquake', 'tilt', 'wildfire'] }
+      ];
+
+      var STARTER = ['hammer', 'drill', 'lightning', 'earthquake'];   // §3.6
+      var LAST_LOADOUT = ['bomb', 'pillar', 'mortar', 'tilt'];        // §3.7, from storage
+
+      var PLAY_GLYPH = '<svg viewBox="0 0 24 24"><path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"/><circle cx="12" cy="12" r="10"/></svg>';
+
+      var panel = document.getElementById('rollPanel');
+      var reelsHost = document.getElementById('rollReels');
+      var respinLine = document.getElementById('rollRespin');
+      var startBtn = document.getElementById('rollStart');
+      var spinAgainBtn = document.getElementById('rollSpinAgain');
+      var variantButtons = document.querySelectorAll('#variantToggle button');
+
+      // The roll has its own randomness, never the engine's seeded source —
+      // otherwise a re-spin would shift every piece that follows (§3.3).
+      function pick(pool, excluding) {
+        var options = pool.filter(function (id) { return id !== excluding; });
+        return options[Math.floor(Math.random() * options.length)];
+      }
+
+      var landed = [];
+      var animations = [];
+      var respins = 1;                  // BoosterTuning.freeRespinsPerRun
+      var adRespins = 3;                // BoosterTuning.adRespinsPerRun
+      var spinning = false;
+
+      // One line, three states: the free re-spin, then the rewarded-ad offer
+      // that replaces it, then nothing left to sell (§3.5).
+      function renderRespinLine() {
+        if (panel.dataset.variant === 'starter') {
+          respinLine.className = 'roll-respin';
+          respinLine.innerHTML = '<span>Fixed loadout — rolls start at run 4</span>';
+        } else if (panel.dataset.variant === 'replay') {
+          respinLine.className = 'roll-respin';
+          respinLine.innerHTML = '';
+        } else if (respins > 0) {
+          respinLine.className = 'roll-respin';
+          respinLine.innerHTML = '<span>↻ Tap a booster to re-spin</span>'
+            + '<span class="roll-respin-count">(' + respins + ' left)</span>';
+        } else if (adRespins > 0) {
+          respinLine.className = 'roll-respin is-ad';
+          respinLine.innerHTML = PLAY_GLYPH + '<span>Watch an ad to re-spin</span>'
+            + '<span class="roll-respin-count">(' + adRespins + ' left)</span>';
+        } else {
+          respinLine.className = 'roll-respin is-done';
+          respinLine.innerHTML = '<span>No re-spins left</span>';
+        }
+      }
+
+      function glyphSvg(id) {
+        return '<svg viewBox="0 0 24 24">' + GLYPHS[id] + '</svg>';
+      }
+
+      function buildReels() {
+        var html = '';
+        SLOTS.forEach(function (_slot, i) {
+          html +=
+            '<div class="roll-reel-col">' +
+              '<div class="reel" data-slot="' + i + '"><div class="reel-strip"></div></div>' +
+              '<span class="roll-booster-name">' + NAMES[landed[i]] + '</span>' +
+            '</div>';
+        });
+        reelsHost.innerHTML = html;
+      }
+
+      // Strip item 1 is the landed icon, so a strip parked at translateY(0)
+      // shows [previous, landed, next] — the drum's three visible rows. The
+      // filler above it cycles the same pool, because a slot only ever shows
+      // its own boosters.
+      function fillStrip(slotIndex, itemsAbove) {
+        var pool = SLOTS[slotIndex].pool;
+        var at = pool.indexOf(landed[slotIndex]);
+        var strip = reelsHost.querySelector('.reel[data-slot="' + slotIndex + '"] .reel-strip');
+        var html = '';
+        for (var i = 0; i < itemsAbove + 3; i++) {
+          var id = pool[((at + 1 - i) % 3 + 3) % 3];
+          html += '<div class="reel-cell' + (i === 1 ? ' is-landed' : '') + '">' + glyphSvg(id) + '</div>';
+        }
+        strip.innerHTML = html;
+        return strip;
+      }
+
+      function labelFor(slotIndex) {
+        var col = reelsHost.querySelectorAll('.roll-reel-col')[slotIndex];
+        col.querySelector('.roll-booster-name').textContent = NAMES[landed[slotIndex]];
+      }
+
+      function flash(slotIndex) {
+        var reel = reelsHost.querySelector('.reel[data-slot="' + slotIndex + '"]');
+        reel.classList.remove('is-flashing');
+        void reel.offsetWidth;          // restart the 180 ms rim flash
+        reel.classList.add('is-flashing');
+      }
+
+      function spinOne(slotIndex, durationMs, onDone) {
+        var itemsAbove = Math.max(3, Math.round(SPEED * (durationMs / 1000) / CELL));
+        var strip = fillStrip(slotIndex, itemsAbove);
+        var travel = itemsAbove * CELL;
+        var anim = strip.animate(
+          [{ transform: 'translateY(-' + travel + 'px)' }, { transform: 'translateY(0)' }],
+          { duration: durationMs, easing: EASE, fill: 'both' }
+        );
+        animations.push(anim);
+        anim.finished.then(function () {
+          flash(slotIndex);
+          if (onDone) onDone();
+        }).catch(function () { /* cancelled by a tap-to-skip */ });
+        return anim;
+      }
+
+      function setSpinning(on) {
+        spinning = on;
+        panel.classList.toggle('is-spinning', on);
+      }
+
+      function spinAll() {
+        setSpinning(true);
+        animations = [];
+        var settled = 0;
+        SLOTS.forEach(function (slot, i) {
+          spinOne(i, STOPS[i], function () {
+            settled++;
+            if (settled === SLOTS.length) setSpinning(false);
+          });
+        });
+      }
+
+      // Tap anywhere during the spin and every reel snaps to its already
+      // decided result — the roll must never feel like a gate (§3.4).
+      document.getElementById('rollOverlay').addEventListener('pointerdown', function (event) {
+        if (!spinning) return;
+        if (event.target.closest('.btn-primary, .btn-secondary')) return;
+        animations.forEach(function (anim) { anim.finish(); });
+        setSpinning(false);
+      });
+
+      // A re-spin is per slot, never all four, and never lands on the
+      // booster the slot already shows (§3.3, §3.5).
+      function respinSlot(i) {
+        landed[i] = pick(SLOTS[i].pool, landed[i]);
+        renderRespinLine();
+        setSpinning(true);
+        spinOne(i, RESPIN_MS, function () {
+          labelFor(i);
+          setSpinning(false);
+        });
+      }
+
+      reelsHost.addEventListener('click', function (event) {
+        var reel = event.target.closest('.reel');
+        if (!reel || spinning) return;
+        if (panel.dataset.variant === 'starter') return;
+
+        var i = Number(reel.dataset.slot);
+        if (respins > 0) {
+          respins--;
+          respinSlot(i);
+        } else if (adRespins > 0) {
+          // Free one is gone — the next re-spin costs a rewarded video.
+          openAdPrompt(i);
+        }
+      });
+
+      // Tapping the line itself is the same offer, for players who read it
+      // before they reach for a reel.
+      respinLine.addEventListener('click', function () {
+        if (spinning || respins > 0 || adRespins === 0) return;
+        if (!respinLine.classList.contains('is-ad')) return;
+        openAdPrompt(null);
+      });
+
+      // ---- rewarded-ad re-spin ---------------------------------------------
+      var adPrompt = document.getElementById('adPrompt');
+      var adTitle = document.getElementById('adPromptTitle');
+      var adLeft = document.getElementById('adPromptLeft');
+      var adBar = document.getElementById('adPromptBar');
+      var pendingSlot = null;
+
+      function openAdPrompt(i) {
+        pendingSlot = i;
+        adTitle.textContent = i === null
+          ? 'Re-spin a booster?'
+          : 'Re-spin the ' + SLOTS[i].label + ' slot?';
+        adLeft.textContent = adRespins + ' left this run.';
+        adPrompt.classList.add('is-open');
+      }
+
+      function closeAdPrompt() {
+        adPrompt.classList.remove('is-open', 'is-playing');
+        adBar.style.transition = 'none';
+        adBar.style.width = '0%';
+        pendingSlot = null;
+      }
+
+      document.getElementById('adPromptDecline').addEventListener('click', closeAdPrompt);
+
+      document.getElementById('adPromptWatch').addEventListener('click', function () {
+        var i = pendingSlot;
+        adPrompt.classList.add('is-playing');
+        // Mocked video — the SDK's view would own this window, and the reward
+        // only lands if it runs to the end.
+        adBar.style.transition = 'width 1.7s linear';
+        requestAnimationFrame(function () { adBar.style.width = '100%'; });
+        window.setTimeout(function () {
+          adRespins--;
+          closeAdPrompt();
+          if (i === null) {
+            // Offer taken from the line: the player still picks the slot, so
+            // the line goes back to "tap a booster" with one re-spin in hand.
+            respins = 1;
+            renderRespinLine();
+          } else {
+            respinSlot(i);
+          }
+        }, 1800);
+      });
+
+      function start(variant) {
+        panel.dataset.variant = variant;
+        respins = 1;
+        adRespins = 3;
+        renderRespinLine();
+        // The primary button reads START on a fresh roll, and SAME BOOSTERS
+        // on a replay where it holds the default focus (§3.7).
+        startBtn.textContent = variant === 'replay' ? 'SAME BOOSTERS' : 'START';
+
+        if (variant === 'starter') {
+          landed = STARTER.slice();
+          buildReels();
+          spinAll();
+        } else if (variant === 'replay') {
+          // Play again opens with the previous loadout already in the reels
+          // and no spin at all (§3.7) — the free re-spin comes with "Spin",
+          // so there is nothing to prompt for here.
+          landed = LAST_LOADOUT.slice();
+          buildReels();
+          SLOTS.forEach(function (slot, i) { fillStrip(i, 0); });
+          setSpinning(false);
+        } else {
+          landed = SLOTS.map(function (slot) { return pick(slot.pool); });
+          buildReels();
+          spinAll();
+        }
+      }
+
+      // Replay's "Spin" — a normal roll with a fresh free re-spin.
+      spinAgainBtn.addEventListener('click', function () {
+        start('roll');
+        variantButtons.forEach(function (b) {
+          b.classList.toggle('is-active', b.dataset.variant === 'roll');
+        });
+      });
+
+      variantButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          variantButtons.forEach(function (b) { b.classList.remove('is-active'); });
+          btn.classList.add('is-active');
+          start(btn.dataset.variant);
+        });
+      });
+
+      start('roll');
+    })();
+  </script>
+</body>
+</html>

@@ -147,7 +147,19 @@
       color: var(--color-text-muted);
     }
 
-    /* Remove Ads — single prominent row */
+    /* Clear Skies tier buttons, wrapped under the row's text. */
+    .sh-clearskies-tiers {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .sh-clearskies-tiers .btn-secondary {
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+
+    /* Clear Skies — single prominent row (was Remove Ads) */
     .sh-removeads {
       display: flex;
       align-items: center;
@@ -481,74 +493,47 @@
             </div>
           </div>
 
-          <!-- Starter Pack — best value, stands out up top -->
+          <!-- Get Coins — rewarded video is the only source of Coins, and
+               everything in the shop is bought with them. Leads the page so an
+               empty wallet is always one tap from a fix. -->
           <div class="sh-hero">
-            <span class="sh-ribbon">BEST VALUE</span>
-            <h2 class="sh-hero-title">Starter Pack</h2>
+            <span class="sh-ribbon">FREE</span>
+            <h2 class="sh-hero-title">Get Coins</h2>
             <div class="sh-hero-contents">
               <div class="sh-hero-item">
                 <span class="sh-hero-item-icon">
                   <svg viewBox="0 0 24 24" class="icon-coin"><circle cx="12" cy="12" r="10"/><path d="M12 6.5v11M8.7 9.3c0-1.1 1.2-1.9 3.3-1.9s3.3.8 3.3 1.9c0 1-.9 1.5-3.3 1.9-2.4.4-3.3.9-3.3 2 0 1.1 1.3 1.9 3.3 1.9s3.3-.8 3.3-1.9" fill="none" stroke="var(--color-wood-dark)" stroke-width="1.3" stroke-linecap="round"/></svg>
                 </span>
-                <span class="sh-hero-item-label">2,000</span>
+                <span class="sh-hero-item-label">+50 per video</span>
               </div>
               <span class="sh-hero-plus">+</span>
               <div class="sh-hero-item">
                 <span class="sh-hero-item-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="var(--color-gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3.5l4.5 4.5-2.7 2.7-4.5-4.5z"/><path d="M12.3 6.2L4.8 13.7a2 2 0 0 0 0 2.8l1.7 1.7a2 2 0 0 0 2.8 0l7.5-7.5"/><path d="M5 19l3-3"/></svg>
+                  <svg viewBox="0 0 24 24" class="icon-coin"><circle cx="12" cy="12" r="10"/><path d="M12 6.5v11M8.7 9.3c0-1.1 1.2-1.9 3.3-1.9s3.3.8 3.3 1.9c0 1-.9 1.5-3.3 1.9-2.4.4-3.3.9-3.3 2 0 1.1 1.3 1.9 3.3 1.9s3.3-.8 3.3-1.9" fill="none" stroke="var(--color-wood-dark)" stroke-width="1.3" stroke-linecap="round"/></svg>
                 </span>
-                <span class="sh-hero-item-label">5 Boosters</span>
-              </div>
-              <span class="sh-hero-plus">+</span>
-              <div class="sh-hero-item">
-                <span class="sh-hero-item-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="var(--color-gold)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M4 10a8 6 0 0 1 16 0"/><circle cx="12" cy="14.5" r="1.3" fill="var(--color-gold)" stroke="none"/></svg>
-                </span>
-                <span class="sh-hero-item-label">Theme</span>
+                <span class="sh-hero-item-label">+50 every 5 in a row</span>
               </div>
             </div>
-            <a href="#" class="btn-primary sh-buy-btn"><span class="sh-hero-strike">$9.99</span> $4.99</a>
+            <a href="#" class="btn-primary sh-buy-btn" data-coins="50">Watch &amp; Earn</a>
           </div>
 
-          <!-- Remove Ads — prominent one-time purchase -->
+          <!-- Clear Skies — timed ad-free play, replacing Remove Ads. Suppresses
+               the between-run interstitial and the app-open ad only; rewarded
+               videos stay available, because they are the only way to earn.
+               Counts down only while a run is live. -->
           <div class="sh-removeads">
             <span class="sh-removeads-icon">
               <svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M2 2l20 20"/><path d="M17.5 8.5a5 5 0 0 1 0 7"/></svg>
             </span>
             <span class="sh-removeads-text">
-              <span class="sh-removeads-title">Remove Ads</span>
-              <span class="sh-removeads-sub">No interruptions, ever</span>
+              <span class="sh-removeads-title">Clear Skies</span>
+              <span class="sh-removeads-sub">No ads between runs · only counts down while you play</span>
+              <span class="sh-clearskies-tiers">
+                <a href="#" class="btn-secondary">30 min · 150</a>
+                <a href="#" class="btn-secondary">2 h · 500</a>
+                <a href="#" class="btn-secondary">6 h · 1,200</a>
+              </span>
             </span>
-            <a href="#" class="btn-primary">$2.99</a>
-          </div>
-
-          <!-- Coins -->
-          <div class="sh-section">
-            <span class="sh-section-title">Coins</span>
-            <div class="sh-coin-grid">
-              <div class="coin-pack">
-                <svg class="coin-pack-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="var(--color-gold)"/></svg>
-                <span class="coin-pack-amount">500</span>
-                <a href="#" class="coin-pack-price" data-coins="500">$0.99</a>
-              </div>
-              <div class="coin-pack">
-                <svg class="coin-pack-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="var(--color-gold)"/></svg>
-                <span class="coin-pack-amount">1,200</span>
-                <a href="#" class="coin-pack-price" data-coins="1200">$1.99</a>
-              </div>
-              <div class="coin-pack is-best">
-                <span class="coin-pack-bonus">+10%</span>
-                <svg class="coin-pack-icon" viewBox="0 0 24 24"><ellipse cx="12" cy="18" rx="8" ry="3" fill="#b9791a"/><ellipse cx="12" cy="14.5" rx="8" ry="3" fill="var(--color-gold)"/><ellipse cx="12" cy="11" rx="8" ry="3" fill="var(--color-gold)"/><ellipse cx="12" cy="7.5" rx="8" ry="3" fill="#ffe28a"/></svg>
-                <span class="coin-pack-amount">2,600</span>
-                <a href="#" class="coin-pack-price" data-coins="2600">$3.99</a>
-              </div>
-              <div class="coin-pack">
-                <span class="coin-pack-bonus">+20%</span>
-                <svg class="coin-pack-icon" viewBox="0 0 24 24"><ellipse cx="12" cy="18" rx="8" ry="3" fill="#b9791a"/><ellipse cx="12" cy="14.5" rx="8" ry="3" fill="var(--color-gold)"/><ellipse cx="12" cy="11" rx="8" ry="3" fill="var(--color-gold)"/><ellipse cx="12" cy="7.5" rx="8" ry="3" fill="#ffe28a"/></svg>
-                <span class="coin-pack-amount">6,000</span>
-                <a href="#" class="coin-pack-price" data-coins="6000">$7.99</a>
-              </div>
-            </div>
           </div>
 
           <!-- Boosters -->
@@ -556,7 +541,7 @@
             <span class="sh-section-title">Boosters</span>
             <div class="sh-booster-grid">
               <div class="booster-item">
-                <svg class="booster-item-icon" viewBox="0 0 24 24"><path d="M15 3.5l4.5 4.5-2.7 2.7-4.5-4.5z"/><path d="M12.3 6.2L4.8 13.7a2 2 0 0 0 0 2.8l1.7 1.7a2 2 0 0 0 2.8 0l7.5-7.5"/><path d="M5 19l3-3"/></svg>
+                <svg class="booster-item-icon" viewBox="0 0 24 24"><path d="m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>
                 <span class="booster-item-name">Hammer</span>
                 <span class="booster-item-price">
                   <svg viewBox="0 0 24 24" class="icon-coin"><circle cx="12" cy="12" r="10"/></svg>
@@ -564,15 +549,15 @@
                 </span>
               </div>
               <div class="booster-item">
-                <svg class="booster-item-icon" viewBox="0 0 24 24"><circle cx="12" cy="14" r="6.5"/><path d="M12 7.5V5"/><path d="M12 5c1-1.3 2.3-1.3 2.8-2.6"/><circle cx="15.2" cy="1.7" r="1" fill="var(--color-gold)" stroke="none"/></svg>
+                <svg class="booster-item-icon" viewBox="0 0 24 24"><circle cx="11" cy="13" r="9"/><path d="M14.35 4.65 16.3 2.7a2.41 2.41 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4l-1.95 1.95"/><path d="m22 2-1.5 1.5"/></svg>
                 <span class="booster-item-name">Bomb</span>
                 <span class="booster-item-price">
                   <svg viewBox="0 0 24 24" class="icon-coin"><circle cx="12" cy="12" r="10"/></svg>
-                  120
+                  80
                 </span>
               </div>
               <div class="booster-item">
-                <svg class="booster-item-icon" viewBox="0 0 24 24"><path d="M3 12h5"/><path d="M8 9h4v6H8z"/><path d="M12 10h3.5v4H12z"/><path d="M15.5 11.5H19"/></svg>
+                <svg class="booster-item-icon" viewBox="0 0 24 24"><path d="M10 18a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a3 3 0 0 1-3-3 1 1 0 0 1 1-1z"/><path d="M13 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1l-.81 3.242a1 1 0 0 1-.97.758H8"/><path d="M14 4h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3"/><path d="M18 6h4"/><path d="m5 10-2 8"/><path d="m7 18 2-8"/></svg>
                 <span class="booster-item-name">Drill</span>
                 <span class="booster-item-price">
                   <svg viewBox="0 0 24 24" class="icon-coin"><circle cx="12" cy="12" r="10"/></svg>
@@ -580,7 +565,7 @@
                 </span>
               </div>
               <div class="booster-item">
-                <svg class="booster-item-icon" viewBox="0 0 24 24" fill="var(--color-gold)" stroke="none"><path d="M13 2L4.5 13.5H10L9 22l9-13H12z"/></svg>
+                <svg class="booster-item-icon" viewBox="0 0 24 24"><path d="M15.914 4a1.5 1.5 0 0 0-2.474-1.561l-9 9A1.5 1.5 0 0 0 5.5 14h4.002a.5.5 0 0 1 .471.666L8.086 20a1.5 1.5 0 0 0 2.475 1.56l9-9A1.5 1.5 0 0 0 18.5 10h-3.997a.5.5 0 0 1-.472-.667z"/></svg>
                 <span class="booster-item-name">Lightning</span>
                 <span class="booster-item-price">
                   <svg viewBox="0 0 24 24" class="icon-coin"><circle cx="12" cy="12" r="10"/></svg>
@@ -591,13 +576,13 @@
 
             <div class="sh-bundle">
               <div class="sh-bundle-icons">
-                <svg viewBox="0 0 24 24"><path d="M15 3.5l4.5 4.5-2.7 2.7-4.5-4.5z"/><path d="M12.3 6.2L4.8 13.7a2 2 0 0 0 0 2.8l1.7 1.7a2 2 0 0 0 2.8 0l7.5-7.5"/></svg>
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="14" r="6.5"/><path d="M12 7.5V5"/></svg>
-                <svg viewBox="0 0 24 24"><path d="M3 12h5"/><path d="M8 9h4v6H8z"/></svg>
-                <svg viewBox="0 0 24 24" fill="var(--color-gold)" stroke="none"><path d="M13 2L4.5 13.5H10L9 22l9-13H12z"/></svg>
+                <svg viewBox="0 0 24 24"><path d="m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="13" r="9"/><path d="M14.35 4.65 16.3 2.7a2.41 2.41 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4l-1.95 1.95"/><path d="m22 2-1.5 1.5"/></svg>
+                <svg viewBox="0 0 24 24"><path d="M10 18a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a3 3 0 0 1-3-3 1 1 0 0 1 1-1z"/><path d="M13 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1l-.81 3.242a1 1 0 0 1-.97.758H8"/><path d="M14 4h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3"/><path d="M18 6h4"/><path d="m5 10-2 8"/><path d="m7 18 2-8"/></svg>
+                <svg viewBox="0 0 24 24"><path d="M15.914 4a1.5 1.5 0 0 0-2.474-1.561l-9 9A1.5 1.5 0 0 0 5.5 14h4.002a.5.5 0 0 1 .471.666L8.086 20a1.5 1.5 0 0 0 2.475 1.56l9-9A1.5 1.5 0 0 0 18.5 10h-3.997a.5.5 0 0 1-.472-.667z"/></svg>
               </div>
               <span class="sh-bundle-text">Booster Bundle x3 each</span>
-              <a href="#" class="btn-secondary">$1.99</a>
+              <a href="#" class="btn-secondary"><svg viewBox="0 0 24 24" class="icon-coin" style="width:14px;height:14px;vertical-align:-2px"><circle cx="12" cy="12" r="10"/></svg> 980</a>
             </div>
           </div>
 
@@ -636,10 +621,11 @@
       });
     });
 
-    // Coin pack purchase (mock) — bump the header balance with a tick-up pop.
+    // Watch & Earn (mock) — a finished video bumps the header balance with a
+    // tick-up pop.
     var coinBalanceEl = document.getElementById('shopCoinBalance');
     var coinPill = coinBalanceEl ? coinBalanceEl.closest('.sh-coin-pill') : null;
-    var coinPackLinks = document.querySelectorAll('.coin-pack-price[data-coins]');
+    var coinPackLinks = document.querySelectorAll('[data-coins]');
     coinPackLinks.forEach(function (link) {
       link.addEventListener('click', function (e) {
         e.preventDefault();

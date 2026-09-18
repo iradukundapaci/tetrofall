@@ -28,6 +28,35 @@ class _FallingBlock {
   double impactElapsed = 0;
 }
 
+/// One leg of a journey: a run of steps in a single direction, with its own
+/// share of the flight time and its own curve.
+class _Segment {
+  _Segment(this.from, this.to, this.seconds, {required this.vertical});
+
+  final (int row, int col) from;
+  final (int row, int col) to;
+  final double seconds;
+  final bool vertical;
+}
+
+/// A block travelling a [BlockPath] — sideways, downward, or around a corner
+/// (`boosters.md` §6.0). Consecutive steps in the same direction are merged
+/// into one segment, so a five-cell slide is one motion and not five.
+class _TravellingBlock {
+  _TravellingBlock(this.segments, this.target);
+
+  final List<_Segment> segments;
+  final (int row, int col) target;
+
+  int index = 0;
+  double elapsed = 0;
+  bool landed = false;
+  double impactElapsed = 0;
+
+  _Segment get current => segments[index];
+  bool get endsFalling => segments.isNotEmpty && segments.last.vertical;
+}
+
 class FallAnimator extends PositionComponent {
   FallAnimator({required this.theme});
 
@@ -36,6 +65,9 @@ class FallAnimator extends PositionComponent {
 
   final List<_FallingBlock> _falls = [];
   final List<BlockComponent> _pool = [];
+
+  final List<_TravellingBlock> _travels = [];
+  final List<BlockComponent> _travelPool = [];
 
   // Packed as row * cols + col rather than a (row, col) record: the board
   // renderer probes this once per occupied cell per frame, and a record
@@ -47,17 +79,88 @@ class FallAnimator extends PositionComponent {
   bool isFallTarget(int row, int col) =>
       _activeTargets.contains(_targetKey(row, col));
 
-  bool get isAnimating => _falls.isNotEmpty;
+  bool get isAnimating => _falls.isNotEmpty || _travels.isNotEmpty;
 
   void reset() {
     _activeTargets.clear();
     _falls.clear();
-    for (final block in _pool) {
+    _travels.clear();
+    for (final block in [..._pool, ..._travelPool]) {
       block
         ..blockVisible = false
         ..removeFromParent();
     }
     _pool.clear();
+    _travelPool.clear();
+  }
+
+  /// Blocks a booster carried somewhere. The grid already holds the result —
+  /// logic commits instantly and the render layer animates toward it
+  /// (`game.md` §2 golden rule) — so these draw over the destination cell
+  /// until they arrive, exactly as a fall does.
+  void addPaths(List<BlockPathEvent> paths) {
+    for (final event in paths) {
+      final cells = event.path.cells;
+      if (cells.length < 2) continue;
+
+      final segments = _segmentsFor(cells, event.durationSeconds);
+      if (segments.isEmpty) continue;
+
+      final target = cells.last;
+      _travels.add(_TravellingBlock(segments, target));
+      _activeTargets.add(_targetKey(target.$1, target.$2));
+      if (_travelPool.length < _travels.length) {
+        final b = BlockComponent(theme: theme);
+        _travelPool.add(b);
+        add(b);
+      }
+    }
+  }
+
+  /// Splits a path into same-direction runs and shares the flight time out
+  /// between them by how long each would take on its own — so the sideways
+  /// legs stay at a flat [Motion.boosterSlideStep] per cell and the drops
+  /// stay on the gravity curve, however the engine scaled the total.
+  List<_Segment> _segmentsFor(List<(int, int)> cells, double totalSeconds) {
+    final runs = <((int, int), (int, int), bool)>[];
+    var start = cells.first;
+    var previous = cells.first;
+    bool? vertical;
+
+    for (var i = 1; i < cells.length; i++) {
+      final cell = cells[i];
+      final stepVertical = cell.$1 != previous.$1;
+      if (vertical != null && stepVertical != vertical) {
+        runs.add((start, previous, vertical));
+        start = previous;
+      }
+      vertical = stepVertical;
+      previous = cell;
+    }
+    if (vertical != null) runs.add((start, previous, vertical));
+
+    // Weight each run by its natural cost, then rescale to the budget the
+    // engine handed down.
+    final weights = [
+      for (final (from, to, isVertical) in runs)
+        isVertical
+            ? math.sqrt(2 * (to.$1 - from.$1).abs() / Motion.gravityCellsPerS2)
+            : (to.$2 - from.$2).abs() *
+                  Motion.boosterSlideStep.inMilliseconds /
+                  1000,
+    ];
+    final sum = weights.fold(0.0, (a, b) => a + b);
+    if (sum <= 0) return const [];
+
+    return [
+      for (var i = 0; i < runs.length; i++)
+        _Segment(
+          runs[i].$1,
+          runs[i].$2,
+          math.max(totalSeconds * weights[i] / sum, 1e-4),
+          vertical: runs[i].$3,
+        ),
+    ];
   }
 
   void addFalls(List<BlockFallEvent> falls) {
@@ -86,6 +189,8 @@ class FallAnimator extends PositionComponent {
   void update(double dt) {
     super.update(dt);
     final impactSeconds = Motion.impactSquash.inMilliseconds / 1000;
+
+    _updateTravels(dt, impactSeconds);
 
     for (var i = _falls.length - 1; i >= 0; i--) {
       final f = _falls[i];
@@ -124,6 +229,82 @@ class FallAnimator extends PositionComponent {
           block.squashY = 1.0;
           _falls.removeAt(i);
           _pool.removeAt(i)
+            ..blockVisible = false
+            ..removeFromParent();
+        }
+      }
+    }
+  }
+
+  void _updateTravels(double dt, double impactSeconds) {
+    for (var i = _travels.length - 1; i >= 0; i--) {
+      final travel = _travels[i];
+      final block = _travelPool[i];
+      block
+        ..blockVisible = true
+        ..size = Vector2.all(cellSize);
+
+      if (!travel.landed) {
+        travel.elapsed += dt;
+        var segment = travel.current;
+        // A fast segment can be crossed inside one frame, and a tilt can
+        // stack several of them, so carry the overflow forward rather than
+        // spending a frame per leg.
+        while (travel.elapsed >= segment.seconds &&
+            travel.index < travel.segments.length - 1) {
+          travel.elapsed -= segment.seconds;
+          travel.index++;
+          segment = travel.current;
+        }
+
+        final t = (travel.elapsed / segment.seconds).clamp(0.0, 1.0);
+        // Falling legs accelerate; sideways legs are flat, so a slide reads
+        // as travel rather than as a bounce (§6.0).
+        final eased = segment.vertical
+            ? Curves.easeInQuad.transform(t)
+            : t.toDouble();
+        final row = segment.from.$1 + (segment.to.$1 - segment.from.$1) * eased;
+        final col = segment.from.$2 + (segment.to.$2 - segment.from.$2) * eased;
+        block.position = Vector2(col * cellSize, row * cellSize);
+
+        if (t >= 1.0) {
+          travel.landed = true;
+          // Dust only where the journey actually ended in a drop.
+          if (travel.endsFalling) {
+            add(
+              DustPuff(
+                at: Vector2(
+                  (travel.target.$2 + 0.5) * cellSize,
+                  (travel.target.$1 + 1) * cellSize,
+                ),
+                cellSize: cellSize,
+                theme: theme,
+              ),
+            );
+          }
+        }
+      } else {
+        travel.impactElapsed += dt;
+        final it = impactSeconds <= 0
+            ? 1.0
+            : (travel.impactElapsed / impactSeconds).clamp(0.0, 1.0);
+        block
+          ..position = Vector2(
+            travel.target.$2 * cellSize,
+            travel.target.$1 * cellSize,
+          )
+          // Squash is the landing tell, so a block that slid to a stop keeps
+          // its shape.
+          ..squashY = travel.endsFalling
+              ? 1.0 - 0.15 * math.sin(math.pi * it)
+              : 1.0;
+        if (it >= 1.0) {
+          _activeTargets.remove(_targetKey(travel.target.$1, travel.target.$2));
+          block
+            ..blockVisible = false
+            ..squashY = 1.0;
+          _travels.removeAt(i);
+          _travelPool.removeAt(i)
             ..blockVisible = false
             ..removeFromParent();
         }

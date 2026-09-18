@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../game/engine/events.dart';
+import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
 import '../widgets/icon_button.dart';
@@ -15,8 +17,10 @@ class GameOverOverlay extends StatelessWidget {
     required this.best,
     required this.onRestart,
     required this.onHome,
-    required this.canContinueWithAd,
-    required this.onContinueWithAd,
+    required this.canContinue,
+    required this.continuePrice,
+    required this.coinBalance,
+    required this.onContinue,
   });
 
   final GameOverReason reason;
@@ -25,8 +29,20 @@ class GameOverOverlay extends StatelessWidget {
   final VoidCallback onRestart;
   final VoidCallback onHome;
 
-  final bool canContinueWithAd;
-  final VoidCallback onContinueWithAd;
+  /// Whether a continue is still on the table at all — one per run, whatever
+  /// it is paid with.
+  final bool canContinue;
+
+  /// Coins the continue costs. Shown on the button, so the price is never a
+  /// surprise revealed after the tap.
+  final int continuePrice;
+
+  final int coinBalance;
+
+  /// Spends the Coins, or opens the earn screen first when the wallet is
+  /// short. Either way the player does not lose this board by going to get
+  /// what they need.
+  final VoidCallback onContinue;
 
   bool get _isNewBest => score > best;
 
@@ -162,15 +178,21 @@ class GameOverOverlay extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (canContinueWithAd) ...[
+                  if (canContinue) ...[
                     SecondaryButton(
-                      label: 'Watch Ad to Continue',
-                      icon: Icon(
-                        Icons.smart_display_outlined,
-                        size: ui.iconSm,
-                        color: Tokens.colorText,
+                      label: coinBalance >= continuePrice
+                          ? 'Continue  $continuePrice'
+                          : 'Continue  $continuePrice  (earn Coins)',
+                      icon: SvgPicture.asset(
+                        AppIcons.coin,
+                        width: ui.iconSm,
+                        height: ui.iconSm,
+                        colorFilter: const ColorFilter.mode(
+                          Tokens.colorGold,
+                          BlendMode.srcIn,
+                        ),
                       ),
-                      onPressed: onContinueWithAd,
+                      onPressed: onContinue,
                     ),
                     SizedBox(height: ui.spaceMd),
                   ],

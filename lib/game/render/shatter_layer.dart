@@ -38,8 +38,9 @@ Color _shiftLightness(Color color, double delta) {
   return hsl.withLightness((hsl.lightness + delta).clamp(0.0, 1.0)).toColor();
 }
 
-List<Color> _tonalVariants(Color base, List<double> deltas) =>
-    [for (final d in deltas) _shiftLightness(base, d)];
+List<Color> _tonalVariants(Color base, List<double> deltas) => [
+  for (final d in deltas) _shiftLightness(base, d),
+];
 
 class _Shard {
   bool active = false;
@@ -112,6 +113,9 @@ class _CrackedCell {
   final List<Path> cracks = [];
   double remaining;
 }
+
+/// The order a booster's cells come apart in — see [ShatterLayer.addBoosterBurst].
+enum BurstSpread { rings, sweep, together }
 
 class ShatterLayer extends PositionComponent {
   ShatterLayer({required this.theme})
@@ -250,8 +254,50 @@ class ShatterLayer extends PositionComponent {
       linesCleared: linesCleared,
       delayFor: (cell) =>
           crackSeconds + (cell.col - center).abs() * stepSeconds,
+      offCenterFor: (cell) => center == 0 ? 0.0 : (cell.col - center) / center,
+    );
+  }
+
+  /// A booster's own shatter (`boosters.md` §6.1). Same shards, same pool,
+  /// different order: a bomb breaks in rings out from the middle, a drill
+  /// breaks in the direction the bit travels, and everything else falls back
+  /// to the centre-out sequence a line clear uses.
+  void addBoosterBurst(
+    List<ClearedCell> cells,
+    int cols, {
+    (int row, int col)? origin,
+    BurstSpread spread = BurstSpread.rings,
+    double stepSeconds = 0.04,
+    double leadSeconds = 0.0,
+    double timeScale = 1.0,
+  }) {
+    if (cells.isEmpty) return;
+    final step = stepSeconds * timeScale;
+    final lead = leadSeconds * timeScale;
+    final center = (cols - 1) / 2.0;
+    final from = origin ?? (cells.first.row, cells.first.col);
+
+    double delayFor(ClearedCell cell) => switch (spread) {
+      BurstSpread.rings =>
+        lead +
+            step *
+                math.max(
+                  (cell.row - from.$1).abs(),
+                  (cell.col - from.$2).abs(),
+                ),
+      BurstSpread.sweep => lead + step * (cell.col - from.$2).abs(),
+      BurstSpread.together => lead,
+    };
+
+    _addShatter(
+      cells,
+      linesCleared: 1,
+      delayFor: delayFor,
+      // Shards are thrown away from where the booster hit rather than away
+      // from the middle of the board, so a corner blast reads as a corner
+      // blast.
       offCenterFor: (cell) =>
-          center == 0 ? 0.0 : (cell.col - center) / center,
+          center == 0 ? 0.0 : ((cell.col - from.$2) / center).clamp(-1.0, 1.0),
     );
   }
 
@@ -461,10 +507,7 @@ class ShatterLayer extends PositionComponent {
     for (final cell in _crackedCells) {
       if (tile == null) {
         canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            cell.rect,
-            Radius.circular(cellSize * 0.06),
-          ),
+          RRect.fromRectAndRadius(cell.rect, Radius.circular(cellSize * 0.06)),
           Paint()..color = theme.blockTint,
         );
       } else {

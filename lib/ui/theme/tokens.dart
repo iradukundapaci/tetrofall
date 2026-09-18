@@ -70,6 +70,20 @@ abstract final class Tokens {
   /// before layout — see `_GameplayBody`.
   static const hudHeight = 56.0;
 
+  /// The booster bar's strip under the board, fixed for the same reason
+  /// [hudHeight] is: `_GameplayBody` budgets the board's height before layout
+  /// runs (`boosters.md` §4.1). A row of 50pt discs needs less than the 64pt
+  /// the first draft's tiles did — and the banner's height came back to the
+  /// board on top of that.
+  static const boosterBarHeight = 58.0;
+
+  /// A booster slot is a disc, not a tile: it reads as a control rather than
+  /// as a second frame under the board, and it stays 50pt on a tablet
+  /// instead of growing into a slab. Still clears [tapTarget] at 48.
+  static const boosterSlot = 50.0;
+  static const boosterGlyphSize = 25.0;
+  static const boosterBadge = 17.0;
+
   static const borderThick = 2.0;
   static const borderBoard = 3.0;
   static const boardInset = 4.0;

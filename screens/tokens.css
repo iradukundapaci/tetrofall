@@ -22,6 +22,18 @@
   --color-text: #f5ead9;
   --color-text-muted: #b9a889;
 
+  /* Booster surfaces — boosters.md §9.2.
+     These six are the only colors booster UI is allowed to read, so a future
+     theme can recolor every booster by redefining them. classic_wood values.
+     Note §9.1: no blue / purple / green anywhere in booster visuals; red is
+     reserved for Wildfire's dying ember, never a UI state. */
+  --booster-face: var(--color-panel);
+  --booster-rim: rgba(200, 155, 106, 0.6);   /* --color-wood-light @ 60% */
+  --booster-glyph: var(--color-gold);
+  --booster-glyph-muted: var(--color-text-muted);
+  --effect-hot: #ffe6a8;                     /* pale gold — bolt core, fire core */
+  --effect-ember: var(--color-red);          /* fire edge, ember */
+
   /* Typography */
   --font-display: 'Baloo 2', 'Trebuchet MS', ui-rounded, system-ui, sans-serif;
   --font-body: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -51,6 +63,11 @@
   --space-lg: 24px;
   --space-xl: 32px;
   --space-xxl: 48px;
+
+  /* Fixed-height strips the gameplay layout budgets for before it sizes the
+     board (boosters.md §4.1) — same reason the HUD has one. A row of 50 px
+     discs needs less than the old 64 px tiles did. */
+  --booster-bar-height: 58px;
 
   /* Shared wood-grain background, reused on <body> and any full-bleed screen */
   --bg-wood-texture:
