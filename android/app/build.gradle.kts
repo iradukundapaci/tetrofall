@@ -32,10 +32,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
-
     defaultConfig {
         applicationId = "com.nosleepstudios.tetrofall"
 
@@ -99,6 +95,14 @@ android {
                 "proguard-rules.pro",
             )
         }
+    }
+}
+
+// Top-level rather than inside `android {}`: AGP 9 removes `kotlinOptions` from
+// the Android extension, and this is the form Flutter's own app template uses.
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 

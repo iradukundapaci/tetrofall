@@ -13,13 +13,16 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true">
+        <!-- No android:screenOrientation here, deliberately. Play flags a
+             manifest lock, and Android 16 ignores it on large screens anyway.
+             Phones are held to portrait from Dart instead — see
+             _applyOrientationPolicy in lib/main.dart. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
-            android:screenOrientation="portrait"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
