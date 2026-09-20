@@ -141,15 +141,20 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
           });
         },
         onAdFailedToLoad: (ad, error) {
+          AdsService.logLoadFailure(AdPlacements.banner, error);
           AnalyticsService.ad(
             outcome: AdOutcome.failed,
             kind: AdKind.banner,
             placement: AdPlacements.banner,
             reason: error.code == 3 ? AdFailure.noFill : AdFailure.unknown,
           );
+          if (identical(ad, _bannerAd) && mounted) {
+            setState(() => _bannerAd = null);
+          }
           ad.dispose();
           if (_isCurrent(generation)) _scheduleRetry();
         },
+        onAdClicked: (_) => widget.ads.notifyAdClicked(),
       ),
     );
     ad.load();

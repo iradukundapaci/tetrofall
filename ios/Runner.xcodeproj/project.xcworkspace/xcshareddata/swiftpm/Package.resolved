@@ -37,6 +37,24 @@
       }
     },
     {
+      "identity" : "googleads-mobile-ios-mediation-liftoffmonetize",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/googleads/googleads-mobile-ios-mediation-liftoffmonetize.git",
+      "state" : {
+        "revision" : "4cded3a3d6a394e9e753b4353bef9a9ba48e9d23",
+        "version" : "7.7.700"
+      }
+    },
+    {
+      "identity" : "googleads-mobile-ios-mediation-unity",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/googleads/googleads-mobile-ios-mediation-unity.git",
+      "state" : {
+        "revision" : "e7d16cc0820c89154969844801a71b1172b368fa",
+        "version" : "4.20.100"
+      }
+    },
+    {
       "identity" : "googleappmeasurement",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/GoogleAppMeasurement.git",
@@ -133,6 +151,24 @@
       "state" : {
         "revision" : "13b248eaa73b7826f0efb1bcf455e251d65ecb1b",
         "version" : "3.1.0"
+      }
+    },
+    {
+      "identity" : "unity-ads-swift-package",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Unity-Technologies/Unity-Ads-Swift-Package.git",
+      "state" : {
+        "revision" : "2d489ee19ef73cdb51410ad09f0f13cb4f9cb388",
+        "version" : "4.20.1"
+      }
+    },
+    {
+      "identity" : "vungleadssdk-swiftpackagemanager",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Vungle/VungleAdsSDK-SwiftPackageManager.git",
+      "state" : {
+        "revision" : "fad76e1308414d59a13015e2c12f551860c4509a",
+        "version" : "7.7.7"
       }
     }
   ],

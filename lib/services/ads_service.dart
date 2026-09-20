@@ -51,10 +51,16 @@ class AdsService {
   AdsService(this._storage, {ConnectivityService? connectivity})
     : _connectivity = connectivity;
 
-  static const _interstitialRunCap = 4;
-  static const _interstitialPlaySecondsCap = 6 * 60;
-  static const _appOpenMinBackgroundDuration = Duration(minutes: 5);
-  static const _appOpenMinInterval = Duration(hours: 1);
+  static const _interstitialRunCap = 2;
+  static const _interstitialPlaySecondsCap = 3 * 60;
+  static const _appOpenMinBackgroundDuration = Duration(seconds: 30);
+  static const _appOpenMinInterval = Duration(minutes: 15);
+  static const _fullScreenAdGap = Duration(seconds: 60);
+  static const _interstitialTtl = Duration(minutes: 55);
+  static const _rewardedTtl = Duration(minutes: 55);
+  static const _appOpenTtl = Duration(hours: 3, minutes: 55);
+  static const _adClickGrace = Duration(seconds: 10);
+  static const _testDeviceIds = <String>[];
 
   final StorageService _storage;
   final ConnectivityService? _connectivity;
@@ -62,13 +68,64 @@ class AdsService {
   RewardedAd? _rewardedAd;
   InterstitialAd? _interstitialAd;
   AppOpenAd? _appOpenAd;
+  DateTime? _rewardedLoadedAt;
+  DateTime? _interstitialLoadedAt;
+  DateTime? _appOpenLoadedAt;
+  DateTime? _lastFullScreenAdEndedAt;
+  DateTime? _lastAdClickAt;
 
   bool _canRequestAds = false;
-  bool _hasEndedARunThisSession = false;
   bool _justWatchedRewardedContinue = false;
   DateTime? _backgroundedAt;
 
   bool get isRewardedContinueReady => _rewardedAd != null;
+  ValueListenable<bool> get rewardedContinueReady => _rewardedContinueReady;
+  final ValueNotifier<bool> _rewardedContinueReady = ValueNotifier(false);
+  set _rewarded(RewardedAd? ad) {
+    _rewardedAd = ad;
+    _rewardedLoadedAt = ad == null ? null : DateTime.now();
+    _rewardedContinueReady.value = ad != null;
+  }
+
+  ValueListenable<bool> get fullScreenAdShowing => _fullScreenAdShowing;
+  final ValueNotifier<bool> _fullScreenAdShowing = ValueNotifier(false);
+
+  void _fullScreenAdStarted() => _fullScreenAdShowing.value = true;
+
+  void _fullScreenAdEnded() {
+    _fullScreenAdShowing.value = false;
+    _lastFullScreenAdEndedAt = DateTime.now();
+  }
+
+  bool get _tooSoonAfterFullScreenAd {
+    if (_fullScreenAdShowing.value) return true;
+    final last = _lastFullScreenAdEndedAt;
+    return last != null && DateTime.now().difference(last) < _fullScreenAdGap;
+  }
+
+  void notifyAdClicked() => _lastAdClickAt = DateTime.now();
+
+  static bool _isExpired(DateTime? loadedAt, Duration ttl) =>
+      loadedAt != null && DateTime.now().difference(loadedAt) > ttl;
+  void dropExpiredAds() {
+    if (_isExpired(_rewardedLoadedAt, _rewardedTtl)) {
+      _rewardedAd?.dispose();
+      _rewarded = null;
+      _loadRewarded();
+    }
+    if (_isExpired(_interstitialLoadedAt, _interstitialTtl)) {
+      _interstitialAd?.dispose();
+      _interstitialAd = null;
+      _interstitialLoadedAt = null;
+      _loadInterstitial();
+    }
+    if (_isExpired(_appOpenLoadedAt, _appOpenTtl)) {
+      _appOpenAd?.dispose();
+      _appOpenAd = null;
+      _appOpenLoadedAt = null;
+      _loadAppOpen();
+    }
+  }
 
   bool get canRequestAds => _canRequestAds;
 
@@ -330,7 +387,13 @@ class AdsService {
 
     if (!_adsStarted) {
       try {
-        await MobileAds.instance.initialize();
+        if (_testDeviceIds.isNotEmpty) {
+          await MobileAds.instance.updateRequestConfiguration(
+            RequestConfiguration(testDeviceIds: _testDeviceIds),
+          );
+        }
+        final status = await MobileAds.instance.initialize();
+        _logAdapterStatuses(status);
       } catch (_) {
         // Deliberately leaves [_adsStarted] false. This flag used to be set
         // before the await, so a handshake that failed could never be tried
@@ -343,6 +406,20 @@ class AdsService {
     _loadRewarded();
     _loadInterstitial();
     _loadAppOpen();
+  }
+
+  /// Prints each mediation adapter's state after the SDK handshake. A
+  /// `notReady` here is almost always a wrong placement ID in the AdMob
+  /// console or an adapter missing from `android/app/build.gradle.kts`, and
+  /// this is the first place to look when a network never serves.
+  static void _logAdapterStatuses(InitializationStatus status) {
+    if (kReleaseMode) return;
+    status.adapterStatuses.forEach((name, adapter) {
+      debugPrint(
+        '[Ads] $name: ${adapter.state.name}'
+        '${adapter.description.isEmpty ? '' : ' — ${adapter.description}'}',
+      );
+    });
   }
 
   /// The network came back, or went away.
@@ -424,11 +501,13 @@ class AdsService {
   /// one it is already showing.
   void _discardCachedAds() {
     _rewardedAd?.dispose();
-    _rewardedAd = null;
+    _rewarded = null;
     _interstitialAd?.dispose();
     _interstitialAd = null;
+    _interstitialLoadedAt = null;
     _appOpenAd?.dispose();
     _appOpenAd = null;
+    _appOpenLoadedAt = null;
   }
 
   /// Whether an ad requested at [revision] is still one this app is allowed to
@@ -473,12 +552,12 @@ class AdsService {
             _loadRewarded();
             return;
           }
-          _rewardedAd = ad;
+          _rewarded = ad;
         },
         onAdFailedToLoad: (error) {
           _reportNoFill(AdPlacements.rewardedContinue, AdKind.rewardedVideo, error);
           _rewardedLoadRevision = null;
-          _rewardedAd = null;
+          _rewarded = null;
           // Without this the slot is dead for the session: the only other
           // path back into this method is a dismissal callback, and there is
           // no ad to dismiss.
@@ -494,19 +573,24 @@ class AdsService {
   /// can close it), and the caller resumes the run on this future — so
   /// completing early would play the board wipe behind the ad.
   Future<bool> showRewardedContinue() async {
+    dropExpiredAds();
     final ad = _rewardedAd;
     if (ad == null) return false;
-    _rewardedAd = null;
+    _rewarded = null;
 
     var earned = false;
     final closed = Completer<bool>();
+    _fullScreenAdStarted();
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdClicked: (_) => notifyAdClicked(),
       onAdDismissedFullScreenContent: (ad) {
+        _fullScreenAdEnded();
         ad.dispose();
         _loadRewarded();
         if (!closed.isCompleted) closed.complete(earned);
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
+        _fullScreenAdEnded();
         AnalyticsService.ad(
           outcome: AdOutcome.failed,
           kind: AdKind.rewardedVideo,
@@ -563,6 +647,7 @@ class AdsService {
             return;
           }
           _interstitialAd = ad;
+          _interstitialLoadedAt = DateTime.now();
         },
         onAdFailedToLoad: (error) {
           _reportNoFill(AdPlacements.interstitial, AdKind.interstitial, error);
@@ -574,16 +659,29 @@ class AdsService {
     );
   }
 
-  void _showInterstitial() {
+  /// Shows the cached interstitial, returning a future that completes once it
+  /// has left the screen — or null, having shown nothing, when there is no
+  /// ad in hand or one was on screen too recently.
+  Future<void>? _showInterstitial() {
+    dropExpiredAds();
     final ad = _interstitialAd;
-    if (ad == null) return;
+    if (ad == null || _tooSoonAfterFullScreenAd) return null;
     _interstitialAd = null;
+    _interstitialLoadedAt = null;
+
+    final closed = Completer<void>();
+    _fullScreenAdStarted();
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdClicked: (_) => notifyAdClicked(),
       onAdDismissedFullScreenContent: (ad) {
+        _fullScreenAdEnded();
         ad.dispose();
         _loadInterstitial();
+        if (!closed.isCompleted) closed.complete();
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
+        _fullScreenAdEnded();
+        if (!closed.isCompleted) closed.complete();
         AnalyticsService.ad(
           outcome: AdOutcome.failed,
           kind: AdKind.interstitial,
@@ -599,24 +697,38 @@ class AdsService {
       placement: AdPlacements.interstitial,
     );
     ad.show();
+    return closed.future;
   }
 
+  /// Counts a finished run toward the interstitial cadence, and shows one
+  /// when the cadence is due. Completes once any interstitial it showed has
+  /// been dismissed, so a caller about to start a new run can wait for it —
+  /// otherwise the run would start ticking behind the ad.
+  ///
+  /// The counters reset only when an ad is actually shown. A cadence that
+  /// comes due with nothing loaded stays due, and the next run-end gets it.
+  ///
+  /// There is no per-session grace run: the counters persist across cold
+  /// starts, so a player coming back with the cap nearly reached is shown one
+  /// on their first run-end, as they would have been had they never left. The
+  /// one exception is straight after a rewarded continue — an interstitial on
+  /// the heels of an ad the player chose to watch is the fastest way to teach
+  /// them not to.
   Future<void> notifyRunEnded(Duration runDuration) async {
-    final skipThisOne =
-        !_hasEndedARunThisSession || _justWatchedRewardedContinue;
-    _hasEndedARunThisSession = true;
+    final skipThisOne = _justWatchedRewardedContinue;
     _justWatchedRewardedContinue = false;
 
     final runs = _storage.runsSinceLastInterstitial + 1;
     final seconds =
         _storage.playSecondsSinceLastInterstitial + runDuration.inSeconds;
 
-    if (!skipThisOne &&
-        (runs >= _interstitialRunCap ||
-            seconds >= _interstitialPlaySecondsCap)) {
-      _showInterstitial();
+    final due =
+        runs >= _interstitialRunCap || seconds >= _interstitialPlaySecondsCap;
+    final shown = !skipThisOne && due ? _showInterstitial() : null;
+    if (shown != null) {
       await _storage.saveRunsSinceLastInterstitial(0);
       await _storage.savePlaySecondsSinceLastInterstitial(0);
+      await shown;
       return;
     }
 
@@ -651,6 +763,7 @@ class AdsService {
             return;
           }
           _appOpenAd = ad;
+          _appOpenLoadedAt = DateTime.now();
         },
         onAdFailedToLoad: (error) {
           _reportNoFill(AdPlacements.appOpen, AdKind.interstitial, error);
@@ -664,14 +777,25 @@ class AdsService {
 
   void _onAppLifecycleStateChange(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      _backgroundedAt = DateTime.now();
+      // On Android a full-screen ad is its own activity, so showing one — or
+      // following a tap on one out to the browser — backgrounds the app just
+      // as leaving does. Neither is the player leaving, and counting them
+      // would greet the end of every rewarded video with an app-open ad.
+      final lastClick = _lastAdClickAt;
+      final leftForAd =
+          _fullScreenAdShowing.value ||
+          (lastClick != null &&
+              DateTime.now().difference(lastClick) < _adClickGrace);
+      _backgroundedAt = leftForAd ? null : DateTime.now();
       // Nothing requested from the background can be shown, and the network
       // may well be asleep with the device.
       _rewardedRetry.pause();
       _interstitialRetry.pause();
       _appOpenRetry.pause();
     } else if (state == AppLifecycleState.resumed) {
+      dropExpiredAds();
       _maybeShowAppOpenAd();
+      _backgroundedAt = null;
       // The likeliest moment for the network to have changed while nothing
       // was watching — and the one chance to recover a session that started
       // with no internet if the connectivity stream missed the transition.
@@ -683,6 +807,10 @@ class AdsService {
   void _maybeShowAppOpenAd() {
     final backgroundedAt = _backgroundedAt;
     if (backgroundedAt == null) return;
+    // A player still in their first session — tutorial not yet finished — is
+    // exactly the one an early ad is most likely to lose.
+    if (!_storage.tutorialSeen) return;
+    if (_tooSoonAfterFullScreenAd) return;
     if (DateTime.now().difference(backgroundedAt) <
         _appOpenMinBackgroundDuration) {
       return;
@@ -697,12 +825,17 @@ class AdsService {
     final ad = _appOpenAd;
     if (ad == null) return;
     _appOpenAd = null;
+    _appOpenLoadedAt = null;
+    _fullScreenAdStarted();
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdClicked: (_) => notifyAdClicked(),
       onAdDismissedFullScreenContent: (ad) {
+        _fullScreenAdEnded();
         ad.dispose();
         _loadAppOpen();
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
+        _fullScreenAdEnded();
         AnalyticsService.ad(
           outcome: AdOutcome.failed,
           kind: AdKind.interstitial,
@@ -723,6 +856,39 @@ class AdsService {
     _storage.saveLastAppOpenAdShownAt(DateTime.now());
   }
 
+  /// Whether ad diagnostics are printed: debug and profile builds only.
+  static const _diagnostics = !kReleaseMode;
+
+  /// Prints why a load failed, network by network.
+  ///
+  /// The top-level error only says "no fill". The reason lives in the
+  /// response info: one entry per ad source AdMob tried, each with the
+  /// adapter's own error code and message — for Meta, 101-111 are the
+  /// adapter's (bad placement ID, SDK failed to initialise, ...) and
+  /// 1000-9999 are Meta's own (see Meta's error checklist). Used by the
+  /// banner slot too, which owns its own load.
+  static void logLoadFailure(String placement, LoadAdError error) {
+    if (!_diagnostics) return;
+    debugPrint(
+      '[Ads] $placement failed: code ${error.code} (${error.domain}) '
+      '${error.message}',
+    );
+    final responses = error.responseInfo?.adapterResponses;
+    if (responses == null || responses.isEmpty) {
+      debugPrint('[Ads] $placement: no adapter responses');
+      return;
+    }
+    for (final r in responses) {
+      final e = r.adError;
+      debugPrint(
+        '[Ads] $placement <- ${r.adSourceName} (${r.adapterClassName}) '
+        '${r.latencyMillis}ms '
+        '${e == null ? 'no error' : 'ERROR ${e.code} (${e.domain}): ${e.message}'} '
+        'mapping=${r.adUnitMapping}',
+      );
+    }
+  }
+
   /// Reports a failed load as a GameAnalytics `FailedShow` with a reason, so
   /// no-fill (an inventory problem) is separable from being offline (not one).
   ///
@@ -730,6 +896,7 @@ class AdsService {
   /// only the two that change what you would do about them and lets the rest
   /// fall through to `unknown` rather than guessing.
   static void _reportNoFill(String placement, AdKind kind, LoadAdError error) {
+    logLoadFailure(placement, error);
     AnalyticsService.ad(
       outcome: AdOutcome.failed,
       kind: kind,
@@ -754,5 +921,7 @@ class AdsService {
     _discardCachedAds();
     _adConfigRevision.dispose();
     _adRetryPulse.dispose();
+    _rewardedContinueReady.dispose();
+    _fullScreenAdShowing.dispose();
   }
 }

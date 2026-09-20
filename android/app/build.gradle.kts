@@ -102,6 +102,40 @@ android {
     }
 }
 
+// AdMob mediation adapters. The ad sources are configured in the AdMob
+// console, but they only bid once their adapter is in the binary — without
+// these every mediation group serves Google demand alone.
+//
+// The gma_mediation_* Flutter plugins in pubspec.yaml already bring each
+// adapter in, on both platforms. These lines only raise the Android ones to
+// newer patch releases than the plugins pin (Gradle resolves to the highest),
+// and match the Unity SDK to its adapter — the plugin pairs adapter 4.20 with
+// SDK 4.17. When the plugins catch up, this block can go.
+//
+// Each adapter is built against a specific Google Mobile Ads SDK. All of the
+// versions below pin play-services-ads 25.4.0, which is what
+// google_mobile_ads 9.1.0 brings in; bump them together with the plugin, and
+// check each adapter's POM when you do.
+//
+// AppLovin is deliberately absent until the account is approved — an adapter
+// with no live mapping behind it is only APK weight.
+//
+// Meta Audience Network and InMobi are absent too, for now. Meta's property is
+// not allow-listed for bidding, so it wins auctions and then returns no fill,
+// which blocks every network behind it; InMobi never filled. Add
+// gma_mediation_meta / gma_mediation_inmobi back to pubspec.yaml (and their
+// adapters here, if you want the newer patch releases) once each network
+// passes a single-source test in Google's Ad Inspector (re-add a temporary
+// MobileAds.instance.openAdInspector call to reach it).
+dependencies {
+    // Unity Ads. The adapter does not pull the SDK in transitively.
+    implementation("com.unity3d.ads:unity-ads:4.20.1")
+    implementation("com.google.ads.mediation:unity:4.20.1.0")
+
+    // Liftoff Monetize (Vungle)
+    implementation("com.google.ads.mediation:vungle:7.7.8.1")
+}
+
 flutter {
     source = "../.."
 }

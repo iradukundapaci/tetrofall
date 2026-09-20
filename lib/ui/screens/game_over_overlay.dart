@@ -17,6 +17,7 @@ class GameOverOverlay extends StatelessWidget {
     required this.onHome,
     required this.canContinueWithAd,
     required this.onContinueWithAd,
+    this.continueAdReady = true,
   });
 
   final GameOverReason reason;
@@ -27,6 +28,7 @@ class GameOverOverlay extends StatelessWidget {
 
   final bool canContinueWithAd;
   final VoidCallback onContinueWithAd;
+  final bool continueAdReady;
 
   bool get _isNewBest => score > best;
 
@@ -163,18 +165,21 @@ class GameOverOverlay extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (canContinueWithAd) ...[
-                    SecondaryButton(
-                      label: 'Watch Ad to Continue',
+                    PrimaryButton(
+                      label: continueAdReady
+                          ? 'Watch Ad to Continue'
+                          : 'Loading Ad…',
                       icon: Icon(
                         Icons.smart_display_outlined,
                         size: ui.iconSm,
-                        color: Tokens.colorText,
+                        color: Tokens.colorWoodDark,
                       ),
-                      onPressed: onContinueWithAd,
+                      onPressed: continueAdReady ? onContinueWithAd : null,
                     ),
                     SizedBox(height: ui.spaceMd),
-                  ],
-                  PrimaryButton(label: 'Play Again', onPressed: onRestart),
+                    SecondaryButton(label: 'Play Again', onPressed: onRestart),
+                  ] else
+                    PrimaryButton(label: 'Play Again', onPressed: onRestart),
                   SizedBox(height: ui.spaceMd),
                   Center(
                     child: CircleIconButton(

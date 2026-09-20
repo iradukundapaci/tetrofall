@@ -136,11 +136,18 @@ class GameEngine {
   void enqueueIntent(GameIntentType intent) =>
       _intentQueue.add(_BufferedIntent(intent));
 
-  bool hasUsedContinueThisRun = false;
+  /// How many times one run can be bought back with a rewarded ad. Two, not
+  /// one: a player chasing a personal best will happily watch a second, and
+  /// the continue is opt-in, so it costs nothing in goodwill to offer.
+  static const maxContinuesPerRun = 2;
+
+  int continuesUsedThisRun = 0;
+
+  bool get canContinueThisRun => continuesUsedThisRun < maxContinuesPerRun;
 
   void continueAfterAd() {
-    if (phase != GamePhase.gameOver || hasUsedContinueThisRun) return;
-    hasUsedContinueThisRun = true;
+    if (phase != GamePhase.gameOver || !canContinueThisRun) return;
+    continuesUsedThisRun++;
     _intentQueue.clear();
     grid.clearSpawnRows();
     phase = GamePhase.continuing;
@@ -155,7 +162,7 @@ class GameEngine {
     _scriptedPieces.clear();
     riseController.reset(initialElapsed: initialElapsed);
     scoring.reset();
-    hasUsedContinueThisRun = false;
+    continuesUsedThisRun = 0;
     phase = GamePhase.spawning;
     _trySpawn();
   }

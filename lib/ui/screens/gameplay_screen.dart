@@ -95,6 +95,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
   void initState() {
     super.initState();
     _game.engine.addEventListener(_onEngineEvent);
+    widget.ads.fullScreenAdShowing.addListener(_onFullScreenAdShowing);
     AnalyticsService.design('screen:gameplay');
     // The menu loop keeps playing if there's no gameplay track to swap to.
     MusicService(widget.storage).play(MusicTrack.gameplay);
@@ -143,8 +144,15 @@ class _GameplayScreenState extends State<GameplayScreen> {
   @override
   void dispose() {
     _game.engine.removeEventListener(_onEngineEvent);
+    widget.ads.fullScreenAdShowing.removeListener(_onFullScreenAdShowing);
     _tutorial?.dispose();
     super.dispose();
+  }
+
+  void _onFullScreenAdShowing() {
+    if (!mounted || !widget.ads.fullScreenAdShowing.value) return;
+    if (_gameOverReason != null || _tutorial != null || _game.paused) return;
+    _game.pauseEngine();
   }
 
   /// Hands off from the tutorial into the real run. The board is restarted so
@@ -196,8 +204,9 @@ class _GameplayScreenState extends State<GameplayScreen> {
       _endTrackedRun(event.reason.name, _runElapsedAtGameOver);
       // Reported here rather than from `build`, which reruns on every pause
       // and every rebuild behind the overlay.
+      widget.ads.dropExpiredAds();
       if (widget.ads.isRewardedContinueReady &&
-          !_game.engine.hasUsedContinueThisRun) {
+          _game.engine.canContinueThisRun) {
         AnalyticsService.design('continue:offered');
       }
       setState(() {
@@ -252,9 +261,17 @@ class _GameplayScreenState extends State<GameplayScreen> {
     _goHome();
   }
 
-  void _restartAfterGameOver() {
+  bool _restartingAfterGameOver = false;
+  Future<void> _restartAfterGameOver() async {
+    if (_restartingAfterGameOver) return;
+    _restartingAfterGameOver = true;
     AnalyticsService.design('run:again');
-    widget.ads.notifyRunEnded(_runElapsedAtGameOver);
+    try {
+      await widget.ads.notifyRunEnded(_runElapsedAtGameOver);
+    } finally {
+      _restartingAfterGameOver = false;
+    }
+    if (!mounted) return;
     _restart();
   }
 
@@ -364,16 +381,23 @@ class _GameplayScreenState extends State<GameplayScreen> {
                     onQuit: _confirmQuit,
                   ),
                 if (_gameOverReason != null)
-                  GameOverOverlay(
-                    reason: _gameOverReason!,
-                    score: _game.engine.scoring.score,
-                    best: widget.storage.bestScore,
-                    onRestart: _restartAfterGameOver,
-                    onHome: _goHome,
-                    canContinueWithAd:
-                        widget.ads.isRewardedContinueReady &&
-                        !_game.engine.hasUsedContinueThisRun,
-                    onContinueWithAd: _continueAfterAd,
+                  ValueListenableBuilder<bool>(
+                    valueListenable: widget.ads.rewardedContinueReady,
+                    builder: (context, adReady, _) => GameOverOverlay(
+                      reason: _gameOverReason!,
+                      score: _game.engine.scoring.score,
+                      best: widget.storage.bestScore,
+                      onRestart: _restartAfterGameOver,
+                      onHome: _goHome,
+                      // Gated on consent rather than on the ad being loaded:
+                      // with ads refused the ad can never arrive, and a
+                      // button stuck on "Loading" would be a lie.
+                      canContinueWithAd:
+                          widget.ads.canRequestAds &&
+                          _game.engine.canContinueThisRun,
+                      continueAdReady: adReady,
+                      onContinueWithAd: _continueAfterAd,
+                    ),
                   ),
               ],
             );

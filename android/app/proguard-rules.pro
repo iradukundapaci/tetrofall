@@ -23,3 +23,12 @@
 # APK builds clean and then reports nothing.
 -keep class com.gameanalytics.sdk.** { *; }
 -dontwarn com.gameanalytics.sdk.**
+
+# OkHttp, brought in by the Liftoff (Vungle) SDK. It probes for optional TLS
+# providers — BouncyCastle, Conscrypt, OpenJSSE — and falls back to the
+# platform's own when they are absent, which they are here. R8 fails the
+# release build on the missing classes without these. They are OkHttp's own
+# documented rules; newer OkHttp releases ship them inside the AAR.
+-dontwarn org.bouncycastle.jsse.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
