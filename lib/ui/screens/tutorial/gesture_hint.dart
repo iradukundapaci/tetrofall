@@ -6,19 +6,34 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/app_icons.dart';
 import '../../theme/tokens.dart';
 import '../../theme/ui_scale.dart';
-import 'tutorial_controller.dart';
 
-/// The looping "do this" animation that floats over the board on a coach step:
-/// a translucent fingertip, plus chevrons pointing the way it travels.
+/// Which gesture animation plays over the board. Lives here rather than with
+/// the controller because the widget below is the only thing that can draw one.
+enum TutorialHint { none, swipeHorizontal, tap, dragDown, flickDown }
+
+/// The plate the label sits on. Dark enough to read display type against the
+/// board's lit wood, translucent enough to see the board through.
+const _labelFill = Color(0xE0140C06);
+
+/// How quickly one label gives way to the next.
+const _labelFade = Duration(milliseconds: 180);
+
+/// The looping "do this" prompt that floats over the board: a translucent
+/// fingertip with chevrons pointing the way it travels, and a word or two
+/// underneath naming what the gesture does.
 ///
 /// Hand-rolled from one [AnimationController] in the same idiom as the splash
 /// sequence (`splash_screen.dart`) — explicit millisecond constants and
 /// hand-cut segments — rather than pulling in an animation package for four
 /// short loops.
 class GestureHint extends StatefulWidget {
-  const GestureHint({super.key, required this.hint});
+  const GestureHint({super.key, required this.hint, this.label});
 
   final TutorialHint hint;
+
+  /// One or two words under the animation, or null for none. The animation
+  /// already says what the gesture *is*, so this names what it does.
+  final String? label;
 
   @override
   State<GestureHint> createState() => _GestureHintState();
@@ -84,26 +99,68 @@ class _GestureHintState extends State<GestureHint>
     if (widget.hint == TutorialHint.none) return const SizedBox.shrink();
     _ui = context.scale;
     return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) => switch (widget.hint) {
-          TutorialHint.swipeHorizontal => _buildSwipe(_controller.value),
-          TutorialHint.tap => _buildTap(_controller.value),
-          TutorialHint.dragDown => _buildDrag(
-            _controller.value,
-            _ui.px(70),
-            0.12,
-            0.6,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) => switch (widget.hint) {
+              TutorialHint.swipeHorizontal => _buildSwipe(_controller.value),
+              TutorialHint.tap => _buildTap(_controller.value),
+              TutorialHint.dragDown => _buildDrag(
+                _controller.value,
+                _ui.px(70),
+                0.12,
+                0.6,
+              ),
+              TutorialHint.flickDown => _buildDrag(
+                _controller.value,
+                _ui.px(110),
+                0.06,
+                0.26,
+              ),
+              TutorialHint.none => const SizedBox.shrink(),
+            },
           ),
-          TutorialHint.flickDown => _buildDrag(
-            _controller.value,
-            _ui.px(110),
-            0.06,
-            0.26,
-          ),
-          TutorialHint.none => const SizedBox.shrink(),
-        },
+          SizedBox(height: _ui.spaceSm),
+          _buildLabel(),
+        ],
       ),
+    );
+  }
+
+  /// Cross-faded in place rather than swapped, so `Move → Rotate → Slam` reads
+  /// as one prompt answering the player rather than three prompts arriving.
+  Widget _buildLabel() {
+    final label = widget.label;
+    return AnimatedSwitcher(
+      duration: _labelFade,
+      child: label == null
+          ? const SizedBox.shrink()
+          : Container(
+              key: ValueKey(label),
+              padding: EdgeInsets.symmetric(
+                horizontal: _ui.spaceMd,
+                vertical: _ui.spaceXs,
+              ),
+              decoration: BoxDecoration(
+                color: _labelFill,
+                borderRadius: BorderRadius.circular(_ui.radiusMd),
+                border: Border.all(color: Tokens.colorPanelBorder),
+                boxShadow: const [Tokens.shadowSoft],
+              ),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: Tokens.fontDisplay,
+                  fontSize: _ui.fontSm,
+                  fontWeight: FontWeight.w700,
+                  color: Tokens.colorText,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
     );
   }
 
@@ -129,6 +186,15 @@ class _GestureHintState extends State<GestureHint>
     );
   }
 
+  /// Where the fingertip sits inside [AppIcons.handPoint], as a fraction of the
+  /// icon box, measured off the index finger's tip in its 24×24 viewBox.
+  ///
+  /// The ripple has to start there rather than at the middle of the icon: a
+  /// ring centred on the whole hand reads as the hand glowing, not as the
+  /// fingertip striking the board.
+  static const _tipX = 10.5 / 24;
+  static const _tipY = 4.5 / 24;
+
   Widget _buildTap(double t) {
     final press = _seg(t, 0, 0.16) * (1 - _seg(t, 0.16, 0.34));
     final ring = Curves.easeOut.transform(_seg(t, 0.1, 0.62));
@@ -138,21 +204,35 @@ class _GestureHintState extends State<GestureHint>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Opacity(
-            opacity: (1 - ring) * 0.7,
-            child: Container(
-              width: _fingerSize + ring * _ui.px(46),
-              height: _fingerSize + ring * _ui.px(46),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Tokens.colorGold,
-                  width: _ui.borderThick,
+          Transform.translate(
+            offset: Offset(
+              (_tipX - 0.5) * _fingerSize,
+              (_tipY - 0.5) * _fingerSize,
+            ),
+            child: Opacity(
+              opacity: (1 - ring) * 0.8,
+              child: Container(
+                width: _fingerSize * 0.5 + ring * _ui.px(46),
+                height: _fingerSize * 0.5 + ring * _ui.px(46),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // The hand's own outline colour, not gold. Gold was legible
+                  // around the old translucent disc, but this ring starts half
+                  // that size against lit wood, and at low opacity it simply
+                  // disappeared — the tap loop had no visible ripple at all.
+                  border: Border.all(
+                    color: const Color(0xFF2A1A0B),
+                    width: _ui.borderThick,
+                  ),
                 ),
               ),
             ),
           ),
-          Transform.scale(scale: 1 - press * 0.18, child: _finger()),
+          // Scaled, never translated. A hand that travels downward — even 4px,
+          // even on a loop — reads as a short drag, which is the soft-drop
+          // hint, not this one. The ripple above is what says "tap"; the press
+          // only has to keep the hand alive underneath it.
+          Transform.scale(scale: 1 - press * 0.12, child: _finger()),
         ],
       ),
     );
@@ -179,14 +259,40 @@ class _GestureHintState extends State<GestureHint>
     );
   }
 
-  Widget _finger() => Container(
+  /// The hand doing the gesture.
+  ///
+  /// Drawn without a `colorFilter` — [AppIcons.handPoint] carries its own cream
+  /// palm and dark outline, and flattening it to one colour would leave a
+  /// silhouette that disappears into the board's lit wood.
+  ///
+  /// The drop shadow is a second copy underneath rather than a `BoxShadow`,
+  /// which would shadow the widget's square box instead of the hand inside it.
+  Widget _finger() => SizedBox(
     width: _fingerSize,
     height: _fingerSize,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: const Color(0x33F5EAD9),
-      border: Border.all(color: Tokens.colorGold, width: _ui.borderThick),
-      boxShadow: const [Tokens.shadowSoft],
+    child: Stack(
+      children: [
+        Transform.translate(
+          offset: Offset(_ui.px(1), _ui.px(2)),
+          child: Opacity(
+            opacity: 0.25,
+            child: SvgPicture.asset(
+              AppIcons.handPoint,
+              width: _fingerSize,
+              height: _fingerSize,
+              colorFilter: const ColorFilter.mode(
+                Color(0xFF140C06),
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
+        ),
+        SvgPicture.asset(
+          AppIcons.handPoint,
+          width: _fingerSize,
+          height: _fingerSize,
+        ),
+      ],
     ),
   );
 

@@ -155,22 +155,26 @@ class _GameplayScreenState extends State<GameplayScreen> {
     _game.pauseEngine();
   }
 
-  /// Hands off from the tutorial into the real run. The board is restarted so
-  /// neither the rigged row nor the practice drops can leak into a scored
-  /// game — and pointedly *without* [AdsService.notifyRunEnded], because the
-  /// tutorial is not a run the interstitial cadence should count.
-  /// The whole screen rebuilds on a step change, not just the overlay: the
-  /// `dimmed` flag below is derived from the step, and a stale one would leave
-  /// the board blurred and `IgnorePointer`-ed under a card asking for a swipe.
   void _onTutorialChanged() {
     if (mounted) setState(() {});
   }
 
+  /// Hands off from the tutorial into the real run — without touching the
+  /// board.
+  ///
+  /// The coached session *is* the run. It rigs nothing and wipes nothing, so
+  /// there is no practice state to scrub, and a restart here would be the one
+  /// jarring screen change in an otherwise continuous session. The engine was
+  /// already started with the right difficulty clock at
+  /// `tetrofall_game.dart:175`, and the controller releases the rise on its
+  /// way out, so the run's grace period begins here.
+  ///
+  /// Pointedly *without* [AdsService.notifyRunEnded], because the tutorial is
+  /// not a run the interstitial cadence should count.
   void _finishTutorial() {
     final tutorial = _tutorial;
     if (tutorial == null) return;
     _dropTutorial(tutorial);
-    _game.restart();
     _startTrackedRun();
   }
 
@@ -352,13 +356,10 @@ class _GameplayScreenState extends State<GameplayScreen> {
                   // Coaching is not a run — the same line drawn for
                   // RunTracker above and for the interstitial cadence.
                   recordsBest: tutorial == null,
-                  // A coach step must never dim: the dim treatment applies
-                  // `IgnorePointer`, which would swallow the very gestures the
-                  // step is teaching.
-                  dimmed:
-                      showPause ||
-                      _confirmingQuit ||
-                      (tutorial?.dimsBoard ?? false),
+                  // The tutorial never dims: the dim treatment applies
+                  // `IgnorePointer`, which would swallow the very gestures it
+                  // is teaching.
+                  dimmed: showPause || _confirmingQuit,
                 ),
                 if (tutorial != null &&
                     !showPause &&

@@ -1,22 +1,23 @@
-import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+import '../../theme/app_icons.dart';
 import '../../theme/tokens.dart';
 import '../../theme/ui_scale.dart';
-import '../../widgets/modal_overlay.dart';
-import '../../widgets/panel.dart';
-import '../../widgets/primary_button.dart';
 import 'gesture_hint.dart';
 import 'tutorial_controller.dart';
 
-/// The first-run tutorial's chrome. Two very different looks share one widget
-/// because they are two halves of the same sequence:
+/// The first-run tutorial's chrome: a looping gesture hint with a word or two
+/// under it, and Skip.
 ///
-/// * **Modal steps** match the pause and quit prompts exactly scrim, centred
-///   [AppPanel], a button. The board is already dimmed behind them by
-///   gameplay's own `dimmed` treatment.
-/// * **Coach steps** draw no scrim at all and confine themselves to the
-///   board's own rect, so every touch outside the caption still reaches the
-///   board and so nothing is ever painted over the banner ad below it.
+/// It draws no scrim and confines itself to the board's own rect, so every
+/// touch outside the Skip button still reaches the board, and nothing is ever
+/// painted over the banner ad below it. There is no modal branch — the whole
+/// tutorial is one live gameplay session, and a panel over the board would
+/// both stop it and, through the dim treatment's `IgnorePointer`, swallow the
+/// very gestures being taught.
 class TutorialOverlay extends StatefulWidget {
   const TutorialOverlay({
     super.key,
@@ -26,7 +27,7 @@ class TutorialOverlay extends StatefulWidget {
 
   final TutorialController controller;
 
-  /// Key on gameplay's board container. The coach layer needs the board's real
+  /// Key on gameplay's board container. This layer needs the board's real
   /// laid-out rect, which depends on the HUD above it and on the banner ad's
   /// measured height below it, so it is read back from layout rather than
   /// guessed at.
@@ -36,18 +37,15 @@ class TutorialOverlay extends StatefulWidget {
   State<TutorialOverlay> createState() => _TutorialOverlayState();
 }
 
-/// How quickly the coach chrome gets out of the way, and how quickly the
-/// caption changes ends when the action does.
-const _fadeDuration = Duration(milliseconds: 180);
-const _slideDuration = Duration(milliseconds: 280);
+/// How quickly the chrome gets out of the way under a finger, and how quickly
+/// a satisfied prompt disappears.
+const _fadeDuration = Duration(milliseconds: 220);
 
-/// The caption's plate. Dark enough to read white display type against the
-/// board's lit wood, translucent enough to see the board through.
-const _cardFill = Color(0xE0140C06);
+/// The plate behind Skip, matching the prompt's own label plate.
+const _skipFill = Color(0xE0140C06);
 
-/// What the caption dims to under a finger. Not zero: the player should still
-/// be able to see that the instruction is there and unchanged, just not have
-/// it standing between them and the board.
+/// What Skip dims to under a finger. Not zero: the prompt itself can go, but
+/// the one control that has to stay findable from any moment should not.
 const _touchedOpacity = 0.15;
 
 class _TutorialOverlayState extends State<TutorialOverlay> {
@@ -76,84 +74,25 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   Widget build(BuildContext context) {
     _scheduleMeasure();
     // `Positioned` has to be a direct child of a `Stack`, so the positioning
-    // lives here and everything below is plain layout inside this overlay's
-    // own full-screen box.
+    // lives here and everything below is plain layout inside the board's rect.
     return Positioned.fill(
       child: ListenableBuilder(
         listenable: widget.controller,
-        builder: (context, _) => widget.controller.mode == TutorialMode.modal
-            ? _buildModal()
-            : _buildCoach(),
+        builder: (context, _) => _build(),
       ),
     );
   }
 
-  // ------------------------------------------------------------------ modal
-
-  Widget _buildModal() {
-    final c = widget.controller;
-    final ui = context.scale;
-    // The body rather than [ModalOverlay] itself: `build` already owns this
-    // overlay's `Positioned.fill`, and the coach branch needs to keep it.
-    return ModalOverlayBody(
-      scrimOpacity: 0.55,
-      child: AppPanel(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              c.title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: Tokens.fontDisplay,
-                fontSize: ui.fontXl,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.0,
-                color: Tokens.colorText,
-              ),
-            ),
-            SizedBox(height: ui.spaceMd),
-            Text(
-              c.body,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: ui.fontSm,
-                fontWeight: FontWeight.w600,
-                color: Tokens.colorTextMuted,
-                height: 1.4,
-              ),
-            ),
-            SizedBox(height: ui.spaceLg),
-            PrimaryButton(
-              label: c.buttonLabel ?? 'Continue',
-              fontSize: ui.fontMd,
-              onPressed: c.advance,
-            ),
-            // Nothing left to skip on the closing card its own button
-            // already does exactly what Skip would.
-            if (c.step != TutorialStep.done) ...[
-              SizedBox(height: ui.spaceSm),
-              _SkipButton(onPressed: c.skip),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ------------------------------------------------------------------ coach
-
-  Widget _buildCoach() {
+  Widget _build() {
     final rect = _boardRect;
     // Before the first post-frame measurement there is nowhere to put the
-    // caption. The board is live and unobstructed for that one frame.
+    // prompt. The board is live and unobstructed for that one frame.
     if (rect == null) return const SizedBox.shrink();
 
     final c = widget.controller;
     final ui = context.scale;
-    // Mid-gesture the player is watching the board, not reading about it. The
-    // caption, the hint and Skip all stand down until the finger comes off.
+    // Mid-gesture the player is watching the board, not reading over it. The
+    // prompt and Skip both stand down until the finger comes off.
     final faded = c.boardTouched;
 
     return Stack(
@@ -163,48 +102,40 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
           child: Stack(
             children: [
               // Over the piece the player is being asked to steer, rather than
-              // at a fixed height that happened to look about right.
+              // at a fixed height that happened to look about right. A
+              // satisfied lesson leaves [TutorialController.hint] at `none`,
+              // and the prompt fades out rather than being replaced — the live
+              // board is the confirmation.
               AnimatedOpacity(
                 opacity: faded ? 0.0 : 1.0,
                 duration: _fadeDuration,
                 child: Align(
                   alignment: Alignment(0, c.hintAlignY),
-                  child: GestureHint(hint: c.hint),
+                  child: GestureHint(hint: c.hint, label: c.label),
                 ),
               ),
-              // Whichever end of the board the action is not at. It slides
-              // rather than teleports, because on the drop steps it changes
-              // ends the instant the piece sets off and a jump there would
-              // read as a second thing happening.
-              //
-              // Skip travels with it rather than sitting in the opposite
-              // corner: the caption is at the far end precisely because the
-              // action is at *this* one, so the corner it would leave free is
-              // the one the player has been told to watch.
-              AnimatedAlign(
-                alignment: c.captionAtTop
-                    ? Alignment.topCenter
-                    : Alignment.bottomCenter,
-                duration: _slideDuration,
-                curve: Curves.easeOutCubic,
-                child: AnimatedOpacity(
-                  opacity: faded ? _touchedOpacity : 1.0,
+              // The hole the rigged floor left. "Fill the row" is only
+              // actionable once the player can see which row, and where.
+              if (c.gapAlignX != null)
+                AnimatedOpacity(
+                  opacity: faded ? 0.0 : 1.0,
                   duration: _fadeDuration,
-                  child: Padding(
-                    padding: EdgeInsets.all(ui.spaceSm),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      // Sizes the column to the card and hangs Skip off its
-                      // right edge, so the card still reads as centred.
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        for (final w
-                            in c.captionAtTop
-                                ? [_CoachCard(text: c.body), _skip(c)]
-                                : [_skip(c), _CoachCard(text: c.body)])
-                          w,
-                      ],
-                    ),
+                  child: Align(
+                    alignment: Alignment(c.gapAlignX!, 0.92),
+                    child: const _GapMarker(),
+                  ),
+                ),
+              // Pieces spawn top-centre and the prompt hangs below them, so
+              // the top-right corner is the one piece of board that is never
+              // the thing the player has been told to look at.
+              Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: EdgeInsets.all(ui.spaceSm),
+                  child: AnimatedOpacity(
+                    opacity: faded ? _touchedOpacity : 1.0,
+                    duration: _fadeDuration,
+                    child: _SkipButton(onPressed: c.skip),
                   ),
                 ),
               ),
@@ -216,84 +147,81 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   }
 }
 
-/// Skip, as it appears alongside a coach caption.
-Widget _skip(TutorialController c) =>
-    _SkipButton(onPressed: c.skip, onBoard: true);
+/// A pulsing chevron over the gap in the rigged floor.
+///
+/// Deliberately not the [GestureHint] hand: that says "do this with your
+/// finger", and this is saying "put it *there*" — a different kind of
+/// instruction, and the two are on screen together.
+class _GapMarker extends StatefulWidget {
+  const _GapMarker();
 
-/// The caption on a coach step. Deliberately narrow, short and lighter than
-/// [AppPanel] it sits *on* the live board, not in front of it, and every
-/// row of it is a row of board the player cannot see.
-class _CoachCard extends StatelessWidget {
-  const _CoachCard({required this.text});
+  @override
+  State<_GapMarker> createState() => _GapMarkerState();
+}
 
-  final String text;
+class _GapMarkerState extends State<_GapMarker>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final ui = context.scale;
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: ui.px(300)),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: ui.spaceMd,
-          vertical: ui.spaceSm,
-        ),
-        decoration: BoxDecoration(
-          color: _cardFill,
-          borderRadius: BorderRadius.circular(ui.radiusMd),
-          border: Border.all(color: Tokens.colorPanelBorder),
-          boxShadow: const [Tokens.shadowSoft],
-        ),
-        // Cross-faded so that a step being satisfied reads as the card
-        // answering, rather than as the text being swapped out from under it.
-        child: AnimatedSwitcher(
-          duration: _fadeDuration,
-          child: Text(
-            text,
-            key: ValueKey(text),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: Tokens.fontDisplay,
-              fontSize: ui.fontSm,
-              fontWeight: FontWeight.w700,
-              color: Tokens.colorText,
-              height: 1.3,
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          // One nudge downward per loop, with a rest at the end, so it reads
+          // as pointing rather than bouncing.
+          final t = Curves.easeInOut.transform(
+            (_controller.value / 0.55).clamp(0.0, 1.0),
+          );
+          final bob = (t < 0.5 ? t : 1 - t) * 2;
+          return Transform.translate(
+            offset: Offset(0, bob * ui.px(6)),
+            child: Opacity(
+              opacity: 0.55 + bob * 0.45,
+              child: Transform.rotate(
+                angle: math.pi / 2,
+                child: SvgPicture.asset(
+                  AppIcons.chevronRight,
+                  width: ui.iconMd,
+                  height: ui.iconMd,
+                  colorFilter: const ColorFilter.mode(
+                    Color(0xFF2A1A0B),
+                    BlendMode.srcIn,
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 }
 
+/// Skip, as it appears on the bare board.
+///
+/// Muted text is right on [AppPanel]'s near-black; on lit wood it all but
+/// disappears, and Skip is the one control that has to stay findable from any
+/// moment. So it gets the prompt's own plate behind it.
 class _SkipButton extends StatelessWidget {
-  const _SkipButton({required this.onPressed, this.onBoard = false});
+  const _SkipButton({required this.onPressed});
 
   final VoidCallback onPressed;
-
-  /// Whether this one sits on the bare board rather than on a panel.
-  ///
-  /// Muted text is right on [AppPanel]'s near-black; on lit wood it all but
-  /// disappears, and Skip is the one control that has to stay findable from
-  /// any step. On the board it gets the caption's own plate behind it.
-  final bool onBoard;
 
   @override
   Widget build(BuildContext context) {
     final ui = context.scale;
-    final label = Text(
-      'Skip',
-      style: TextStyle(
-        fontFamily: Tokens.fontDisplay,
-        fontSize: ui.fontSm,
-        fontWeight: FontWeight.w700,
-        color: onBoard ? Tokens.colorText : Tokens.colorTextMuted,
-        letterSpacing: 0.5,
-      ),
-    );
-
-    if (!onBoard) return TextButton(onPressed: onPressed, child: label);
-
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
@@ -303,13 +231,22 @@ class _SkipButton extends StatelessWidget {
         ),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        backgroundColor: _cardFill,
+        backgroundColor: _skipFill,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ui.radiusMd),
           side: const BorderSide(color: Tokens.colorPanelBorder),
         ),
       ),
-      child: label,
+      child: Text(
+        'Skip',
+        style: TextStyle(
+          fontFamily: Tokens.fontDisplay,
+          fontSize: ui.fontSm,
+          fontWeight: FontWeight.w700,
+          color: Tokens.colorText,
+          letterSpacing: 0.5,
+        ),
+      ),
     );
   }
 }

@@ -8,6 +8,11 @@ abstract final class AppIcons {
   static const trophy = '$_base/trophy.svg';
   static const star = '$_base/star.svg';
 
+  /// The tutorial's pointing hand. Two-tone on purpose — a cream palm with a
+  /// dark outline reads against the board's lit wood, where a single-colour
+  /// silhouette would not.
+  static const handPoint = '$_base/hand_point.svg';
+
   static const medal = '$_base/medal.svg';
   static const medalOutline = '$_base/medal_outline.svg';
   static const checkCircle = '$_base/check_circle.svg';
@@ -31,6 +36,7 @@ abstract final class AppIcons {
     'check_circle_light': checkCircleLight,
     'chevron_right': chevronRight,
     'document': document,
+    'hand_point': handPoint,
     'home': home,
     'lock': lock,
     'medal': medal,
@@ -49,5 +55,5 @@ abstract final class AppIcons {
     'vibrate': vibrate,
   };
 
-  static const multicolor = <String>{medal};
+  static const multicolor = <String>{medal, handPoint};
 }

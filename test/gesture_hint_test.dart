@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tetrofall/ui/screens/tutorial/gesture_hint.dart';
-import 'package:tetrofall/ui/screens/tutorial/tutorial_controller.dart';
 
 /// The hint's [AnimationController] must exist by the time the widget is torn
 /// down. A `none` step builds a `SizedBox.shrink()` without ever touching the

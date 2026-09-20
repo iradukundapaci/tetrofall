@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
 import '../../../game/config/board_config.dart';
@@ -11,109 +9,64 @@ import '../../../game/tetrofall_game.dart';
 import '../../../services/analytics_service.dart';
 import '../../../services/firebase_analytics_service.dart';
 import '../../../services/storage_service.dart';
+import 'gesture_hint.dart';
 
-/// How a step presents itself.
-enum TutorialMode {
-  /// Board dimmed behind a centred panel the player reads and dismisses.
-  /// Reuses gameplay's existing dim treatment, which also blocks board
-  /// touches correct here, since these steps ask for a button press.
-  modal,
-
-  /// Board live and fully touchable, with a caption and a looping hint
-  /// floating over it. The player advances it by *doing* the thing.
-  coach,
-}
-
-/// Where a coach step is in its own little arc.
+/// The four gestures the first run teaches, in the order they are prompted.
 ///
-/// The split exists because the engine announces an *intent*, not its
-/// consequences `PlayerActionEvent(hardDrop)` is emitted before
-/// `pieceController.hardDrop()` even runs (`game_engine.dart:258-259`), and
-/// `PlayerAction.softDrop` the instant the drag crosses its threshold, long
-/// before the piece has fallen anywhere. Advancing straight off those events
-/// swapped the card out before the player had seen a single thing happen.
-enum TutorialPhase { prompt, effect }
-
-/// Which hint animation plays over the board, if any.
-enum TutorialHint { none, swipeHorizontal, tap, dragDown, flickDown }
-
-/// The order is load-bearing, and hard drop coming before soft drop is the
-/// part that matters.
-///
-/// A downward flick enqueues `softDropStart` on its way to `hardDrop`
+/// Hard drop before soft drop, and that order is load-bearing: a downward flick
+/// enqueues `softDropStart` on its way to `hardDrop`
 /// (`gesture_handler.dart:178` then `:189`) and the engine drains both in one
-/// pass. Taught in the other order, a single flick would satisfy the soft-drop
-/// step and then immediately satisfy the hard-drop step behind it, and the
-/// player would never read either card. This way the stray `softDropStart`
-/// lands on a step that is not listening for it and is harmlessly ignored.
-enum TutorialStep {
-  intro,
-  move,
-  rotate,
-  hardDrop,
-  softDrop,
-  clearIntro,
-  clearRow,
-  cascadeIntro,
-  cascadeRow,
-  riseIntro,
-  riseWatch,
-  done,
-}
+/// pass. Taught the other way round, a single flick would satisfy soft drop and
+/// hard drop together and the player would be shown neither.
+///
+/// [_credit] closes the remaining half of that trap: soft drop is the one
+/// lesson that is never credited ahead of its own prompt, so the stray
+/// `softDropStart` a flick leaves behind lands on nothing.
+enum TutorialLesson { move, rotate, hardDrop, softDrop, clearRow, cascadeRow }
 
-/// Where the tutorial's rigged row leaves its gap. Off-centre on purpose: an
-/// `O` spawns over columns 8–9 of 18, so a gap here costs four swipes right
-/// and puts the movement the player was just taught straight to work.
-const _clearGapCol = 12;
-
-/// The column the cascade rig leaves open in its second row, and the column
-/// the lone block two rows up is parked in. They are the same column, and that
-/// is the whole trick see [TutorialController._rigCascade].
-const _cascadeGapCol = 3;
-
-/// Column moves needed to clear the `move` step. Two is enough to show the
-/// piece tracking the finger without turning the step into a chore.
-const _movesToAdvance = 2;
-
-/// Where a coached piece is parked: far enough down to be plainly visible,
-/// far enough up to leave the player somewhere to drop it.
+/// Where a coached piece is parked: far enough down to be plainly visible, far
+/// enough up to leave the player somewhere to drop it.
 const _coachRow = 4;
 
-/// How long a satisfied step stays on screen while its effect plays out.
+/// Column moves needed to clear the `move` lesson. Two is enough to show the
+/// piece tracking the finger without turning the prompt into a chore.
+const _movesToAdvance = 2;
+
+/// How many extra pieces a missed lesson gets before it is dropped.
 ///
-/// A gesture whose whole point is instant gets a beat just long enough to read
-/// the confirmation; one that has to travel gets long enough to travel.
-const _holdShort = Duration(milliseconds: 700);
-const _holdLand = Duration(milliseconds: 900);
+/// A player who lets gravity land the piece, or who flicks when asked to drag,
+/// gets the same prompt on the next piece. Twice, and then the tutorial stops
+/// asking — being nagged by a prompt you cannot work out is worse than not
+/// being taught the gesture at all, and Skip is not always found.
+const _maxRearms = 2;
 
-/// Long enough for the piece to visibly cover ground. Soft drop divides the
-/// drop interval by `Motion.softDropDivisor`, so nearly two seconds of it
-/// reads unmistakably as *faster, but still steerable*.
-const _holdSoftDrop = Duration(milliseconds: 1800);
+/// The floor lessons get one retry rather than two. Each retry raises a fresh
+/// rig — one row for the clear, three for the cascade — and those stack on top
+/// of everything the player has already dropped.
+const _maxFloorRearms = 1;
 
-/// Past the end of a single row's shatter, which runs about 940ms
-/// (`Motion.crackHold` + half a board of `shatterStep` + `shatterBeat`).
-const _holdClear = Duration(milliseconds: 1400);
-const _holdRise = Duration(milliseconds: 1400);
-
-/// The chain's own shatter, once the cascade has finished delivering it.
-const _holdChain = Duration(milliseconds: 1600);
-
-/// How long the cascade step will wait for a chain that should arrive in
-/// under three. Only a safety net: the rig is deterministic, but a step whose
-/// exit condition can no longer happen is a step the player is stuck on.
-const _cascadeFallback = Duration(seconds: 5);
-
-/// How long the demo rise takes to climb one whole row. The real interval is
-/// 22 seconds at the opening checkpoint (`difficulty.dart:26`) the right
-/// pace for a run, and far too slow to hold a caption on screen.
-const _riseDemoSeconds = 4.0;
-
-/// Drives the first-run coached tutorial owns which step is showing,
-/// freezes and unfreezes the run around each one, and rigs the board for the
-/// row-clearing lesson.
+/// How far from the square's spawn column the rigged gap is aimed.
 ///
-/// A `ChangeNotifier` rather than the hand-rolled listener lists used across
+/// Far enough that the lesson asks for the movement it just taught, close
+/// enough that it is two or three swipes rather than a trek.
+const _preferredGapDistance = 4;
+
+/// How long one rigged floor takes to climb into place.
+///
+/// The real interval is 22 seconds at the opening checkpoint
+/// (`difficulty.dart`) — the right pace for a run, and far too slow to hold a
+/// player's attention while a floor arrives.
+const _riseSeconds = 1.5;
+
+/// Drives the first-run tutorial: one uninterrupted gameplay session with a
+/// looping gesture hint and a word or two floating over the board.
+///
+/// It draws no modals, wipes nothing, rigs nothing and never restarts the run.
+/// The session the player is coached through simply *is* their first run — at
+/// the end the prompts stop, the rise is released, and nothing on screen
+/// changes.
+///
+/// A `ChangeNotifier` rather than the hand-rolled listener lists across
 /// `lib/game/engine/`: those exist because the engine deliberately has no
 /// Flutter import. This is a UI-layer step machine consumed by a
 /// `ListenableBuilder`, so the standard primitive is the right one.
@@ -128,44 +81,92 @@ class TutorialController extends ChangeNotifier {
     // the moment it appears, and a player who force-quits partway through
     // should not be met by it again on the next launch.
     storage.saveTutorialSeen(true);
-    // The opening step is set as a field initialiser and so never passes
-    // through [_goTo] without this the funnel would have no entry count to
-    // measure the later steps against.
-    AnalyticsService.design('tutorial:step:${_step.name}');
-    // The GA4 counterpart, for Google Ads rather than the dashboard: paired
-    // with `tutorial_complete` below it is the earliest quality signal a new
-    // install produces, and it fires within a minute of first open.
+    // The GA4 counterpart to `tutorial_complete`, for Google Ads rather than
+    // the dashboard: together they are the earliest quality signal a new
+    // install produces, and this one fires within seconds of first open.
     FirebaseAnalyticsService.logTutorialBegin();
-    _applyStep();
+
+    // The rise stays out of the way for the whole session. Because
+    // `RiseController.elapsed` only advances while unfrozen, releasing it in
+    // [_releaseEngine] hands the real run its full grace period untouched.
+    final engine = game.engine;
+    engine.freezeRise = true;
+    // Nothing is dealt from here. This runs from the host widget's `initState`,
+    // and Flame's `onLoad` has not called `GameEngine.start` yet — which clears
+    // `_scriptedPieces` (`game_engine.dart:162`), so a piece queued now would
+    // be thrown away before it could be spawned. The coach piece is dealt on
+    // the first spawn instead, in [_onPieceSpawned].
+    engine.freezeGravity = true;
+    _arm(TutorialLesson.move);
   }
 
   final TetrofallGame game;
   final StorageService storage;
 
   /// Called once, on completion or skip, after the engine has been released.
-  /// The host screen uses it to hand off into a clean scored run.
+  /// The host screen uses it to open a tracked run over this same session.
   final VoidCallback onFinished;
 
-  TutorialStep _step = TutorialStep.intro;
-  TutorialStep get step => _step;
+  /// The prompt currently on screen. Null once the tutorial has run out of
+  /// lessons, which is also the frame it finishes on.
+  TutorialLesson? _lesson;
+  TutorialLesson? get lesson => _lesson;
 
-  TutorialPhase _phase = TutorialPhase.prompt;
-  TutorialPhase get phase => _phase;
+  /// Lessons the player has already performed — including ones they did before
+  /// being asked, which is why [_next] skips rather than re-prompts.
+  final _done = <TutorialLesson>{};
+
+  final _rearms = <TutorialLesson, int>{};
+
+  /// Lessons the tutorial stopped asking for — in [_done] so they are skipped,
+  /// but tracked apart from it so the closing report can tell a player who
+  /// learned every gesture from one who was let off a couple.
+  final _givenUp = <TutorialLesson>{};
 
   int _moveCount = 0;
   bool _finished = false;
 
-  /// Set when the hard-drop step sees the *intent*, so the lock that follows
-  /// can be told apart from any other piece coming to rest.
-  bool _dropSeen = false;
+  /// Which lesson was showing when the current piece spawned.
+  ///
+  /// A missed lesson is detected at the *next* spawn rather than on
+  /// [PieceLockedEvent], and this is why. Hard drop credits itself from the
+  /// same drain that locks the piece (`game_engine.dart:265-267`), so a
+  /// lock-driven check would see the freshly armed soft-drop prompt and score
+  /// it as missed before the player had been shown it once.
+  TutorialLesson? _lessonAtSpawn;
 
-  /// Runs out the [TutorialPhase.effect] beat before the next step is entered.
-  Timer? _holdTimer;
+  /// Whether the active piece has seen any input yet.
+  ///
+  /// Gravity is frozen on spawn and released by the player's first action,
+  /// whatever it was — so a coached piece hangs perfectly still until it is
+  /// touched, and then falls normally for the rest of its life. The freeze is
+  /// per piece, not per prompt: once the player has engaged, no later prompt
+  /// stops the board again.
+  bool _pieceEngaged = false;
+
+  /// Floors still waiting to be pushed up for the current lesson, bottom-most
+  /// last: [commitRise] inserts at the floor and shoves everything above it up,
+  /// so the first row raised ends up highest.
+  final _pendingFloors = <List<Cell?>>[];
+
+  /// Whether this lesson's floors have been ordered up yet. Cleared by [_arm],
+  /// so a lesson that re-arms after a miss raises a fresh rig.
+  bool _floorsRigged = false;
+
+  /// The columns the current rig left open, chosen against the live board in
+  /// [_pickGapColumns] each time a rig goes up.
+  int _gapCol = 0;
+  int _cascadeCol = 0;
+
+  /// Whether they have all arrived. The prompt stays off until they have —
+  /// asking someone to fill a row that is still sliding into place is asking
+  /// them to aim at a moving target.
+  bool _floorsReady = false;
 
   bool _boardTouched = false;
 
   /// Whether a finger is currently on the board. Mid-gesture the player is
-  /// looking at the board rather than reading about it, so the chrome fades
+  /// looking at the board rather than reading over it, so the prompt fades
   /// down until the touch ends.
   bool get boardTouched => _boardTouched;
 
@@ -174,7 +175,6 @@ class TutorialController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _holdTimer?.cancel();
     game.engine.removeEventListener(_onEvent);
     super.dispose();
   }
@@ -187,108 +187,53 @@ class TutorialController extends ChangeNotifier {
 
   // ---------------------------------------------------------------- content
 
-  TutorialMode get mode => switch (_step) {
-    TutorialStep.intro ||
-    TutorialStep.clearIntro ||
-    TutorialStep.cascadeIntro ||
-    TutorialStep.riseIntro ||
-    TutorialStep.done => TutorialMode.modal,
-    _ => TutorialMode.coach,
-  };
+  /// Whether this lesson is a floor lesson whose rig is still on its way up.
+  bool get _floorsPending => _isFloorLesson(_lesson) && !_floorsReady;
 
-  /// Whether gameplay should dim behind the tutorial. Never true on a coach
-  /// step: dimming also applies `IgnorePointer`, which would swallow the very
-  /// gestures the step is teaching.
-  bool get dimsBoard => mode == TutorialMode.modal;
+  static bool _isFloorLesson(TutorialLesson? lesson) =>
+      lesson == TutorialLesson.clearRow || lesson == TutorialLesson.cascadeRow;
 
-  String get title => switch (_step) {
-    TutorialStep.intro => 'HOW TO PLAY',
-    TutorialStep.clearIntro => 'CLEARING ROWS',
-    TutorialStep.cascadeIntro => 'THE CASCADE',
-    TutorialStep.riseIntro => 'THE RISE',
-    TutorialStep.done => "YOU'RE READY",
-    _ => '',
-  };
-
-  String get body =>
-      _phase == TutorialPhase.effect ? _confirmation : _instruction;
-
-  String get _instruction => switch (_step) {
-    TutorialStep.intro =>
-      'Blocks fall from the top. New rows push up from the bottom.\n\n'
-          'Complete a row to clear it and buy back space.',
-    TutorialStep.move => 'Swipe left or right to move the piece.',
-    TutorialStep.rotate => 'Tap the board to rotate it.',
-    TutorialStep.hardDrop => 'Flick down hard to slam it into place.',
-    TutorialStep.softDrop => 'Or hold and drag down to fall at your own pace.',
-    TutorialStep.clearIntro =>
-      'This is how you survive. Fill a row all the way across and it '
-          'shatters.',
-    TutorialStep.clearRow => 'Two gaps left. Drop the square in to clear it.',
-    TutorialStep.cascadeIntro =>
-      'Blocks only fall when a row clears.\n\n'
-          'Clear one and everything above drops into the space and if that '
-          'fills another row, it goes too.',
-    TutorialStep.cascadeRow => 'Same gap. Drop it in and watch the stack fall.',
-    TutorialStep.riseIntro =>
-      'New rows push up from below, faster the longer you last.\n\n'
-          'If the stack reaches the top, the run is over.',
-    TutorialStep.riseWatch => 'Here it comes clear rows to hold it back.',
-    TutorialStep.done => 'Good luck.',
-  };
-
-  /// What the caption says while the board is showing its work. Naming what
-  /// just happened is the whole reason the beat exists a card that simply
-  /// froze for a second would read as a stall.
-  String get _confirmation => switch (_step) {
-    TutorialStep.move => 'It follows your finger.',
-    TutorialStep.rotate => "That's a rotation.",
-    TutorialStep.hardDrop => 'Slam. Straight to the floor.',
-    TutorialStep.softDrop => 'Slower and you stay in control.',
-    TutorialStep.clearRow => 'Row cleared.',
-    TutorialStep.cascadeRow => 'Chain! The falling stack finished another row.',
-    TutorialStep.riseWatch => "That's the rise. Clear rows to hold it back.",
-    _ => _instruction,
-  };
-
-  /// Null on coach steps, which have no button the gesture is the button.
-  String? get buttonLabel => switch (_step) {
-    TutorialStep.intro => "Let's Go",
-    TutorialStep.clearIntro ||
-    TutorialStep.cascadeIntro ||
-    TutorialStep.riseIntro => 'Continue',
-    TutorialStep.done => 'Play',
-    _ => null,
-  };
-
-  /// Which end of the board the caption hides always the end the player is
-  /// *not* being asked to look at.
-  ///
-  /// It defaults to the bottom, where nothing is happening while the piece
-  /// hovers up top. The two steps that are about the floor the rigged row,
-  /// and the rise pushing in beneath it start at the top instead, and the
-  /// two drop steps change ends the moment the piece sets off, so the card is
-  /// never sitting on the landing the player was told to watch.
-  bool get captionAtTop => switch (_step) {
-    TutorialStep.clearRow ||
-    TutorialStep.cascadeRow ||
-    TutorialStep.riseWatch => true,
-    TutorialStep.hardDrop ||
-    TutorialStep.softDrop => _phase == TutorialPhase.effect,
-    _ => false,
-  };
-
-  TutorialHint get hint => _phase == TutorialPhase.effect
+  /// Which looping hint plays over the board, if any.
+  TutorialHint get hint => _floorsPending
       ? TutorialHint.none
-      : switch (_step) {
-          TutorialStep.move => TutorialHint.swipeHorizontal,
-          TutorialStep.rotate => TutorialHint.tap,
-          TutorialStep.hardDrop => TutorialHint.flickDown,
-          TutorialStep.softDrop => TutorialHint.dragDown,
-          _ => TutorialHint.none,
+      : switch (_lesson) {
+          TutorialLesson.move => TutorialHint.swipeHorizontal,
+          TutorialLesson.rotate => TutorialHint.tap,
+          TutorialLesson.hardDrop => TutorialHint.flickDown,
+          TutorialLesson.softDrop => TutorialHint.dragDown,
+          // Both floor lessons are a steering problem: the piece already fits,
+          // it just has to be over the gap.
+          TutorialLesson.clearRow ||
+          TutorialLesson.cascadeRow => TutorialHint.swipeHorizontal,
+          null => TutorialHint.none,
         };
 
-  /// Where the looping hint sits inside the board, as an `Alignment` y.
+  /// The whole text of the tutorial. One or two words, naming what the gesture
+  /// does rather than what it is — the animation underneath the label is
+  /// already saying what it is.
+  String? get label => _floorsPending
+      ? null
+      : switch (_lesson) {
+          TutorialLesson.move => 'Move',
+          TutorialLesson.rotate => 'Rotate',
+          TutorialLesson.hardDrop => 'Slam',
+          TutorialLesson.softDrop => 'Fall faster',
+          TutorialLesson.clearRow => 'Fill the row',
+          TutorialLesson.cascadeRow => 'Again',
+          null => null,
+        };
+
+  /// Horizontal alignment of the rigged gap, or null when there is no gap to
+  /// point at. The overlay marks it, because "fill the row" is only actionable
+  /// once you can see *where*.
+  ///
+  /// Both rigs leave the same two-wide opening, so the marker sits on the
+  /// boundary between its two columns.
+  double? get gapAlignX => _floorsPending || !_isFloorLesson(_lesson)
+      ? null
+      : (_gapCol + 1) / BoardConfig.cols * 2 - 1;
+
+  /// Where the prompt sits inside the board, as an `Alignment` y.
   ///
   /// Derived from the row a coached piece is parked on rather than eyeballed,
   /// and offset a few rows below it: close enough to read as pointing at the
@@ -297,261 +242,343 @@ class TutorialController extends ChangeNotifier {
 
   // ------------------------------------------------------------ transitions
 
-  /// Advances a modal step. Coach steps ignore it they advance on events.
-  void advance() {
-    if (mode != TutorialMode.modal) return;
-    if (_step == TutorialStep.done) {
-      // The only genuine completion: tapping through the closing step. Every
-      // other exit Skip, or a top-out underneath the coach also lands in
-      // [_end] and then in the host screen's hand-off, so reporting from
-      // there would score a skip as a completion and read 100% forever.
-      AnalyticsService.design('tutorial:complete');
-      FirebaseAnalyticsService.logTutorialComplete();
-      _end();
-      return;
-    }
-    _goTo(TutorialStep.values[_step.index + 1]);
-  }
-
   void skip() {
-    AnalyticsService.design('tutorial:skip:${_step.name}');
+    AnalyticsService.design('tutorial:skip:${_lesson?.name ?? 'done'}');
     _end();
   }
 
-  /// Ends the tutorial without asking for a hand-off restart used when the
-  /// run has already ended underneath it and the game-over overlay owns the
-  /// screen.
+  /// Ends the tutorial without handing off — used when the run has already
+  /// ended underneath it and the game-over overlay owns the screen.
   void abandon() {
     if (_finished) return;
-    AnalyticsService.design('tutorial:abandon:${_step.name}');
+    AnalyticsService.design('tutorial:abandon:${_lesson?.name ?? 'done'}');
     _finished = true;
     _releaseEngine();
     notifyListeners();
   }
 
-  /// Marks the current coach step done and lets the board finish saying so
-  /// before [next] takes over.
-  void _satisfy(TutorialStep next, Duration hold) {
-    if (_phase == TutorialPhase.effect) return;
-    _phase = TutorialPhase.effect;
-    notifyListeners();
-    _armHold(next, hold);
-  }
-
-  void _armHold(TutorialStep next, Duration hold) {
-    _holdTimer?.cancel();
-    _holdTimer = Timer(hold, () {
-      _holdTimer = null;
-      if (_finished) return;
-      // A beat that ripens behind the pause menu would advance a step the
-      // player cannot see the host screen drops the overlay while paused
-      // (`gameplay_screen.dart:321-325`). Wait the pause out instead.
-      if (game.paused) {
-        _armHold(next, const Duration(milliseconds: 200));
-        return;
-      }
-      _goTo(next);
-    });
-  }
-
-  void _goTo(TutorialStep next) {
-    // The per-step drop-off funnel. [TutorialStep] is a closed enum, so this
-    // is a fixed set of ids however the tutorial is navigated.
-    AnalyticsService.design('tutorial:step:${next.name}');
-    _holdTimer?.cancel();
-    _holdTimer = null;
-    _step = next;
-    _phase = TutorialPhase.prompt;
+  /// Puts [lesson] on screen and prepares the board for it.
+  void _arm(TutorialLesson lesson) {
+    AnalyticsService.design('tutorial:step:${lesson.name}');
+    _lesson = lesson;
     _moveCount = 0;
-    _dropSeen = false;
-    // Same reason the soft drop is cleared below: a finger that was down
-    // when a modal step took over never reports lifting, and a caption left
-    // faded would stay unreadable for the rest of the tutorial.
+    // A finger that was down when the board changed under it never reports
+    // lifting, and a prompt left faded would stay unreadable from here on.
     _boardTouched = false;
-    _applyStep();
-    notifyListeners();
+    // A new lesson brings its own floors, if it has any.
+    _floorsRigged = false;
+    _floorsReady = false;
   }
 
-  /// Everything a step needs done to the run on the way in.
-  void _applyStep() {
+  /// Marks [lesson] done and, if it was the one on screen, moves on.
+  ///
+  /// Credit is given even for a gesture performed before it was asked for —
+  /// a player who works out rotation on their own should not then be told to
+  /// rotate. [_next] skips anything already in [_done].
+  void _credit(TutorialLesson lesson) {
+    if (!_done.add(lesson)) return;
+    if (_lesson == lesson) _next();
+  }
+
+  /// Advances to the next lesson the player has not already performed, or ends
+  /// the tutorial if there is none.
+  void _next() {
+    final current = _lesson;
+    final from = current == null ? 0 : current.index + 1;
+    for (var i = from; i < TutorialLesson.values.length; i++) {
+      final candidate = TutorialLesson.values[i];
+      if (_done.contains(candidate)) continue;
+      _arm(candidate);
+      notifyListeners();
+      return;
+    }
+    // Only a player who actually performed every gesture completed it. A
+    // lesson the tutorial gave up on (see [_onMissed]) still gets the player to
+    // the live run, but scoring it as a completion would make this number an
+    // exit rate dressed up as a success rate.
+    AnalyticsService.design(
+      _givenUp.isEmpty ? 'tutorial:complete' : 'tutorial:partial',
+    );
+    // GA4's `tutorial_complete` does fire either way. It is the signal Google
+    // Ads bids on, and what it means there is "this install reached the game",
+    // which a player who skipped one gesture has still done.
+    FirebaseAnalyticsService.logTutorialComplete();
+    _lesson = null;
+    _end();
+  }
+
+  /// Settles the piece that just spawned, and closes the books on the one
+  /// before it.
+  ///
+  /// Pieces spawn at `grid.minRow` — two rows above the top of the board — and
+  /// only ordinary gravity carries them into view. A coached piece is frozen
+  /// on arrival, so without the [lowerTo] here the player would be asked to
+  /// steer something drawn off-screen.
+  void _onPieceSpawned() {
     final engine = game.engine;
 
-    // A drag still in progress when its step ends never gets its matching
-    // `softDropEnd`: the modal that follows applies `IgnorePointer`, so the
-    // pointer-up never reaches the board's `Listener`. Left set, it would
-    // quietly run the next lesson's piece at seven times gravity.
-    if (_step != TutorialStep.softDrop) {
-      engine.pieceController.softDropActive = false;
-    }
+    // Close the books on the piece that just ended: if the lesson showing when
+    // it spawned is still showing now, the player had a whole piece to do it
+    // on and didn't.
+    final stale = _lessonAtSpawn;
+    _lessonAtSpawn = null;
+    if (stale != null && stale == _lesson) _onMissed(stale);
 
-    // Soft drop is a no-op against frozen gravity it only divides an
-    // interval that is not being counted so its step is the one that has to
-    // let the clock run. The rigged clear needs it too, so that a player who
-    // never drops the square still gets there eventually.
+    final lesson = _lesson;
+    if (lesson == null) return;
+
+    // A rotation prompt needs a piece that visibly rotates. An O's four
+    // rotation states are identical (`tetromino.dart:37-42`), so `Rotate` over
+    // one would show the player precisely nothing happening — and `move`
+    // counts here too, because `rotate` follows it on that same piece.
     //
-    // The rise demo deliberately does *not*: gravity and the rise tick
-    // independently (`game_engine.dart:181-190`), and a piece drifting down
-    // the middle of the board is competing with the one thing the step is
-    // asking the player to watch.
-    engine.freezeGravity = switch (_step) {
-      TutorialStep.softDrop ||
-      TutorialStep.clearRow ||
-      TutorialStep.cascadeRow => false,
-      _ => true,
-    };
-    engine.freezeRise = _step != TutorialStep.riseWatch;
+    // This is also where the opening piece is dealt. It cannot be queued from
+    // the constructor: that runs in the host widget's `initState`, before
+    // Flame's `onLoad` calls `GameEngine.start`, which clears `_scriptedPieces`
+    // (`game_engine.dart:162`). The piece being replaced is still up in the
+    // hidden spawn buffer and has never been drawn, so the swap is invisible;
+    // and because the swap queues a T explicitly, it can never repeat.
+    if ((lesson == TutorialLesson.move || lesson == TutorialLesson.rotate) &&
+        engine.pieceController.piece?.type == TetrominoType.O) {
+      engine.queuePieces([TetrominoType.T]);
+      engine.respawnPiece();
+      return;
+    }
 
-    switch (_step) {
-      case TutorialStep.move:
-        // Deal a T for the gesture lessons rather than take whatever the bag
-        // offers: an O's four rotation states are identical
-        // (`tetromino.dart:37-42`), so a rotate step taught on one would show
-        // the player precisely nothing happening.
-        engine.queuePieces([TetrominoType.T]);
-        engine.respawnPiece();
-      case TutorialStep.clearRow:
-        _rigClearRow();
-      case TutorialStep.cascadeRow:
-        _rigCascade();
-      case TutorialStep.riseWatch:
-        _rigRiseDemo();
-        _startRiseDemo();
-      default:
-        break;
+    // The floor lessons want the opposite piece, for the opposite reason: both
+    // rigs leave a two-wide gap, and an `O` is the one piece that fills it
+    // whatever way up it is turned.
+    if (_isFloorLesson(lesson) &&
+        engine.pieceController.piece?.type != TetrominoType.O) {
+      engine.queuePieces([TetrominoType.O]);
+      engine.respawnPiece();
+      return;
+    }
+
+    _lessonAtSpawn = lesson;
+    // Per piece, not per prompt: a lesson that re-arms on a later piece is
+    // never carried there half-satisfied.
+    _moveCount = 0;
+    _pieceEngaged = false;
+    engine.freezeGravity = true;
+    engine.pieceController.lowerTo(_coachRow);
+
+    // Ordered once per arming, from here rather than [_arm], so the floors
+    // start climbing against a piece that is already parked and waiting.
+    if (_isFloorLesson(lesson) && !_floorsRigged) {
+      _floorsRigged = true;
+      // Picked now, against the board as it actually stands — everything the
+      // player has already dropped is still on it.
+      final (gap, _) = _pickGapColumns();
+      _gapCol = gap;
+      _cascadeCol = _pickCascadeColumn(gap);
+      _clearRigColumns(
+        lesson == TutorialLesson.clearRow
+            ? {_gapCol, _gapCol + 1}
+            : {_gapCol, _gapCol + 1, _cascadeCol},
+      );
+      _raiseFloors(
+        lesson == TutorialLesson.clearRow ? _clearFloors() : _cascadeFloors(),
+      );
     }
   }
 
-  /// Brings a just-spawned piece down out of the hidden spawn buffer.
-  ///
-  /// Pieces spawn at `grid.minRow` two rows above the top of the board —
-  /// and only ordinary gravity carries them into view. The coach steps switch
-  /// gravity off, so without this the player would be asked to steer
-  /// something drawn off-screen.
-  void _showSpawnedPiece() {
-    if (!game.engine.freezeGravity) return;
-    game.engine.pieceController.lowerTo(_coachRow);
-  }
+  // ------------------------------------------------------------------ floors
 
-  /// Wipes whatever the practice drops left behind and lays out a bottom row
-  /// that is one square short, then deals the square that fits it.
-  ///
-  /// The board changes in the same frame the `clearIntro` panel is dismissed,
-  /// so the swap reads as the next scene rather than as blocks appearing out
-  /// of nowhere.
-  void _rigClearRow() {
-    final engine = game.engine;
-    game.boardOrNull?.resetForRestart();
-    engine.grid.clearAll();
-    final bottom = engine.grid.maxRow;
-    for (var col = 0; col < BoardConfig.cols; col++) {
-      if (col == _clearGapCol || col == _clearGapCol + 1) continue;
-      engine.grid.set(bottom, col, Cell(BlockType.wood));
+  /// A full row of wood with [gaps] left open.
+  static List<Cell?> _floor(Set<int> gaps) => List<Cell?>.generate(
+    BoardConfig.cols,
+    (c) => gaps.contains(c) ? null : Cell(BlockType.wood),
+  );
+
+  /// How many blocks stand in [col] — anything a dropped square would land on
+  /// before reaching the floor.
+  int _blockersIn(int col) {
+    final grid = game.engine.grid;
+    var n = 0;
+    for (var r = grid.minRow; r <= grid.maxRow; r++) {
+      if (grid.isOccupied(r, col)) n++;
     }
-    engine.queuePieces([TetrominoType.O]);
-    engine.respawnPiece();
+    return n;
   }
 
-  /// Lays out the three rows that turn one drop into a cascade and a chain.
+  /// Picks the two adjacent columns the rig will leave open.
   ///
-  /// Read together they are a small machine, and every column in it is load-
-  /// bearing:
+  /// Chosen against the live board rather than fixed, and that is the whole
+  /// point: fixed columns were safe only while each lesson wiped the board
+  /// first. They are not now — by the cascade the board is carrying the clear
+  /// lesson's leftovers *and* four pieces the player placed wherever they
+  /// liked, and a gap underneath any of that is a gap the square can never
+  /// reach. It lands on the debris and the chain never fires.
   ///
-  /// * the bottom row is short only the two columns the square fills, so the
-  ///   drop completes it exactly as the last lesson did;
-  /// * the row above is short those two *and* [_cascadeGapCol], so once the
-  ///   bottom row shatters it is released, falls a row, and lands one column
-  ///   short of complete;
-  /// * a single block sits two rows up in [_cascadeGapCol] the wave reaches
-  ///   it last, it falls into the one column still missing, and that completes
-  ///   the row and chains.
+  /// Emptiest pair wins, and only then the one nearest [_preferredGapDistance]
+  /// — so the lesson still asks for the movement it just taught whenever it
+  /// can, and [_clearRigColumns] has as little to tidy as possible.
+  (int, int) _pickGapColumns() {
+    final spawn = Tetromino.spawnColumn[TetrominoType.O]!;
+    int score(int c) =>
+        (_blockersIn(c) + _blockersIn(c + 1)) * 100 +
+        ((c - spawn).abs() - _preferredGapDistance).abs();
+    var best = 0;
+    for (var c = 1; c <= BoardConfig.cols - 2; c++) {
+      if (score(c) < score(best)) best = c;
+    }
+    return (best, best + 1);
+  }
+
+  /// Picks the column the cascade's chain runs down: as empty as possible, and
+  /// well away from the two the square is going to fill.
+  int _pickCascadeColumn(int gapCol) {
+    final taken = {gapCol, gapCol + 1};
+    var best = -1;
+    for (var c = 0; c < BoardConfig.cols; c++) {
+      if (taken.contains(c)) continue;
+      if (best < 0 || _blockersIn(c) < _blockersIn(best)) best = c;
+    }
+    return best < 0 ? 0 : best;
+  }
+
+  /// Empties the columns the rig depends on, right before its floors go up.
+  ///
+  /// Insurance, and usually a no-op — [_pickGapColumns] goes looking for
+  /// columns that are already bare. When it cannot find any, this is what keeps
+  /// the lesson solvable: the square needs a clear run to the floor, and the
+  /// cascade's lone block needs a clear run into the gap below it. Without it a
+  /// player who stacked badly during the gesture lessons gets a rig they cannot
+  /// complete and a prompt they cannot dismiss.
+  ///
+  /// It costs a handful of the player's own blocks, which is far less than the
+  /// whole-board wipe the modal tutorial did between every lesson, and it lands
+  /// under cover of the floors rising.
+  void _clearRigColumns(Set<int> cols) {
+    final grid = game.engine.grid;
+    for (var r = grid.minRow; r <= grid.maxRow; r++) {
+      for (final c in cols) {
+        grid.set(r, c, null);
+      }
+    }
+  }
+
+  /// One row, one square short. The `O` the lesson deals fills it exactly.
+  List<List<Cell?>> _clearFloors() => [
+    _floor({_gapCol, _gapCol + 1}),
+  ];
+
+  /// The three rows that turn one drop into a cascade and a chain.
+  ///
+  /// Read together they are a small machine, and every column in it is
+  /// load-bearing. Listed top-most first, because that is the order they have
+  /// to be *raised* in — each rise inserts at the floor and shoves the previous
+  /// one up:
+  ///
+  /// * a single block, which ends up two rows above the floor in
+  ///   [_cascadeGapCol];
+  /// * a row short of the square's landing *and* [_cascadeGapCol], so that once
+  ///   the bottom row shatters it is released, falls a row, and lands one
+  ///   column short of complete;
+  /// * the bottom row, short only the two columns the square fills, so the drop
+  ///   completes it exactly as the last lesson did.
+  ///
+  /// The lone block is what closes the chain: the wave reaches it last, it
+  /// falls into the one column still missing, and that completes the row.
   ///
   /// The order matters because gravity here is a wave, not a collapse
   /// (`ripple_cascade.dart`): rows are released one at a time from the clear
   /// upward, so the lone block cannot arrive before the row it lands on.
-  void _rigCascade() {
-    final engine = game.engine;
-    game.boardOrNull?.resetForRestart();
-    engine.grid.clearAll();
-    final bottom = engine.grid.maxRow;
-    for (var col = 0; col < BoardConfig.cols; col++) {
-      // The square's own landing, left open all the way down.
-      if (col == _clearGapCol || col == _clearGapCol + 1) continue;
-      engine.grid.set(bottom, col, Cell(BlockType.wood));
-      if (col != _cascadeGapCol) {
-        engine.grid.set(bottom - 1, col, Cell(BlockType.wood));
-      }
-    }
-    engine.grid.set(bottom - 2, _cascadeGapCol, Cell(BlockType.wood));
-    engine.queuePieces([TetrominoType.O]);
-    engine.respawnPiece();
-  }
-
-  /// Gap columns for the two rows the rise demo shoves upward. Both rows are
-  /// deliberately short of complete, so nothing here clears itself.
-  static const _riseRigGaps = <List<int>>[
-    [5, 6, 13],
-    [2, 9, 10, 14],
+  List<List<Cell?>> _cascadeFloors() => [
+    _floor({
+      for (var c = 0; c < BoardConfig.cols; c++)
+        if (c != _cascadeCol) c,
+    }),
+    _floor({_gapCol, _gapCol + 1, _cascadeCol}),
+    _floor({_gapCol, _gapCol + 1}),
   ];
 
-  /// Leaves a short stack for the rise to push against.
-  ///
-  /// The clear lesson ends with an empty board, and a single row arriving on
-  /// an empty board looks like a row arriving on an empty board nothing
-  /// like the thing that ends runs. Two ragged rows above it turn the same
-  /// commit into a visible shove.
-  void _rigRiseDemo() {
-    final grid = game.engine.grid;
-    for (var i = 0; i < _riseRigGaps.length; i++) {
-      final row = grid.maxRow - i;
-      if (row < 0) break;
-      for (var col = 0; col < BoardConfig.cols; col++) {
-        // Written either way rather than skipping the gaps: the clear lesson
-        // leaves the top half of its O behind, and a leftover block sitting
-        // in a gap would hand the rise a complete row to shatter.
-        grid.set(
-          row,
-          col,
-          _riseRigGaps[i].contains(col) ? null : Cell(BlockType.wood),
-        );
-      }
-    }
+  /// Orders [floors] up from the bottom of the board.
+  void _raiseFloors(List<List<Cell?>> floors) {
+    _pendingFloors
+      ..clear()
+      ..addAll(floors);
+    _floorsReady = false;
+    _raiseNextFloor();
   }
 
-  /// Winds the rise up to something a player can actually watch.
+  /// Sends the next rigged row up, or settles the board once they have all
+  /// landed.
   ///
-  /// The rise has a 12-second grace period whose clock only advances while it
-  /// is unfrozen, and a 22-second interval after that so simply letting it
-  /// go would leave the player staring at a still board for half a minute.
-  /// Skipping the grace and compressing the interval keeps the whole climb
-  /// inside the caption's welcome.
-  void _startRiseDemo() {
-    final rise = game.engine.riseController;
+  /// The rise is wound forward past its grace period and compressed, the same
+  /// trick the old rise demo used: left alone it would not deliver a first row
+  /// for another twelve seconds, and then only every twenty-two.
+  void _raiseNextFloor() {
+    final engine = game.engine;
+    final rise = engine.riseController;
+
+    if (_pendingFloors.isEmpty) {
+      engine.freezeRise = true;
+      rise.debugSpeedMultiplier = 1.0;
+      _floorsReady = true;
+      // The rig shoved the coached piece up a row per floor. Put it back where
+      // the prompt is pointing.
+      if (!_pieceEngaged) engine.pieceController.lowerTo(_coachRow);
+      notifyListeners();
+      return;
+    }
+
+    rise.pendingRow = _pendingFloors.removeAt(0);
     rise.elapsed = Difficulty.riseGracePeriod.inMicroseconds / 1e6 + 1;
-    // From the bottom, not from 0.9 as this once did: the point of the step
-    // is watching the row climb, and a row that starts nine tenths of the way
-    // up has already arrived by the time the player looks down at it.
     rise.riseProgress = 0.0;
-    rise.debugSpeedMultiplier = rise.riseInterval / _riseDemoSeconds;
+    rise.debugSpeedMultiplier = rise.riseInterval / _riseSeconds;
+    engine.freezeRise = false;
+  }
+
+  /// Releases the board on the player's first action of this piece.
+  void _engagePiece() {
+    if (_pieceEngaged) return;
+    _pieceEngaged = true;
+    game.engine.freezeGravity = false;
+  }
+
+  /// A coached piece has landed with its lesson unperformed. Ask once more on
+  /// the next piece, up to [_maxRearms], then let the lesson go.
+  void _onMissed(TutorialLesson lesson) {
+    final used = _rearms.update(lesson, (n) => n + 1, ifAbsent: () => 1);
+    final cap = _isFloorLesson(lesson) ? _maxFloorRearms : _maxRearms;
+    if (used <= cap) {
+      // A spent rig teaches nothing on the second attempt — the row it asked
+      // the player to fill is either gone or already ruined. Raise a fresh one.
+      if (_isFloorLesson(lesson)) _floorsRigged = false;
+      return;
+    }
+    AnalyticsService.design('tutorial:gaveup:${lesson.name}');
+    _givenUp.add(lesson);
+    _done.add(lesson);
+    _next();
   }
 
   void _end() {
     if (_finished) return;
     _finished = true;
+    _lesson = null;
     _releaseEngine();
     onFinished();
   }
 
   /// Hands the run back exactly as it was found. Idempotent, and reached from
-  /// every exit finishing, skipping, and a game over underneath.
+  /// every exit — finishing, skipping, and a game over underneath.
+  ///
+  /// Pointedly does *not* clear `softDropActive`, which the modal version of
+  /// this tutorial had to: its panels applied `IgnorePointer`, so a drag in
+  /// progress never got its matching pointer-up. Nothing here blocks the
+  /// board, and the soft-drop lesson ends the session the instant the drag
+  /// starts — cancelling it would yank the piece out from under the finger
+  /// that is still holding it down.
   void _releaseEngine() {
-    _holdTimer?.cancel();
-    _holdTimer = null;
     final engine = game.engine;
     engine.freezeGravity = false;
     engine.freezeRise = false;
-    engine.pieceController.softDropActive = false;
-    // `RiseController.reset` does not touch this, so the demo's compressed
-    // clock would otherwise follow the player into their first real run.
+    // `RiseController.reset` does not touch this, so a floor lesson's
+    // compressed clock would otherwise follow the player into their first run
+    // and deliver rows fifteen times too fast.
     engine.riseController.debugSpeedMultiplier = 1.0;
   }
 
@@ -560,74 +587,65 @@ class TutorialController extends ChangeNotifier {
   void _onEvent(GameEvent event) {
     if (_finished) return;
 
-    if (event is PieceSpawnedEvent) {
-      _showSpawnedPiece();
-      return;
-    }
+    switch (event) {
+      case PieceSpawnedEvent():
+        _onPieceSpawned();
+        notifyListeners();
 
-    // A coached run should be unloseable, but the rise does run for two of the
-    // steps. If it ever does end, get out of the way rather than stack a coach
-    // card on top of the game-over overlay.
-    if (event is GameOverEvent) {
-      abandon();
-      return;
-    }
+      // A coached session should be unloseable, but if the player somehow tops
+      // out, get out of the way rather than float a prompt over the game-over
+      // overlay.
+      case GameOverEvent():
+        abandon();
 
-    // A step already showing its work is done listening: nothing the board
-    // says during the beat can satisfy it a second time. This is also what
-    // absorbs the stray `softDropStart` a hard-drop flick leaves behind.
-    if (_phase == TutorialPhase.effect) return;
+      // One rigged floor has landed. Send the next, or settle and let the
+      // prompt come up.
+      case RiseCommittedEvent():
+        if (_isFloorLesson(_lesson) && !_floorsReady) _raiseNextFloor();
 
-    switch (_step) {
-      case TutorialStep.move:
-        if (event is PlayerActionEvent &&
-            (event.action == PlayerAction.moveLeft ||
-                event.action == PlayerAction.moveRight)) {
-          if (++_moveCount >= _movesToAdvance) {
-            _satisfy(TutorialStep.rotate, _holdShort);
-          }
+      // Both floor lessons require their own rig to have landed first, which
+      // the [_floorsReady] guard is doing. Without it the lesson can be
+      // satisfied by the *previous* lesson's resolve and skipped entirely:
+      // a stacked pair of rigged rows clears two rows at once, that cascades
+      // into a chain, and the chain credits a cascade lesson whose floors have
+      // not been raised — so the player is never shown the thing it teaches.
+      case RowsClearedEvent():
+        // The clear lesson is satisfied by the shatter itself. The cascade
+        // lesson is not — its first clear is only the thing that *starts* the
+        // chain, and the chain is what it is teaching.
+        if (_lesson == TutorialLesson.clearRow && _floorsReady) {
+          _credit(TutorialLesson.clearRow);
         }
-      case TutorialStep.rotate:
-        if (event is PlayerActionEvent && event.action == PlayerAction.rotate) {
-          _satisfy(TutorialStep.hardDrop, _holdShort);
+
+      case ChainAdvancedEvent(:final chainIndex):
+        // A non-zero index is exactly "this clear was caused by the last one",
+        // which is the thing being taught.
+        if (_lesson == TutorialLesson.cascadeRow &&
+            _floorsReady &&
+            chainIndex > 0) {
+          _credit(TutorialLesson.cascadeRow);
         }
-      case TutorialStep.hardDrop:
-        // Not the action event, deliberately: the engine emits it *before*
-        // running the drop (`game_engine.dart:258-259`), so a step hung off it
-        // changed the card before the piece had moved a single row. The lock
-        // that follows is the first moment there is a slam to have watched.
-        if (event is PlayerActionEvent &&
-            event.action == PlayerAction.hardDrop) {
-          _dropSeen = true;
-        } else if (_dropSeen && event is PieceLockedEvent) {
-          _satisfy(TutorialStep.softDrop, _holdLand);
+
+      case PlayerActionEvent(:final action):
+        // Before the credit below, and unconditionally: whatever the player
+        // just did, the piece is theirs now and the board should be moving.
+        _engagePiece();
+        switch (action) {
+          case PlayerAction.moveLeft || PlayerAction.moveRight:
+            if (++_moveCount >= _movesToAdvance) _credit(TutorialLesson.move);
+          case PlayerAction.rotate:
+            _credit(TutorialLesson.rotate);
+          case PlayerAction.hardDrop:
+            _credit(TutorialLesson.hardDrop);
+          case PlayerAction.softDrop:
+            // The one lesson never credited ahead of its prompt — see the note
+            // on [TutorialLesson]. A flick's stray `softDropStart` arrives
+            // while some earlier lesson is showing, and lands on nothing.
+            if (_lesson == TutorialLesson.softDrop) {
+              _credit(TutorialLesson.softDrop);
+            }
         }
-      case TutorialStep.softDrop:
-        if (event is PlayerActionEvent &&
-            event.action == PlayerAction.softDrop) {
-          _satisfy(TutorialStep.clearIntro, _holdSoftDrop);
-        }
-      case TutorialStep.clearRow:
-        if (event is RowsClearedEvent) {
-          _satisfy(TutorialStep.cascadeIntro, _holdClear);
-        }
-      case TutorialStep.cascadeRow:
-        // The chain is the lesson, so this waits for the *second* clear. The
-        // engine emits `ChainAdvancedEvent` once per resolve pass and only
-        // increments between them, so a non-zero index is exactly "this clear
-        // was caused by the last one" which is the thing being taught.
-        if (event is ChainAdvancedEvent && event.chainIndex > 0) {
-          _satisfy(TutorialStep.riseIntro, _holdChain);
-        } else if (event is RowsClearedEvent) {
-          // The first clear only arms a way out. The rig is deterministic and
-          // the chain lands in about two seconds, but stranding a player on a
-          // step whose exit can no longer happen is not a risk worth running.
-          _armHold(TutorialStep.riseIntro, _cascadeFallback);
-        }
-      case TutorialStep.riseWatch:
-        if (event is RiseCommittedEvent) {
-          _satisfy(TutorialStep.done, _holdRise);
-        }
+
       default:
         break;
     }
