@@ -391,7 +391,7 @@ class TutorialController extends ChangeNotifier {
 
     if (_pendingFloors.isEmpty) {
       engine.freezeRise = true;
-      rise.debugSpeedMultiplier = 1.0;
+      rise.speedMultiplier = 1.0;
       _floorsReady = true;
       // The rig shoved the coached piece up; put it back under the prompt.
       if (!_pieceEngaged) engine.pieceController.lowerTo(_coachRow);
@@ -402,7 +402,7 @@ class TutorialController extends ChangeNotifier {
     rise.pendingRow = _pendingFloors.removeAt(0);
     rise.elapsed = Difficulty.riseGracePeriod.inMicroseconds / 1e6 + 1;
     rise.riseProgress = 0.0;
-    rise.debugSpeedMultiplier = rise.riseInterval / _riseSeconds;
+    rise.speedMultiplier = rise.riseInterval / _riseSeconds;
     engine.freezeRise = false;
   }
 
@@ -447,7 +447,7 @@ class TutorialController extends ChangeNotifier {
     engine.freezeRise = false;
     // `RiseController.reset` doesn't touch this, so the compressed clock would
     // otherwise deliver rows fifteen times too fast in the real run.
-    engine.riseController.debugSpeedMultiplier = 1.0;
+    engine.riseController.speedMultiplier = 1.0;
   }
 
   void _onEvent(GameEvent event) {

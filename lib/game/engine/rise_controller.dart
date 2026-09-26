@@ -16,7 +16,7 @@ class RiseController {
 
   double riseProgress = 0.0;
 
-  double debugSpeedMultiplier = 1.0;
+  double speedMultiplier = 1.0;
 
   double elapsed = 0.0;
 
@@ -53,7 +53,7 @@ class RiseController {
     elapsed += dt;
     if (elapsed < Difficulty.riseGracePeriod.inMicroseconds / 1e6) return false;
     riseProgress +=
-        (dt * debugSpeedMultiplier) / (riseInterval * directorIntervalScale);
+        (dt * speedMultiplier) / (riseInterval * directorIntervalScale);
     if (riseProgress >= 1.0) {
       riseProgress -= 1.0;
       return true;

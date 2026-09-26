@@ -343,7 +343,7 @@ class _ReelDirector {
       if (reel.pieces.isNotEmpty) engine.queuePieces(reel.pieces);
       engine.riseController
         ..elapsed = reel.elapsedSeconds.toDouble()
-        ..debugSpeedMultiplier = reel.riseSpeed;
+        ..speedMultiplier = reel.riseSpeed;
       engine.scoring.score = reel.startScore;
       engine.scoring.awardLineClear(lines: 0, chainIndex: 0, elapsedSeconds: 0);
 
