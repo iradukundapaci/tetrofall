@@ -18,13 +18,8 @@ abstract final class AdUnitIds {
       : 'ca-app-pub-3940256099942544/6300978111';
 }
 
-/// Stable names for the four ad slots, reported to GameAnalytics instead of
-/// the unit ids above.
-///
-/// Kept separate from [AdUnitIds] on purpose: a unit can be replaced, split
-/// for an experiment, or swapped between test and release — and if the
-/// dashboard were keyed on the id, that would silently start a brand new
-/// series rather than continuing the old one.
+/// Stable slot names reported to GameAnalytics instead of unit ids, so
+/// replacing a unit doesn't start a new dashboard series.
 abstract final class AdPlacements {
   static const rewardedContinue = 'rewarded_continue';
   static const interstitial = 'interstitial';

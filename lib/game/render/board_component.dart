@@ -35,20 +35,6 @@ class BoardComponent extends PositionComponent with HasGameReference {
 
   double get cellSize => frame.cellSize;
 
-  (int, int)? cellFromScreen(Vector2 screenPos) {
-    if (cellSize <= 0) return null;
-    final rise = engine.riseController;
-    final localX = screenPos.x - position.x;
-    final localY = screenPos.y - position.y + rise.riseProgress * cellSize;
-    final col = (localX / cellSize).floor();
-    final row = (localY / cellSize).floor();
-    final grid = engine.grid;
-    if (row < 0 || row > grid.maxRow || col < 0 || col >= grid.cols) {
-      return null;
-    }
-    return (row, col);
-  }
-
   @override
   Future<void> onLoad() async {
     frame = BoardFrame(
@@ -121,8 +107,8 @@ class BoardComponent extends PositionComponent with HasGameReference {
 
     final newCellSize = math.min(widthCellSize, heightCellSize);
 
-    // Rebake the tinted tile for the new cell size before anything renders
-    // at it, so the flat-fill fallback is never visible on a resize.
+    // Rebake the tile before anything renders at the new size, so the
+    // flat-fill fallback never shows on a resize.
     TileCache.ensure(theme, newCellSize);
 
     frame.cellSize = newCellSize;

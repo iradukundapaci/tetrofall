@@ -3,10 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'analytics_service.dart' show logAnalyticsFailure;
 import 'firebase_bootstrap.dart';
 
-/// A silent, anonymous Firebase account. Nothing is shown to the player and
-/// there is nothing to link yet: it exists so Firestore rules can insist on a
-/// signed-in writer. It is also the same account that Google/Apple linking
-/// upgrades later, so nothing here is thrown away.
+/// A silent anonymous Firebase account, so Firestore rules can require a
+/// signed-in writer.
 abstract final class AuthService {
   static Future<String?>? _signIn;
 
@@ -21,8 +19,8 @@ abstract final class AuthService {
     }
   }
 
-  /// Signs in anonymously if nobody is signed in. Safe to call repeatedly and
-  /// from several places at once. Null when it cannot (offline, no Firebase).
+  /// Signs in anonymously if nobody is signed in; safe to call concurrently.
+  /// Null when it cannot (offline, no Firebase).
   static Future<String?> ensureAnonymous() {
     final existing = uid;
     if (existing != null) return Future.value(existing);

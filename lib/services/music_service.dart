@@ -4,8 +4,7 @@ import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'audio_service.dart' show logAudioFailure, volumeToAmplitude;
 import 'storage_service.dart';
 
-/// The looping background tracks (game.md §P.7), relative to
-/// `FlameAudio.audioCache.prefix`.
+/// The looping background tracks, relative to `FlameAudio.audioCache.prefix`.
 enum MusicTrack {
   menu('music/menu_loop.mp3'),
   gameplay('music/game_loop.mp3');
@@ -15,29 +14,20 @@ enum MusicTrack {
   final String asset;
 }
 
-/// Owns the single looping background player behind the Settings "Music"
-/// slider.
-///
-/// Mutable state is static like [AudioService]'s pools — there is only one
-/// [FlameAudio.bgm] no matter how many screens ask it for a track, so a
-/// screen can construct a handle on the spot. The slider is applied without
-/// restarting the track; zero stops it, and the requested track is
-/// remembered so raising it again starts back up.
+/// Owns the single looping background player behind the Music slider. State
+/// is static because there is one [FlameAudio.bgm]; the slider applies without
+/// restarting the track, zero stops it, and the requested track is remembered
+/// so raising it starts it again.
 class MusicService {
   MusicService(this._storage);
 
   final StorageService _storage;
 
-  /// Tracks actually in the bundle. The loops are still an outstanding art
-  /// asset, so until the mp3s land this stays empty and every request is a
-  /// no-op rather than an exception per screen transition.
+  /// Tracks actually in the bundle; while empty, every request is a no-op.
   static final Set<MusicTrack> _available = {};
 
-  /// Whether any loop actually shipped. Settings hides its Music control when
-  /// this is false: a slider that provably has nothing to turn up reads as a
-  /// broken app, not an empty one (android_release_plan.md §1.4).
-  ///
-  /// Only meaningful once [warmUp] has completed — await it first.
+  /// Whether any loop shipped; Settings hides its Music control when false.
+  /// Only meaningful once [warmUp] has completed.
   static bool get hasBundledTracks => _available.isNotEmpty;
 
   static Future<void>? _warmUpFuture;
@@ -48,19 +38,19 @@ class MusicService {
 
   static double _volume = 0;
 
-  /// `audioplayers` does not like `play` and `setVolume` racing, and
-  /// dragging the slider fires a lot of them in a hurry.
+  /// Serialises player calls; `audioplayers` dislikes `play`/`setVolume`
+  /// racing, and dragging the slider fires many.
   static Future<void> _queue = Future.value();
 
-  /// Registers the lifecycle observer so music pauses when the app is
-  /// backgrounded, and works out which loops exist. Safe to call twice.
+  /// Initialises the player (which pauses music when backgrounded) and works
+  /// out which loops exist. Safe to call twice.
   static Future<void> warmUp() => _warmUpFuture ??= _prepare();
 
   static Future<void> _prepare() async {
     try {
       await FlameAudio.bgm.initialize();
     } catch (error) {
-      // A device that won't hand out a player must not take the boot down.
+      // A device that won't hand out a player must not break boot.
       logAudioFailure('initializing the music player', error);
     }
     try {
@@ -76,12 +66,11 @@ class MusicService {
       // No manifest, no music.
       logAudioFailure('probing the bundle for music', error);
     }
-    // A screen that asked for a track before the probe finished is waiting.
+    // A screen may have asked for a track before the probe finished.
     _sync();
   }
 
-  /// Makes [track] the current music at the volume set in Settings. Already
-  /// playing it is a no-op, so returning to the menu doesn't restart it.
+  /// Makes [track] current at the Settings volume; a no-op if already playing.
   void play(MusicTrack track) {
     _wanted = track;
     _volume = _storage.musicVolume;
@@ -103,7 +92,7 @@ class MusicService {
       try {
         await _apply();
       } catch (error) {
-        // Music is cosmetic; a failed player call must not break the run.
+        // Music is cosmetic.
         logAudioFailure('applying the music state', error);
       }
     });
@@ -113,9 +102,8 @@ class MusicService {
     final wanted = _wanted;
     final volume = _volume;
 
-    // Asking for a track that isn't bundled holds the previous one instead
-    // of dropping to silence, so shipping only one loop still carries the
-    // music across the menu/gameplay boundary.
+    // An unbundled track holds the previous one rather than dropping to
+    // silence.
     if (wanted == null) {
       _resolved = null;
     } else if (_available.contains(wanted)) {
@@ -131,8 +119,7 @@ class MusicService {
       return;
     }
 
-    // The slider is a 0–1 loudness knob, not an amplitude — see
-    // [volumeToAmplitude].
+    // The slider is loudness, not amplitude; see [volumeToAmplitude].
     final amplitude = volumeToAmplitude(volume);
 
     if (_playing == target) {

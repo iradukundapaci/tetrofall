@@ -26,8 +26,8 @@ class PieceComponent extends PositionComponent
   double _easeT = 1;
   int? _lastCol;
 
-  /// The piece the ease is currently tracking, held by identity so a newly
-  /// spawned piece can be told apart from the one that just locked.
+  /// The piece the ease is tracking, by identity, to tell a new spawn from the
+  /// one that just locked.
   ActivePiece? _lastPiece;
 
   @override
@@ -55,11 +55,9 @@ class PieceComponent extends PositionComponent
       return;
     }
 
-    // A new piece starts where it spawns, it does not slide in from wherever
-    // the last one landed. Clearing the tracked column is what makes the
-    // branch below snap instead of ease. The `piece == null` path above is
-    // not enough on its own: a hard drop locks and respawns inside a single
-    // engine tick, so the renderer never observes the gap.
+    // A new piece starts where it spawns rather than sliding in from the last
+    // landing. Needed because a hard drop locks and respawns in one engine
+    // tick, so the null path above never sees the gap.
     if (!identical(_lastPiece, piece)) {
       _lastPiece = piece;
       _lastCol = null;
@@ -107,9 +105,7 @@ class PieceComponent extends PositionComponent
         final offset = cells[i];
         g
           ..size = Vector2.all(cellSize)
-          // Shares the eased column so the landing outline stays under the
-          // piece it belongs to; reading the raw column instead put the two
-          // a whole cell apart for the length of every sideways move.
+          // Uses the eased column so the outline stays under its piece.
           ..position = Vector2(
             (_visualCol + offset.col) * cellSize,
             (ghostRow + offset.row) * cellSize,

@@ -4,12 +4,8 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'analytics_service.dart' show logAnalyticsFailure;
 
-/// The one place Firebase is initialised. Analytics, Crashlytics, Remote
-/// Config, Auth and Firestore all wait on it, so there is a single answer to
-/// "is Firebase up?" and a single failure to swallow.
-///
-/// Inert off Android and iOS — under `flutter test` and on desktop there is no
-/// native config to read and no plugin channel to call.
+/// The one place Firebase is initialised; everything Firebase-backed waits on
+/// it. Inert off Android and iOS (tests, desktop).
 abstract final class FirebaseBootstrap {
   static Future<void>? _initFuture;
   static bool _ready = false;

@@ -8,17 +8,17 @@ import 'session_tracker.dart';
 import 'storage_service.dart';
 import 'telemetry.dart';
 
-/// The store's rating prompt, behind an interface so the rules that decide
-/// *when* to ask can be exercised without a store behind them.
+/// The store's rating prompt, behind an interface so the rules for *when* to
+/// ask can be exercised without a store.
 abstract class ReviewService {
   Future<bool> isAvailable();
 
-  /// Asks the store to show its in-app rating card. The store decides whether
-  /// it actually appears (Google enforces a quota nobody can read), and the app
-  /// is never told whether the player rated. Safe to call at every trigger.
+  /// Asks the store to show its rating card. The store decides whether it
+  /// appears (there is an unreadable quota), so this is safe to call at every
+  /// trigger.
   Future<void> requestReview();
 
-  /// Opens the game's store page directly. No quota; fine to call any time.
+  /// Opens the store page directly; no quota.
   Future<void> openStoreListing();
 }
 
@@ -46,11 +46,9 @@ enum ReviewTrigger {
   final String id;
 }
 
-/// The rules for asking, kept apart from anything that touches a store.
-///
-/// The store's own guidelines shape them: no question before the prompt ("do
-/// you like the game?") so that only happy people see it, no reward for
-/// rating, and never over gameplay.
+/// The rules for asking, kept apart from the store. Shaped by store
+/// guidelines: no "do you like the game?" gate, no reward for rating, never
+/// over gameplay.
 abstract final class ReviewPolicy {
   static const minSessions = 3;
   static const minDaysSinceInstall = 2;
@@ -83,10 +81,8 @@ abstract final class ReviewPolicy {
     return inLastYear < maxRequestsPerYear;
   }
 
-  /// The good thing that happened *during* the run, if any. An endless run
-  /// always ends in a top-out, so the ending itself is never the reason.
-  ///
-  /// [recentScores] are the player's previous runs, oldest first.
+  /// The good thing that happened during the run, if any (the ending never
+  /// counts). [recentScores] are previous runs, oldest first.
   static ReviewTrigger? happyMoment(
     EndlessRunSummary run, {
     required List<int> recentScores,
@@ -112,8 +108,7 @@ abstract final class ReviewPolicy {
   }
 }
 
-/// Applies [ReviewPolicy] to a finished run and, when everything lines up,
-/// asks the store.
+/// Applies [ReviewPolicy] to a finished run and asks the store when it allows.
 class ReviewPrompter {
   ReviewPrompter({required this.storage, ReviewService? service})
     : service = service ?? InAppReviewService();
@@ -121,9 +116,8 @@ class ReviewPrompter {
   final StorageService storage;
   final ReviewService service;
 
-  /// Call from the game-over screen — a calm moment — with the run that just
-  /// ended and the scores *before* it. Returns the trigger if the store was
-  /// asked, null otherwise.
+  /// Call from the game-over screen with the run and the scores before it.
+  /// Returns the trigger if the store was asked.
   Future<ReviewTrigger?> maybeAsk(
     EndlessRunSummary run, {
     required List<int> recentScores,
@@ -147,8 +141,7 @@ class ReviewPrompter {
 
     try {
       if (!await service.isAvailable()) return null;
-      // Recorded before asking: the store may show nothing, but our own
-      // spacing must hold either way.
+      // Recorded first: the store may show nothing but our spacing must hold.
       await storage.addReviewRequest(when);
       Telemetry.reviewRequest(trigger.id);
       await service.requestReview();

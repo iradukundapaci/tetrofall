@@ -1,5 +1,4 @@
-/// What one finished endless run amounted to, gathered once at game over and
-/// shared by everything that wants to know: the skill model, the rating
+/// What one finished run amounted to, gathered at game over for the rating
 /// prompt, analytics and the feedback form.
 class EndlessRunSummary {
   const EndlessRunSummary({
@@ -24,8 +23,7 @@ class EndlessRunSummary {
 
   final int score;
 
-  /// The player's best *before* this run. `best_score` in storage already
-  /// holds this run's score by the time game over is shown.
+  /// The best before this run; storage already holds this run's score.
   final int bestBefore;
   final double durationSeconds;
   final int lines;
@@ -49,13 +47,9 @@ class EndlessRunSummary {
   final double? placementQuality;
 
   bool get isNewBest => score > bestBefore;
-
-  /// Points short of the previous best, or 0 when it was beaten.
-  int get pointsFromBest => isNewBest ? 0 : bestBefore - score;
 }
 
-/// The most recent finished run of this session, for the feedback form's
-/// "include my last run".
+/// The last finished run this session, for the feedback form.
 abstract final class LastRun {
   static EndlessRunSummary? summary;
 }

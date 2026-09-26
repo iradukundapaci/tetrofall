@@ -10,27 +10,21 @@ import '../config/motion.dart';
 import '../engine/events.dart';
 import 'tile_cache.dart';
 
-// Shard colors are derived from the active theme's block tint (below),
-// not hardcoded — so a theme swap recolors the shatter effect along
-// with the blocks, with zero changes needed here.
+// Shard colors are lightness variants of the theme's block tint.
 const _facetLightnessDeltas = [0.32, 0.38, 0.42, 0.26];
 
-// Shards are drawn from a small pre-baked greyscale atlas that is tinted
-// per shard, instead of three `drawPath` calls each. These are the greys the
-// atlas bakes: the flat body, the lit facet, and the outline. Tinting by the
-// shard's facet color reproduces the old base/facet/edge relationship,
-// because every shard color was already a lightness variant of one hue.
+// Shards come from a pre-baked greyscale atlas tinted per shard: these are the
+// body, lit facet and outline greys.
 const _spriteBodyGrey = 0.55;
 const _spriteFacetGrey = 1.0;
 const _spriteEdgeGrey = 0.30;
 
-/// Shard silhouettes baked into the atlas. Each shard picks one at random;
-/// with random rotation at 3-10dp on screen the repeat is invisible.
+/// Shard silhouettes baked into the atlas; each shard picks one at random.
 const _spriteCount = 12;
 const _spritePx = 48;
 
-/// Unit-space half-extent a sprite slot covers. Shard vertices reach 0.65
-/// from center, so 0.7 leaves room for the outline stroke.
+/// Unit-space half-extent of a sprite slot; vertices reach 0.65, leaving room
+/// for the outline.
 const _spriteExtent = 0.7;
 
 Color _shiftLightness(Color color, double delta) {
@@ -76,9 +70,7 @@ class _CrackedCell {
          cellSize * 0.97,
          cellSize * 0.97,
        ) {
-    // Built once. This geometry is fully determined by the seed, but it used
-    // to be regenerated — new Random, new Paths, every segment — on every
-    // frame the cell was on screen.
+    // Built once: fully determined by the seed.
     final rng = math.Random(seed);
     final cx = rect.left + rect.width * (0.35 + rng.nextDouble() * 0.3);
     final cy = rect.top + rect.height * (0.35 + rng.nextDouble() * 0.3);
@@ -103,10 +95,10 @@ class _CrackedCell {
   final int row;
   final int col;
 
-  /// Full cell — the baked tile already carries the inset and rounding.
+  /// Full cell; the baked tile already carries the inset and rounding.
   final Rect cellRect;
 
-  /// Inset content box the cracks are drawn inside.
+  /// Inset box the cracks are drawn inside.
   final Rect rect;
 
   final List<Path> cracks = [];
@@ -135,7 +127,7 @@ class ShatterLayer extends PositionComponent {
 
   ui.Image? _shardAtlas;
 
-  // Preallocated so a frame with 800 live shards allocates nothing.
+  // Preallocated so a frame allocates nothing.
   final Float32List _transforms = Float32List(Motion.particlePoolSize * 4);
   final Float32List _rects = Float32List(Motion.particlePoolSize * 4);
   final Int32List _colors = Int32List(Motion.particlePoolSize);
@@ -156,8 +148,8 @@ class ShatterLayer extends PositionComponent {
     super.onRemove();
   }
 
-  /// One image holding [_spriteCount] greyscale shard silhouettes side by
-  /// side, each with its body, lit facet and outline already composited.
+  /// [_spriteCount] greyscale shard silhouettes side by side, each with body,
+  /// lit facet and outline composited.
   ui.Image _bakeShardAtlas() {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
@@ -239,9 +231,8 @@ class ShatterLayer extends PositionComponent {
     double timeScale = 1.0,
   }) {
     final center = (cols - 1) / 2.0;
-    // The engine compresses the shatter as the game speeds up and as a chain
-    // deepens; the crack sequence has to run on the same clock or it would
-    // still be spreading when gravity takes over.
+    // Runs on the engine's compressed clock so cracks finish before gravity
+    // takes over.
     final stepSeconds = Motion.shatterStep.inMilliseconds / 1000 * timeScale;
     final crackSeconds = Motion.crackHold.inMilliseconds / 1000 * timeScale;
 
@@ -303,7 +294,7 @@ class ShatterLayer extends PositionComponent {
   }) {
     final shard = _pool[_cursor];
     _cursor = (_cursor + 1) % _pool.length;
-    // The pool is a ring, so this slot may still have been in flight.
+    // The pool is a ring, so this slot may still be in flight.
     if (!shard.active) _activeCount++;
 
     final lifetimeMs = _lerpInt(
@@ -403,9 +394,7 @@ class ShatterLayer extends PositionComponent {
     final atlas = _shardAtlas;
     if (atlas == null || _activeCount == 0) return;
 
-    // Every live shard goes out in one call. This was three `drawPath` per
-    // shard, so a full-board four-line clear was issuing ~2400 path draws a
-    // frame for the length of the effect.
+    // Every live shard goes out in one atlas call.
     var count = 0;
     for (final shard in _pool) {
       if (!shard.active || shard.delay > 0) continue;
@@ -418,8 +407,8 @@ class ShatterLayer extends PositionComponent {
                 .clamp(0.0, 1.0);
       if (opacity <= 0) continue;
 
-      // The sprite's slot spans 2 * extent in unit space, and a shard of
-      // `size` reaches `extent * size` from its center.
+      // A slot spans 2 * extent in unit space; a shard reaches
+      // `extent * size` from its center.
       final scale = shard.size * _spriteExtent * 2 / _spritePx;
       final scos = math.cos(shard.angle) * scale;
       final ssin = math.sin(shard.angle) * scale;

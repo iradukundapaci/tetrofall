@@ -21,18 +21,11 @@ class ScoreHud extends StatefulWidget {
   final TetrofallGame game;
   final StorageService storage;
 
-  /// Whether what happens on this board counts towards the player's best.
-  ///
-  /// False for the duration of the coached tutorial, which is the same line
-  /// gameplay already draws for [RunTracker] and for the interstitial cadence:
-  /// coaching is not a run. Its rigged row is worth a hundred points and the
-  /// player is *told* to clear it, so banking that would hand every new player
-  /// a best score they did not earn and, through
-  /// [Difficulty.adaptiveStartElapsed], a head start on their first real game.
+  /// False during the tutorial: coaching is not a run, and banking its rigged
+  /// row would hand new players an unearned best and adaptive-start head start.
   final bool recordsBest;
 
-  /// Whether to show the next-piece preview. Off during the coached tutorial,
-  /// which hands the player scripted pieces one at a time.
+  /// Off during the tutorial, which deals scripted pieces.
   final bool showNextPiece;
 
   @override
@@ -71,10 +64,8 @@ class _ScoreHudState extends State<ScoreHud> {
     final ui = context.scale;
     return SafeArea(
       bottom: false,
-      // Fixed height rather than intrinsic. On a 9:16 phone the board's
-      // aspect ratio turns every point of HUD height into a point of board
-      // *width*, so this has to be both small and more to the point —
-      // knowable before layout: `_GameplayBody` budgets the board against it.
+      // Fixed height, known before layout: `_GameplayBody` budgets the board
+      // against it.
       child: SizedBox(
         height: ui.hudHeight,
         child: Padding(
@@ -86,8 +77,7 @@ class _ScoreHudState extends State<ScoreHud> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Scales itself down rather than overflow the fixed height when
-              // the player has raised the system font size.
+              // Shrinks rather than overflows at large system font sizes.
               Flexible(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
@@ -150,18 +140,14 @@ class _PauseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Listens to the same notifier the pause overlay uses, so the icon
-    // stays correct whether pause/resume is triggered from here or from
-    // Resume in the overlay not just from this button's own tap.
+    // Shares the pause overlay's notifier so the icon tracks either source.
     return ValueListenableBuilder<bool>(
       valueListenable: game.pausedNotifier,
       builder: (context, paused, _) {
         final ui = context.scale;
         return GestureDetector(
           onTap: () {
-            // Only this button and the overlay's Resume are reported. The
-            // engine is also paused behind the quit prompt, which is not the
-            // player pausing and is already covered by `quit:prompt`.
+            // The quit prompt also pauses the engine but has its own event.
             AnalyticsService.design(paused ? 'pause:resume' : 'pause:open');
             if (paused) {
               game.resumeEngine();

@@ -23,17 +23,14 @@ enum FeedbackCategory {
   final String label;
 }
 
-/// Sends a player's feedback to Firestore (`feedback/{autoId}`).
-///
-/// No email and no name: the document carries the anonymous uid, the app and
-/// device, and optionally the stats of the last run. Rules only accept a
-/// create from a signed-in user whose uid matches, and nothing can be read
-/// back from the app — it is read in the Firebase console.
+/// Sends feedback to Firestore (`feedback/{autoId}`): the anonymous uid, app
+/// and device, and optionally the last run. Rules accept only a create from a
+/// matching signed-in user; nothing is read back in the app.
 abstract final class FeedbackService {
   static const maxTextLength = 1000;
 
-  /// True when the feedback was accepted. False means try again: offline, no
-  /// Firebase, or the anonymous sign-in has not gone through.
+  /// True when accepted; false means try again (offline, no Firebase, or no
+  /// anonymous sign-in yet).
   static Future<bool> send({
     required FeedbackCategory category,
     required String text,

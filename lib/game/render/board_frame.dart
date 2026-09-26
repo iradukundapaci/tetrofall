@@ -33,12 +33,9 @@ class BoardFrame extends PositionComponent {
 
   ui.Image? _woodTexture;
 
-  // The theme tint below uses BlendMode.color, a non-separable blend the
-  // raster backend resolves through an offscreen pass. Applying it to a
-  // board-sized image every frame was a fixed, permanent tax; bake it once
-  // per board size instead. Capped in resolution because this is a soft
-  // out-of-focus wood photo — nobody can see the difference, and it keeps
-  // the cached texture small.
+  // The theme tint uses BlendMode.color, which costs an offscreen pass, so it
+  // is baked once per board size. Capped in resolution: it's a soft wood
+  // photo.
   static const _maxBakedPx = 1024;
   ui.Image? _bakedBackground;
   Size? _bakedFor;
@@ -84,11 +81,8 @@ class BoardFrame extends PositionComponent {
       Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
       Paint()
         ..filterQuality = FilterQuality.medium
-        // Colorize (hue + saturation from the theme, luminance from the
-        // photo) rather than swap the asset per theme — classic_wood's
-        // frameLight is already this same warm tan, so this is a no-op for
-        // the shipping look, but it means a new theme only needs a palette
-        // entry, never a new frame texture.
+        // Colorize rather than swap the texture per theme, so a new theme only
+        // needs a palette entry.
         ..colorFilter = ColorFilter.mode(theme.frameLight, BlendMode.color),
     );
     final picture = recorder.endRecording();
@@ -127,8 +121,8 @@ class BoardFrame extends PositionComponent {
       );
     }
 
-    // Grooves stay live rather than baked: seventeen lines a frame is
-    // nothing, and baking them into a downscaled texture would soften them.
+    // Grooves stay live: baking them into a downscaled texture would soften
+    // them.
     final groovePaint = Paint()
       ..color = theme.frameDark.withValues(alpha: 0.55)
       ..strokeWidth = math.max(1, cellSize * 0.035);

@@ -36,17 +36,11 @@ class TetrofallGame extends FlameGame {
 
   final StorageService storage;
 
-  /// Whether this game may reach the player's senses at all.
-  ///
-  /// The menu's attract-mode demo runs a full engine behind the buttons and
-  /// is decoration rather than play: it stays silent so the main menu isn't
-  /// a drum solo, and — the reason this covers haptics too — it must not
-  /// sit there buzzing a phone nobody is touching.
+  /// False for the menu demo, which must stay silent and not buzz the phone.
   final bool feedbackEnabled;
 
-  /// Builds the [RunConfig] for each run as it starts, so what the game knows
-  /// about the player — skill, run count, flags — is read fresh every time.
-  /// Null for the menu's attract-mode demo, which just runs the plain game.
+  /// Builds the [RunConfig] as each run starts, so player state is read fresh.
+  /// Null for the menu demo, which runs the plain game.
   final RunConfig Function()? newRunConfig;
 
   late final AudioService _audio = AudioService(storage);
@@ -59,11 +53,6 @@ class TetrofallGame extends FlameGame {
 
   BoardComponent get board => _board!;
 
-  /// The board if Flame has loaded one yet. Callers that can run before
-  /// [onLoad] — the tutorial rigs a board from the widget's `initState` — use
-  /// this rather than asserting one into existence.
-  BoardComponent? get boardOrNull => _board;
-
   bool showGhost = true;
 
   final ValueNotifier<bool> pausedNotifier = ValueNotifier(false);
@@ -75,14 +64,8 @@ class TetrofallGame extends FlameGame {
     pausedNotifier.value = true;
   }
 
-  /// Stops Flame's clock **without** flipping [pausedNotifier], so no pause
-  /// overlay appears over the frozen frame.
-  ///
-  /// Capture-only (`tools/capture/main.dart`): the shatter and the ripple
-  /// cascade are the best-looking moments in the game and are three frames
-  /// long, so the store harness runs them and then freezes mid-flight to
-  /// photograph one. [pauseEngine] can't do this — it is the player-facing
-  /// pause, and raising the overlay is the whole point of it.
+  /// Stops Flame's clock without flipping [pausedNotifier], so no pause
+  /// overlay covers the frame. Capture-only (`tools/capture/main.dart`).
   void freezeForCapture() {
     super.pauseEngine();
   }
@@ -96,14 +79,13 @@ class TetrofallGame extends FlameGame {
   void restart() {
     board.resetForRestart();
     gestureHandler.reset();
-    // `resetForRestart` wipes the shards mid-flight, so a crush still waiting
-    // on its crack delay would land over an empty board.
+    // Shards are wiped mid-flight, so a crush still waiting on its crack delay
+    // would land over an empty board.
     _cancelPendingSfx();
     if (paused) resumeEngine();
     _startRun();
   }
 
-  /// Watch-Ad-To-Continue from the game-over overlay (game.md §1.9).
   void continueAfterAd() {
     board.resetForRestart();
     gestureHandler.reset();
@@ -135,8 +117,7 @@ class TetrofallGame extends FlameGame {
       _playSfx(Sfx.blockSettle);
     } else if (event is RowsClearedEvent) {
       if (feedbackEnabled) _haptics.medium();
-      // The row cracks for `crackHold` before it actually bursts apart, so
-      // the crush lands with the shards rather than with the cracks.
+      // The crush lands with the shards, after the crack hold.
       _playSfx(Sfx.woodCrush, after: Motion.crackHold);
     }
   }
@@ -162,17 +143,10 @@ class TetrofallGame extends FlameGame {
     _pendingSfx.clear();
   }
 
-  /// Note what is deliberately *not* here: the feedback listener registered in
-  /// the constructor.
-  ///
-  /// Flame runs this whenever a `GameWidget` holding this game is torn down,
-  /// which is not the same thing as the game being finished — the widget can
-  /// be reinflated over a game that is still mid-run, and Flame does not
-  /// re-run `onLoad` (or anything else that could re-register) when it comes
-  /// back. Unhooking here left the run playing on in silence until the player
-  /// started a new one. The listener instead lives as long as the game, which
-  /// leaks nothing: [engine] is built by this game's own constructor and held
-  /// by nothing else, so the pair is collected together.
+  /// Deliberately does not unhook the feedback listener from the constructor:
+  /// Flame calls this when a `GameWidget` is torn down, but the widget can be
+  /// reinflated over a live run without re-running `onLoad`, which would leave
+  /// it silent.
   @override
   void onRemove() {
     _cancelPendingSfx();
@@ -191,22 +165,10 @@ class TetrofallGame extends FlameGame {
     _startRun();
   }
 
-  /// The engine must advance *before* the component tree, and the order is
-  /// load-bearing rather than arbitrary.
-  ///
-  /// Flame runs `update` for every component and only then `render`, so a
-  /// component that reads engine state inside `render` sees the state as of
-  /// the end of this method, while one that reads it inside `update` sees
-  /// whatever it was when the component's turn came. With the engine ticking
-  /// last those two disagreed: `BoardComponent` positioned the scrolling
-  /// content layer from the pre-tick `riseProgress`, but
-  /// `BoardBlocksComponent` reads the grid straight out of the engine at
-  /// render time. On an ordinary frame they differ by one frame of rise —
-  /// invisible. On the frame a rise commits, `riseProgress` has just wrapped
-  /// from ~1 back to ~0 *and* every settled block has moved up a row, so the
-  /// board drew a full cell too high for exactly that frame and dropped back
-  /// on the next one: the whole stack visibly jumping up and falling back,
-  /// once per rise interval.
+  /// The engine must tick before the component tree. `BoardComponent` reads
+  /// `riseProgress` in `update` but `BoardBlocksComponent` reads the grid at
+  /// render time; ticking the engine last made them disagree on the frame a
+  /// rise commits, so the stack jumped up a cell once per rise.
   @override
   void update(double dt) {
     engine.tick(dt);

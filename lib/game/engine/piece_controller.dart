@@ -80,9 +80,9 @@ class PieceController {
     final p = _piece;
     if (p == null) return;
     final below = _collides(p.cells, p.anchorRow + 1, p.anchorCol);
-    // Landing on a fresh surface restarts the lock delay, but only out of
-    // the same budget a move or rotation spends. Refreshing it for free let
-    // a piece be walked off a ledge and back on forever.
+    // Landing on a fresh surface restarts the lock delay out of the same
+    // budget a move or rotation spends, so a piece can't be walked off a
+    // ledge and back on forever.
     if (below && !_grounded && _resetCount < Motion.lockResetLimit) {
       _lockTimer = 0;
     }
@@ -119,12 +119,8 @@ class PieceController {
   }
 
   /// Slides the piece straight down towards [targetRow], stopping early if
-  /// anything is in the way. Returns the row it came to rest on.
-  ///
-  /// Pieces spawn at `grid.minRow`, entirely inside the hidden spawn buffer,
-  /// and only ordinary gravity carries them into view. The tutorial freezes
-  /// gravity, so without this its very first coached step would ask the
-  /// player to steer a piece they cannot see.
+  /// blocked. Pieces spawn in the hidden buffer; the tutorial freezes gravity,
+  /// so it uses this to bring one into view. Returns the resting row.
   int lowerTo(int targetRow) {
     final p = _piece;
     if (p == null) return 0;
@@ -182,6 +178,9 @@ class PieceController {
     _piece = null;
   }
 
+  /// Drops the active piece without writing it into the grid.
+  void discard() => _piece = null;
+
   PieceTickResult tick(double dt) {
     final p = _piece;
     if (p == null) return PieceTickResult.continues;
@@ -200,10 +199,7 @@ class PieceController {
 
     if (_grounded) {
       _lockTimer += dt;
-      // Only the delay running out locks a piece. Exhausting the reset
-      // budget used to lock it on the spot, so the fifteenth nudge along a
-      // row snapped the piece down under the player's finger instead of
-      // simply being the last nudge that bought more time.
+      // Only the delay running out locks; spending the last reset must not.
       if (_lockTimer * 1000 >= Motion.lockDelay.inMilliseconds) {
         return PieceTickResult.locked;
       }

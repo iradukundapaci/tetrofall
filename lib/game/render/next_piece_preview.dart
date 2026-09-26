@@ -8,11 +8,8 @@ import '../engine/events.dart';
 import '../engine/game_engine.dart';
 import '../engine/tetromino.dart';
 
-/// The piece after the one in play, drawn in the HUD.
-///
-/// It is the engine's lookahead slot, so what it shows is committed: the
-/// Director may bias which piece is drawn *into* the slot, but never changes
-/// one the player can already see.
+/// The engine's lookahead slot, drawn in the HUD. What it shows is committed;
+/// the Director never changes a piece the player can already see.
 class NextPiecePreview extends StatefulWidget {
   const NextPiecePreview({super.key, required this.engine});
 

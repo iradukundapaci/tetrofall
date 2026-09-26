@@ -3,15 +3,10 @@ import 'dart:math' as math;
 import '../engine/grid.dart';
 import '../engine/tetromino.dart';
 
-/// Scores where a single piece could land. Split out of `DemoBot` so the
-/// Director can ask the same question the bot answers — "how good is this
-/// placement?" — without driving anything: it ranks the pieces left in the bag
-/// against the board, and it measures the player's own placements against the
-/// best one available.
-///
-/// One piece deep, like the bot: no lookahead, and blind to sticky groups and
-/// cascades. That is deliberate, it keeps a call cheap enough to make on every
-/// lock.
+/// Scores where a single piece could land, for the bot and the Director (which
+/// ranks the bag against the board and measures the player's placements).
+/// One piece deep with no lookahead or cascade awareness, so it is cheap
+/// enough to call on every lock.
 abstract final class PlacementScorer {
   static bool collidesAt(
     Grid grid,
@@ -29,7 +24,7 @@ abstract final class PlacementScorer {
   }
 
   /// Where a piece dropped at [anchorCol] comes to rest, or null when it
-  /// cannot even be placed at the top.
+  /// doesn't fit at the top.
   static int? landingRow(Grid grid, List<GridOffset> cells, int anchorCol) {
     var row = grid.minRow;
     if (collidesAt(grid, cells, row, anchorCol)) return null;
@@ -39,8 +34,7 @@ abstract final class PlacementScorer {
     return row;
   }
 
-  /// Higher is better. With [blunder] the clear term flips, so the bot walks
-  /// up to a completed row and refuses to finish it.
+  /// Higher is better. With [blunder] the clear term flips.
   static double score(
     Grid grid,
     List<GridOffset> cells,
@@ -79,16 +73,15 @@ abstract final class PlacementScorer {
     }
 
     if (blunder) {
-      // Refuse the clear, tolerate holes — but keep penalising height, which
-      // is what makes the resulting board read as a solvable position the bot
-      // is fumbling rather than as noise.
+      // Keep penalising height so the board reads as a position being
+      // fumbled rather than noise.
       return -cleared * 800.0 + holes * 25.0 - maxHeight * 2.0;
     }
     return cleared * 1000.0 - holes * 40.0 - maxHeight * 2.0;
   }
 
-  /// The best and worst score any placement of [type] can get on [grid].
-  /// `(-inf, -inf)` when nothing fits.
+  /// The best and worst score any placement of [type] can get; both
+  /// `-inf` when nothing fits.
   static ({double best, double worst}) range(Grid grid, TetrominoType type) {
     var best = double.negativeInfinity;
     var worst = double.infinity;
@@ -111,7 +104,7 @@ abstract final class PlacementScorer {
     return (best: best, worst: worst);
   }
 
-  /// The best score [type] can reach on [grid]; how well it "fits" the board.
+  /// How well [type] fits the board: the best score it can reach.
   static double bestFit(Grid grid, TetrominoType type) =>
       range(grid, type).best;
 }

@@ -9,17 +9,10 @@ typedef ProgressionFailSink = void Function({required int score});
 typedef LevelStartSink = void Function();
 typedef LevelEndSink = void Function({required int score, required int tier});
 
-/// Turns the engine's [GameEvent] stream into the handful of analytics events
-/// that are actually worth reporting.
-///
-/// Most of what the engine emits is per-piece and far too noisy to send one
-/// event per occurrence — a five-minute run locks hundreds of pieces. So this
-/// counts as it goes and reports a summary at the run boundary; the only
-/// per-occurrence event is a line clear, which is rare enough to be
-/// interesting and bucketed into five fixed ids.
-///
-/// The sinks are injectable so tests can read the emitted ids back without a
-/// platform channel underneath. Nothing in here touches Flutter or the SDK.
+/// Turns the engine's [GameEvent] stream into a few analytics events: it
+/// counts per-piece noise and reports a summary at the run boundary, with line
+/// clears (bucketed into five ids) the only per-occurrence event. Sinks are
+/// injectable for tests.
 class RunTracker {
   RunTracker({
     DesignSink? design,
@@ -37,10 +30,7 @@ class RunTracker {
   final ProgressionStartSink _progressionStart;
   final ProgressionFailSink _progressionFail;
 
-  /// The GA4 half of the run boundary, which exists for Google Ads rather than
-  /// for the dashboard — see [FirebaseAnalyticsService]. Deliberately only the
-  /// two boundary events: everything else this class reports is per-run detail
-  /// that no campaign can bid on.
+  /// The GA4 half of the run boundary, which exists for Google Ads.
   final LevelStartSink _levelStart;
   final LevelEndSink _levelEnd;
 
@@ -52,19 +42,14 @@ class RunTracker {
   int _chainLength = 1;
   int _bestBefore = 0;
 
-  /// Whether a run is currently being counted. Guards the pair of asymmetries
-  /// this class has to survive: events arriving before the first
-  /// [runStarted] (the engine is started from Flame's `onLoad`, which lands
-  /// after the screen's `initState`), and a second [runEnded] for the same run
-  /// — the game-over overlay's Home button reaches `_goHome` after the
-  /// `GameOverEvent` already closed the run out.
+  /// Guards events arriving before the first [runStarted] (Flame's `onLoad`
+  /// lands after `initState`) and a second [runEnded] for the same run.
   bool _running = false;
 
   bool get isRunning => _running;
 
-  /// Opens a run. [initialElapsed] is the head start adaptive start speed
-  /// granted, which is worth reporting on its own: it is the difference
-  /// between "runs are getting shorter" and "runs are starting harder".
+  /// Opens a run. [initialElapsed] is the adaptive-start head start, reported
+  /// so shorter runs can be told from harder starts.
   void runStarted({
     Duration initialElapsed = Duration.zero,
     int bestBefore = 0,
@@ -93,12 +78,10 @@ class RunTracker {
       case RiseCommittedEvent():
         _rises++;
       case ChainAdvancedEvent(:final chainIndex):
-        // Arrives immediately after the RowsClearedEvent it belongs to, so by
-        // the time the next clear is reported this holds that clear's chain.
+        // Arrives right after its RowsClearedEvent, so this holds that clear's
+        // chain.
         _chainLength = chainIndex + 1;
-      // The continue sweep wipes the board a row at a time and each wipe
-      // arrives here looking exactly like a clear. Counting them would credit
-      // a player who bought a continue with a full board's worth of clears.
+      // The continue sweep looks like clears but isn't.
       case RowsClearedEvent(forced: true):
         break;
       case RowsClearedEvent(:final rows):
@@ -109,13 +92,9 @@ class RunTracker {
     }
   }
 
-  /// Closes the run out. [reason] is `topout`, `blockout`, `quit` or
-  /// `restart`; it is lower-cased on the way in, because the two that come
-  /// from a [GameOverReason] arrive camelCase and GameAnalytics treats
-  /// `run:end:blockOut` and `run:end:blockout` as two unrelated series.
-  ///
-  /// Idempotent: a run that already ended reports nothing, so the game-over
-  /// path and the quit path can both call this without double-counting.
+  /// Closes the run out. [reason] is lower-cased because GameAnalytics treats
+  /// `blockOut` and `blockout` as separate series. Idempotent, so the game-over
+  /// and quit paths can both call it.
   void runEnded({
     required String reason,
     required Duration elapsed,
@@ -137,17 +116,13 @@ class RunTracker {
       _design('run:continues', value: _continues.toDouble());
     }
     _design('chain:max', value: maxChain.toDouble());
-    // Reported once, here, rather than at the moment the old best is passed:
-    // the crossing happens on some arbitrary mid-run line clear and its value
-    // would be "the old best plus one clear", which measures nothing. What is
-    // worth knowing is where a record run actually landed.
+    // Reported at the end: mid-run, the crossing value measures nothing.
     if (score > _bestBefore) _design('score:best', value: score.toDouble());
     _progressionFail(score: score);
     _levelEnd(score: score, tier: tierFor(elapsed));
   }
 
-  /// A rewarded continue extended the current run rather than starting a new
-  /// one, so the run stays open and its counters keep accumulating.
+  /// A rewarded continue extends the run; its counters keep accumulating.
   void continueUsed() {
     if (!_running) return;
     _continues++;
@@ -171,13 +146,8 @@ class RunTracker {
     _ => 'clear:multi',
   };
 
-  /// How far up the difficulty curve the run got, as a 1-based index into
-  /// [Difficulty.checkpoints].
-  ///
-  /// The engine has no notion of a level — difficulty is a continuous lerp
-  /// over elapsed time — so this is synthesised purely for the dashboard,
-  /// where a run length in seconds is much harder to read than "reached
-  /// tier 4".
+  /// How far up the curve the run got, as a 1-based index into
+  /// [Difficulty.checkpoints]; synthesised for the dashboard only.
   static int tierFor(Duration elapsed) {
     var tier = 1;
     for (var i = 0; i < Difficulty.checkpoints.length; i++) {

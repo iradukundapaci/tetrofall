@@ -24,8 +24,7 @@ class GameOverOverlay extends StatelessWidget {
   final GameOverReason reason;
   final int score;
 
-  /// The player's best *before this run*. Storage already holds this run's
-  /// score by the time the overlay is up, so it cannot be read from there.
+  /// The best before this run; storage already holds this run's score.
   final int best;
   final VoidCallback onRestart;
   final VoidCallback onHome;
@@ -34,7 +33,7 @@ class GameOverOverlay extends StatelessWidget {
   final VoidCallback onContinueWithAd;
   final bool continueAdReady;
 
-  /// Set after several quick deaths in a row: offers "Too hard? Tell us".
+  /// Set after several quick deaths: offers "Too hard? Tell us".
   final VoidCallback? onTooHard;
 
   bool get _isNewBest => score > best;
@@ -44,7 +43,7 @@ class GameOverOverlay extends StatelessWidget {
     GameOverReason.blockOut => 'No room left to spawn the next piece.',
   };
 
-  /// How this run sits against the best: what it beat, or how close it came.
+  /// What this run beat, or how close it came.
   Widget _bestLine(UiScale ui) {
     final muted = TextStyle(fontSize: ui.fontSm, color: Tokens.colorTextMuted);
     const strong = TextStyle(
@@ -78,8 +77,7 @@ class GameOverOverlay extends StatelessWidget {
     final ui = context.scale;
     return ModalOverlay(
       scrimOpacity: 0.72,
-      // The caption and the score numeral want the full viewport width; only
-      // the button column below is panel-width.
+      // Only the button column below is panel-width.
       constrainWidth: false,
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: ui.spaceLg),
@@ -221,8 +219,7 @@ class GameOverOverlay extends StatelessWidget {
   }
 }
 
-/// A small, dismissible nudge for someone who keeps dying early. Deliberately
-/// quiet: it must never look like part of the way forward.
+/// A quiet, dismissible nudge for someone who keeps dying early.
 class _TooHardLink extends StatefulWidget {
   const _TooHardLink({required this.onTap});
 

@@ -11,9 +11,7 @@ class GestureHandler {
 
   final double Function() cellSizeProvider;
 
-  /// Null in tests and for the menu's demo, which never sees a pointer. A
-  /// real run passes one so move and rotate ticks obey the Settings
-  /// vibration switch.
+  /// Null in tests and for the menu demo.
   final HapticsService? haptics;
 
   double _resolvedCellSize() {
@@ -29,20 +27,14 @@ class GestureHandler {
   bool _movedBeyondSlop = false;
   bool _softDropEngaged = false;
 
-  /// Set once the gesture has committed to a hard drop.
-  ///
-  /// The pointer stays tracked until it actually lifts, so nothing further
-  /// can be read out of it and no second finger can start a gesture
-  /// underneath it. Clearing the pointer here instead — which is what the
-  /// hard-drop path used to do — re-armed the handler mid-gesture, and the
-  /// next touch-down it accepted could still be scored as a tap: hard drop,
-  /// then a rotation the player never asked for.
+  /// Set once the gesture has committed to a hard drop. The pointer stays
+  /// tracked until it lifts so a second finger can't start a gesture (and be
+  /// scored as a tap) underneath it.
   bool _consumed = false;
 
-  /// Whether the downward travel that engaged the soft drop was fast enough
-  /// to read as a flick. Only an armed gesture may hard drop, and arming
-  /// happens exactly once, so a deliberate drag down can cross any distance
-  /// without escalating into a slam.
+  /// Whether the downward travel that engaged the soft drop was a flick. Arming
+  /// happens once, so a deliberate drag can cross any distance without
+  /// escalating into a slam.
   bool _hardDropArmed = false;
 
   bool _anyMoveFiredThisGesture = false;
@@ -106,10 +98,8 @@ class GestureHandler {
     final totalDx = pos.dx - _down!.dx;
     final totalDown = pos.dy - _down!.dy;
 
-    // Seeded from the first sample rather than blended up from zero: the
-    // flick/drag decision is made within an event or two of the finger
-    // crossing the soft-drop distance, and a zero start would read every
-    // flick as slow for exactly that long.
+    // Seeded from the first sample: the flick/drag decision comes within an
+    // event or two, and a zero start would read every flick as slow.
     if (elapsed > 0) {
       final speedY = dy / elapsed;
       _smoothSpeedY = _hasSpeedSample
@@ -119,17 +109,10 @@ class GestureHandler {
       _hasSpeedSample = true;
     }
 
-    // Sideways intent is judged on a smoothed recent delta plus a two-
-    // threshold latch, not on this event's raw delta or on the total
-    // displacement since touch-down. Raw-per-event was tried first and was
-    // too twitchy: real touch sensors don't jitter independently
-    // sample-to-sample, so a short run of a few correlated noisy samples
-    // during an otherwise straight drag could ride a single threshold long
-    // enough to accumulate a full column shift, with the correction run
-    // crossing it right back — the piece visibly jumping and snapping
-    // back. Since-touch-down was the original bug: it never forgot a
-    // downward arc, so sideways input died for the rest of the gesture
-    // once a soft drop engaged.
+    // Sideways intent uses a smoothed recent delta with a two-threshold latch.
+    // Raw per-event deltas are too twitchy (correlated sensor noise can bank a
+    // column and snap back), and displacement since touch-down never forgets
+    // a downward arc, killing sideways input once a soft drop engages.
     _smoothDx =
         _smoothDx * InputTuning.axisSmoothing +
         dx * (1 - InputTuning.axisSmoothing);
@@ -148,60 +131,35 @@ class GestureHandler {
       _sidewaysActive = true;
     }
 
-    // Hard drop stays a deliberate, mostly-vertical gesture, so it is still
-    // measured against the whole gesture rather than one event.
+    // Hard drop is judged against the whole gesture, not one event.
     final isVertical =
         totalDown > InputTuning.hardDropVerticalityRatio * totalDx.abs();
 
-    // Arm/disarm runs before the sideways-shift block below so that an event
-    // which *newly* arms (or re-confirms) the hard drop can never also bank a
-    // column shift under this event's stale, pre-arm flag. Order used to be
-    // reversed, and a fast flick's very first qualifying event could shift a
-    // column in the same breath it armed the drop.
+    // Arming runs before the sideways block so an event that newly arms the
+    // hard drop can't also bank a column shift under the stale pre-arm flag.
     if (!_softDropEngaged &&
         totalDown >= softDropDistance &&
         totalDown > totalDx.abs()) {
-      // The one moment the vertical gesture is classified. Distance decides
-      // *that* the piece drops faster; speed decides whether this stroke is
-      // ever allowed to become a slam. A drag that starts slow is a soft
-      // drop for the rest of the gesture no matter how far it travels.
+      // Distance decides that the piece drops faster; speed decides whether
+      // the stroke may become a slam. A slow start stays a soft drop.
       _softDropEngaged = true;
       _hardDropArmed = isVertical && _smoothSpeedY >= flickSpeed;
       engine.enqueueIntent(GameIntentType.softDropStart);
     } else if (_hardDropArmed && _smoothSpeedY < flickSpeed) {
-      // A flick does not stall halfway down. Once the finger settles into a
-      // drag — or stops to hold the soft drop and steer — the gesture has
-      // shown it is not a flick, and disarming is permanent.
+      // A flick doesn't stall halfway; once it slows, disarming is permanent.
       _hardDropArmed = false;
     }
 
-    // A real thumb does not flick in a straight line, it arcs. A burst of
-    // sideways travel mid-arc used to latch _sidewaysActive and bank a whole
-    // column shift while the stroke as a whole was plainly a downward flick,
-    // and the drop locks the piece immediately — so it slammed home one
-    // column off the one the player swiped on, with no chance to correct it.
-    // While still moving at flick speed, or already armed for hard drop, no
-    // column shift may fire.
-    //
-    // Gated on speed alone, not `isVertical` — `isVertical` is a ratio of
-    // totals *since touch-down*, so on the opening event or two of a fast
-    // flick it is still false purely for lack of history, even though the
-    // downward speed right then is already well past flick pace. That gap
-    // let the very first sample of a fast flick bank a column before
-    // verticality had accumulated enough distance to prove itself. Downward
-    // speed alone doesn't have that lag — it reads from the first sample —
-    // and a genuinely horizontal swipe keeps `_smoothSpeedY` near zero
-    // regardless, so it isn't caught by this.
+    // A thumb arcs; sideways travel mid-flick must not bank a column shift,
+    // or the slam lands one column off. Gated on speed alone, not
+    // `isVertical`, which lacks history on a flick's first events.
     final holdSideways =
         _hardDropArmed ||
         _smoothSpeedY >= flickSpeed * InputTuning.flickSuppressionFraction;
 
     if (_sidewaysActive) {
-      // Drift keeps accumulating while held rather than being thrown away: a
-      // flick that is aborted into a deliberate steer should respond on the
-      // next event or two, not demand a fresh full column of travel. A real
-      // flick banks very little, and its gesture is consumed by the drop
-      // before the bank can ever be spent.
+      // Drift keeps accumulating while held so an aborted flick turns into a
+      // steer immediately.
       if (_accumDx != 0 && dx != 0 && (_accumDx > 0) != (dx > 0)) {
         _accumDx = dx;
       } else {
@@ -233,10 +191,9 @@ class GestureHandler {
   }
 
   void _finish() {
-    // A gesture resolves to exactly one action. A hard drop has already
-    // spent it; a soft drop only needs releasing; a rotation is what is left
-    // when the finger never dragged, never shifted a column and never
-    // lingered.
+    // A gesture resolves to one action: a hard drop already spent it, a soft
+    // drop only needs releasing, and a tap is what's left when the finger
+    // never dragged, shifted or lingered.
     if (!_consumed) {
       final duration = DateTime.now().difference(_downTime!);
       if (_softDropEngaged) {
@@ -268,9 +225,8 @@ class GestureHandler {
     _smoothSpeedY = 0;
   }
 
-  /// Abandons any gesture in flight — used when the run is paused, restarted
-  /// or continued, where the pointer-up that would normally end it is
-  /// swallowed before it reaches this handler.
+  /// Abandons any gesture in flight (pause, restart, continue), where the
+  /// pointer-up is swallowed before it reaches this handler.
   void reset() {
     _endSoftDrop();
     _clearGesture();
@@ -282,8 +238,8 @@ class GestureHandler {
       dir > 0 ? GameIntentType.moveRight : GameIntentType.moveLeft,
     );
 
-    // A fast swipe can cross several columns inside one pointer event, and
-    // each click is a platform-channel round trip on the UI thread.
+    // A fast swipe can cross several columns in one event, and each click is
+    // a platform-channel round trip.
     final now = DateTime.now();
     final last = _lastHaptic;
     if (last == null || now.difference(last) >= InputTuning.hapticMinInterval) {

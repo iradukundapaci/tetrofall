@@ -28,16 +28,15 @@ class _AdRetry {
     });
   }
 
-  /// Drops any pending retry and forgets the accumulated wait. Called on a
-  /// successful load and whenever conditions change for the better.
+  /// Drops any pending retry and the accumulated wait.
   void reset() {
     _timer?.cancel();
     _timer = null;
     _delay = _first;
   }
 
-  /// Drops the pending retry but keeps the accumulated wait — for going into
-  /// the background, where the retry would only fail again.
+  /// Drops the pending retry but keeps the wait; for the background, where it
+  /// would only fail.
   void pause() {
     _timer?.cancel();
     _timer = null;
@@ -45,9 +44,7 @@ class _AdRetry {
 }
 
 class AdsService {
-  /// [connectivity] is optional so tests can build a service that never
-  /// touches a platform channel; when it is absent the network is assumed to
-  /// be up and this class behaves as it did before it was connectivity-aware.
+  /// Without [connectivity] (tests) the network is assumed to be up.
   AdsService(this._storage, {ConnectivityService? connectivity})
     : _connectivity = connectivity;
 
@@ -129,81 +126,53 @@ class AdsService {
 
   bool get canRequestAds => _canRequestAds;
 
-  /// Whether ads may be personalised, as the player last left it in Settings.
-  /// Read straight from storage so it is right on the very first request of a
-  /// cold start, before [init] has finished talking to UMP.
+  /// Whether ads may be personalised, read from storage so it's right before
+  /// [init] finishes talking to UMP.
   bool get personalizedAds => _personalizedAds;
   late bool _personalizedAds = _storage.personalizedAdsEnabled;
 
-  /// The request every format goes out with, so one switch covers all four.
-  ///
-  /// Off sends `npa=1`, which forces non-personalised ads no matter what else
-  /// the SDK knows. On leaves the field *null* rather than false — false is
-  /// not "personalise this", it is only the absence of the restriction, and
-  /// leaving it unset is what keeps the UMP consent answer authoritative in
-  /// the regions that have one.
+  /// The request every format goes out with. Off sends `npa=1`; on leaves the
+  /// field null (not false) so the UMP consent answer stays authoritative.
   AdRequest get adRequest =>
       AdRequest(nonPersonalizedAds: _personalizedAds ? null : true);
 
-  /// Bumped whenever what an ad request *means* changes — the personalisation
-  /// switch, or a trip through the consent form. The banner is the one format
-  /// that can already be on screen when that happens, so it listens here and
-  /// replaces itself; the rest are re-fetched from cache before they're shown.
+  /// Bumped when what an ad request means changes (personalisation switch,
+  /// consent form). The banner listens and replaces itself.
   ValueListenable<int> get adConfigRevision => _adConfigRevision;
   final ValueNotifier<int> _adConfigRevision = ValueNotifier(0);
 
-  /// Bumped whenever something changes that makes a *previously failed* load
-  /// worth attempting again — the network coming back, the app being resumed,
-  /// consent finally resolving after a start with no internet.
-  ///
-  /// Deliberately separate from [adConfigRevision]: that one means "drop what
-  /// you are holding, it is stale", this one means "try again if you are
-  /// holding nothing". A slot that already has an ad ignores this.
+  /// Bumped when a failed load is worth retrying (network back, app resumed,
+  /// consent resolved late). Unlike [adConfigRevision] ("drop what you hold")
+  /// this means "try again if you hold nothing".
   ValueListenable<int> get adRetryPulse => _adRetryPulse;
   final ValueNotifier<int> _adRetryPulse = ValueNotifier(0);
 
-  /// Whether UMP says this user must be given a way back to their consent
-  /// choice — true in the EEA/UK, and in US states whose messages you have
-  /// published. Settings shows its Privacy row only when this is true, because
-  /// outside those jurisdictions there is no form to present and the row would
-  /// be a button that does nothing.
+  /// Whether UMP requires offering a way back to the consent choice (EEA/UK
+  /// and some US states); Settings shows its Privacy row only then.
   bool get privacyOptionsRequired => _privacyOptionsRequired;
   bool _privacyOptionsRequired = false;
 
-  /// Guards the SDK handshake, which must happen exactly once, from the paths
-  /// that reach startup again later — consent or personalisation changing from
-  /// Settings, or a retry after a start with no network.
+  /// Guards the SDK handshake, which must happen once, from paths that reach
+  /// startup again.
   bool _adsStarted = false;
 
-  /// Whether UMP has actually *answered*, as opposed to having been asked and
-  /// failed. Without this a network error is indistinguishable from a refusal,
-  /// which is what used to strand a cold start made offline: consent looked
-  /// settled and denied, so nothing ever asked again.
+  /// Whether UMP actually answered, so a network error isn't mistaken for a
+  /// refusal and never retried.
   bool _consentResolved = false;
 
   AppLifecycleListener? _lifecycle;
 
-  /// Height the banner slot falls back to when this device has never
-  /// measured an adaptive banner. Sized at the large-anchored ceiling so a
-  /// later measurement can only shrink the slot, never overflow it.
+  /// Banner slot height when this device has never measured one: the
+  /// large-anchored ceiling, so a measurement can only shrink it.
   static const fallbackBannerHeight = 100.0;
 
   AdSize? _bannerSize;
   int? _bannerSizeWidth;
   Future<AdSize?>? _bannerSizeFuture;
 
-  /// Height gameplay reserves at the bottom of the screen for the banner,
-  /// whether or not an ad is (or ever will be) loaded there — so the play
-  /// area's size doesn't depend on ad fill. Prefers the size measured this
-  /// session, then the one this device measured previously.
-  /// Height an anchored adaptive banner takes on a device that has never
-  /// measured one, following AdMob's own anchored rule — 32 / 50 / 90 by
-  /// screen height, capped at 15% of it.
-  ///
-  /// Worth having rather than reserving a flat [fallbackBannerHeight]
-  /// everywhere: on a 360x640 phone the real banner is 50pt, so the flat 100
-  /// over-reserved by half a slot, and that 50pt came straight off the
-  /// board's height — and, through its 9:16 aspect, off its width.
+  /// AdMob's anchored banner rule for a device that has never measured one:
+  /// 32 / 50 / 90 by screen height, capped at 15% of it. Beats a flat
+  /// [fallbackBannerHeight], whose over-reserve comes straight off the board.
   static double estimateBannerHeight(double screenHeight) {
     final tier = screenHeight <= 400
         ? 32.0
@@ -213,6 +182,9 @@ class AdsService {
     return math.min(tier, screenHeight * 0.15);
   }
 
+  /// Height gameplay reserves for the banner whether or not an ad ever loads,
+  /// so play-area size doesn't depend on fill: this session's measurement,
+  /// then the stored one, then an estimate.
   double reservedBannerHeight(int width, {double? screenHeight}) {
     final measured = _bannerSizeWidth == width ? _bannerSize : null;
     return measured?.height.toDouble() ??
@@ -222,10 +194,8 @@ class AdsService {
             : estimateBannerHeight(screenHeight));
   }
 
-  /// Measures the anchored-adaptive banner size for a screen [width] in
-  /// logical pixels, once per width, and remembers the height for future
-  /// cold starts. Safe to call before consent resolves — measuring a size
-  /// doesn't request an ad.
+  /// Measures the adaptive banner size for a screen [width] once per width and
+  /// stores the height for future cold starts. Safe before consent resolves.
   Future<AdSize?> resolveBannerSize(int width) {
     if (_bannerSizeWidth != width) {
       _bannerSizeWidth = width;
@@ -237,9 +207,7 @@ class AdsService {
   Future<AdSize?> _resolveBannerSize(int width) async {
     final size = await AdSize.getLargeAnchoredAdaptiveBannerAdSize(width);
     if (size == null) {
-      // Not cached: a null here is a failure to measure, not an answer, and
-      // caching it would leave the banner permanently unable to size itself
-      // for this width no matter how many times the slot retried.
+      // A failure to measure, not an answer; don't cache it.
       if (_bannerSizeWidth == width) {
         _bannerSizeWidth = null;
         _bannerSizeFuture = null;
@@ -253,19 +221,13 @@ class AdsService {
 
   Future<void>? _readyFuture;
 
-  /// Completes once the first startup attempt has been *made* — not once it
-  /// has succeeded. Callers await this to know that consent has been asked
-  /// about; an attempt made with no network completes here having resolved
-  /// nothing, and the retry paths take it from there. Blocking until ads
-  /// actually work would hang the banner and Settings for the whole time a
-  /// player is offline.
+  /// Completes once the first startup attempt has been made, not once it
+  /// succeeded; blocking until ads work would hang the banner and Settings
+  /// while offline. The retry paths take over from there.
   Future<void> init() => _readyFuture ??= _init();
 
   Future<void> _init() async {
-    // Registered unconditionally and before the first attempt: this used to
-    // live behind the consent gate, so the one start that most needed a second
-    // chance — the one where consent never resolved — was also the one with no
-    // lifecycle hook to trigger it.
+    // Registered before the first attempt so an unresolved start can retry.
     _lifecycle = AppLifecycleListener(onStateChange: _onAppLifecycleStateChange);
     _connectivity?.isOnline.addListener(_onOnlineChanged);
     await _attemptStart();
@@ -273,21 +235,16 @@ class AdsService {
 
   bool get _isOnline => _connectivity?.isOnline.value ?? true;
 
-  /// True while a startup attempt is running, so the three things that can
-  /// trigger one — boot, the network returning, a resume — can't overlap into
-  /// two consent requests at once.
+  /// True while a startup attempt runs, so boot, network-return and resume
+  /// can't overlap into two consent requests.
   bool _starting = false;
 
-  /// The single entry point for "get ads going, from wherever we are".
-  ///
-  /// Idempotent and safe to call repeatedly: consent is only re-requested if
-  /// it never resolved, the SDK is only started once, and the loaders no-op
-  /// on formats that are already stocked or already in flight.
+  /// The single entry point for getting ads going. Idempotent: consent is only
+  /// re-requested if unresolved, the SDK starts once, and loaders no-op on
+  /// stocked or in-flight formats.
   Future<void> _attemptStart() async {
     if (_starting) return;
-    // Nothing here can succeed without a network, and failing now would only
-    // burn a request. The [_onOnlineChanged] listener calls back the moment
-    // that changes.
+    // [_onOnlineChanged] calls back when the network returns.
     if (!_isOnline) return;
 
     _starting = true;
@@ -299,15 +256,9 @@ class AdsService {
     }
   }
 
-  /// Device IDs that UMP should treat as if they were in [_debugGeography].
-  ///
-  /// Without this the consent form only appears to someone physically in a
-  /// regulated region, so the accept path — and the withdraw path behind
-  /// Settings → Privacy Settings — cannot be exercised from anywhere else.
-  /// Run the app once and copy the hashed ID the UMP SDK logs
-  /// ("Use new ConsentDebugSettings.Builder().addTestDeviceHashedId(...)")
-  /// in here. Empty means debug settings are inert, which is why this is safe
-  /// to leave as it ships; it is compiled out of release builds regardless.
+  /// Device IDs UMP treats as being in [_debugGeography], to exercise the
+  /// consent form outside a regulated region: copy the hashed ID the UMP SDK
+  /// logs. Empty is inert, and release builds ignore it.
   static const _debugTestDeviceIds = <String>[];
 
   static const _debugGeography = DebugGeography.debugGeographyEea;
@@ -323,9 +274,8 @@ class AdsService {
   Future<void> _requestConsent() async {
     final completer = Completer<void>();
     void proceed({required bool resolved}) {
-      // Only the success branch counts as an answer. A form that then fails to
-      // load is a separate, non-fatal problem: the consent *information* is in
-      // hand either way, which is what the rest of this class needs.
+      // Only success counts as an answer; a form that fails to load is
+      // non-fatal since the consent information is in hand.
       if (resolved) _consentResolved = true;
       if (!completer.isCompleted) completer.complete();
     }
@@ -349,25 +299,16 @@ class AdsService {
             .getPrivacyOptionsRequirementStatus() ==
         PrivacyOptionsRequirementStatus.required;
 
-    // Consent arriving late is the one moment Settings and the banner cannot
-    // observe for themselves — Settings has already drawn its Privacy rows
-    // from the old answer, and the banner has already given up.
+    // Settings and the banner can't observe late consent themselves.
     if (_canRequestAds != wasAllowed) _adRetryPulse.value++;
 
     _publishConsent();
   }
 
-  /// Hands the answer UMP just gave to GA4 consent mode.
-  ///
-  /// Firebase defaults every ad signal to denied (see the
-  /// `google_analytics_default_allow_*` entries in AndroidManifest.xml and
-  /// Info.plist), so this is the only thing that ever grants them — which
-  /// makes it, in turn, what lets a Google Ads App campaign attribute an
-  /// install. Called from both places the answer can change: here, and from
-  /// [setPersonalizedAds].
-  ///
-  /// Unawaited on purpose. Nothing in the ad path waits on analytics, and
-  /// [FirebaseAnalyticsService.setConsent] swallows its own failures.
+  /// Hands UMP's answer to GA4 consent mode. Firebase defaults every ad signal
+  /// to denied (see `google_analytics_default_allow_*` in the manifest), so
+  /// this is the only thing that grants them, which lets Google Ads attribute
+  /// installs. Unawaited: nothing in the ad path waits on analytics.
   void _publishConsent() => unawaited(
     FirebaseAnalyticsService.setConsent(
       adsAllowed: _canRequestAds,
@@ -375,13 +316,8 @@ class AdsService {
     ),
   );
 
-  /// Idempotent: safe to call at boot and again after a consent change.
-  ///
-  /// The SDK is only started once, but the caches are refilled every time —
-  /// a player who withdraws consent and then grants it again in the same
-  /// session had every cached ad dropped in between, and would otherwise sit
-  /// out the rest of the session with empty slots. The loaders below no-op
-  /// on the formats that are already stocked.
+  /// Idempotent. The SDK starts once but caches are refilled every time, so a
+  /// player who withdraws then re-grants consent isn't left with empty slots.
   Future<void> _startAdsIfAllowed() async {
     if (!_canRequestAds) return;
 
@@ -395,9 +331,7 @@ class AdsService {
         final status = await MobileAds.instance.initialize();
         _logAdapterStatuses(status);
       } catch (_) {
-        // Deliberately leaves [_adsStarted] false. This flag used to be set
-        // before the await, so a handshake that failed could never be tried
-        // again; the retry paths now come back to it.
+        // Leaves [_adsStarted] false so a retry can try again.
         return;
       }
       _adsStarted = true;
@@ -408,10 +342,9 @@ class AdsService {
     _loadAppOpen();
   }
 
-  /// Prints each mediation adapter's state after the SDK handshake. A
-  /// `notReady` here is almost always a wrong placement ID in the AdMob
-  /// console or an adapter missing from `android/app/build.gradle.kts`, and
-  /// this is the first place to look when a network never serves.
+  /// Prints each mediation adapter's state after the handshake. `notReady` is
+  /// usually a wrong placement ID or an adapter missing from
+  /// `android/app/build.gradle.kts`.
   static void _logAdapterStatuses(InitializationStatus status) {
     if (kReleaseMode) return;
     status.adapterStatuses.forEach((name, adapter) {
@@ -422,10 +355,9 @@ class AdsService {
     });
   }
 
-  /// The network came back, or went away.
   void _onOnlineChanged() {
     if (!_isOnline) {
-      // Every pending retry would fail. Hold them rather than spend them.
+      // Pending retries would fail; hold them.
       _rewardedRetry.pause();
       _interstitialRetry.pause();
       _appOpenRetry.pause();
@@ -434,9 +366,8 @@ class AdsService {
     _retryNow();
   }
 
-  /// Conditions just improved: forget the accumulated backoff, try startup
-  /// again if it never completed, refill anything empty, and tell the slots
-  /// that own their own loads (the banner) to do the same.
+  /// Conditions improved: reset backoff, retry startup if it never completed,
+  /// refill empty slots and tell the banner to do the same.
   void _retryNow() {
     _rewardedRetry.reset();
     _interstitialRetry.reset();
@@ -445,44 +376,31 @@ class AdsService {
     unawaited(_attemptStart());
   }
 
-  /// Re-presents the UMP privacy options form so a user can change or withdraw
-  /// the consent they gave at first launch — a requirement under GDPR and
-  /// several US state laws, and the reason Settings has a Privacy row.
-  ///
-  /// Whatever the player does in there, the ads in hand were fetched under the
-  /// answer they just replaced, so they are dropped either way. If consent is
-  /// granted here by someone who declined at boot, ads start for the first
-  /// time this session; if it is withdrawn, `canRequestAds` flips false and
-  /// every load path stops until it is granted again.
+  /// Re-presents the UMP privacy options form so consent can be changed or
+  /// withdrawn (GDPR and US state law). Ads in hand were fetched under the old
+  /// answer, so they are dropped either way; granting starts ads, withdrawing
+  /// stops every load path.
   Future<void> showPrivacyOptions() async {
     await ConsentForm.showPrivacyOptionsForm((_) {});
     await _refreshConsentState();
 
-    // Bumped unconditionally, and before the reload: the form can change
-    // *which* purposes are consented to without changing whether ads may be
-    // requested at all, and that still makes every ad in hand — and every one
-    // mid-flight — one fetched under the old answer.
+    // Bumped unconditionally and before the reload: the form can change which
+    // purposes are consented to without changing whether ads may be requested.
     _adConfigRevision.value++;
     _discardCachedAds();
     if (_canRequestAds) await _startAdsIfAllowed();
   }
 
-  /// Turns ad personalisation on or off, from the Settings switch.
-  ///
-  /// This is the control that exists everywhere. In the regions UMP covers it
-  /// sits *behind* the consent form and can only narrow what that form
-  /// allowed; everywhere else it is the only say the player gets, which is
-  /// why it isn't hidden outside the EEA the way the Privacy row is.
+  /// Turns personalisation on or off from the Settings switch. Behind UMP's
+  /// form it can only narrow it; elsewhere it is the player's only say.
   Future<void> setPersonalizedAds(bool value) async {
     if (value == _personalizedAds) return;
     _personalizedAds = value;
     await _storage.savePersonalizedAdsEnabled(value);
     _publishConsent();
 
-    // Every cached ad was fetched under the previous answer, so showing one
-    // now would be a personalised ad served after the switch went off. Bump
-    // first — that invalidates the loads already in flight as well — then drop
-    // what's cached and refill under the new request.
+    // Cached ads were fetched under the previous answer. Bump first to
+    // invalidate loads in flight, then drop and refill.
     _adConfigRevision.value++;
     _discardCachedAds();
     _rewardedRetry.reset();
@@ -493,12 +411,9 @@ class AdsService {
     _loadAppOpen();
   }
 
-  /// Drops every ad in hand, because the answer it was fetched under is no
-  /// longer the current one — consent withdrawn, consent re-stated, or the
-  /// personalisation switch flipped. Callers bump [adConfigRevision] alongside
-  /// this, which is what stops an in-flight load from refilling the slots with
-  /// ads from the same stale answer, and what tells the banner to replace the
-  /// one it is already showing.
+  /// Drops every ad in hand because its consent/personalisation answer is
+  /// stale. Callers bump [adConfigRevision] alongside, which also stops
+  /// in-flight loads refilling the slots.
   void _discardCachedAds() {
     _rewardedAd?.dispose();
     _rewarded = null;
@@ -510,26 +425,19 @@ class AdsService {
     _appOpenLoadedAt = null;
   }
 
-  /// Whether an ad requested at [revision] is still one this app is allowed to
-  /// show: consent must still permit ads, and nothing may have changed what a
-  /// request means since it went out. A load that fails this was fetched under
-  /// an answer the player has since replaced, so it is dropped rather than
-  /// cached — the whole point of the personalisation switch is that it applies
-  /// to the next ad, not the one after the queue drains.
+  /// Whether an ad requested at [revision] may still be shown: consent must
+  /// still permit ads and nothing may have changed what a request means.
   bool _isCurrent(int revision) =>
       _canRequestAds && revision == _adConfigRevision.value;
 
   final _rewardedRetry = _AdRetry();
 
-  /// Non-null while a load is in flight, holding the revision it went out
-  /// under. Doubles as the guard against a second overlapping load, which
-  /// would strand the first ad undisposed when the later one overwrote it.
+  /// Non-null while a load is in flight, holding its revision; also guards
+  /// against an overlapping load stranding an undisposed ad.
   int? _rewardedLoadRevision;
 
   void _loadRewarded() {
-    // Reachable from the ad-dismissed callbacks and from both consent paths,
-    // so it has to re-check consent rather than assume the boot-time answer
-    // still holds.
+    // Reachable from dismiss callbacks and consent paths, so re-check consent.
     if (!_canRequestAds ||
         _rewardedAd != null ||
         _rewardedLoadRevision != null) {
@@ -547,31 +455,31 @@ class AdsService {
           _rewardedRetry.reset();
           if (!_isCurrent(revision)) {
             ad.dispose();
-            // The change that stranded this one found the slot in flight and
-            // couldn't refill it, so that job lands here.
+            // The change that stranded this ad couldn't refill the in-flight
+            // slot, so refill here.
             _loadRewarded();
             return;
           }
           _rewarded = ad;
         },
         onAdFailedToLoad: (error) {
-          _reportNoFill(AdPlacements.rewardedContinue, AdKind.rewardedVideo, error);
+          reportLoadFailure(
+            AdPlacements.rewardedContinue,
+            AdKind.rewardedVideo,
+            error,
+          );
           _rewardedLoadRevision = null;
           _rewarded = null;
-          // Without this the slot is dead for the session: the only other
-          // path back into this method is a dismissal callback, and there is
-          // no ad to dismiss.
+          // Otherwise the slot is dead: only dismissal callbacks reload.
           _rewardedRetry.schedule(_loadRewarded);
         },
       ),
     );
   }
 
-  /// Shows the continue ad and reports whether the reward was earned, but
-  /// only once the ad has actually left the screen. The reward callback
-  /// fires while the ad is still up (often several seconds before the user
-  /// can close it), and the caller resumes the run on this future — so
-  /// completing early would play the board wipe behind the ad.
+  /// Shows the continue ad and reports whether the reward was earned, only
+  /// once the ad has left the screen (the reward fires while it is still up,
+  /// and the caller resumes the run on this future).
   Future<bool> showRewardedContinue() async {
     dropExpiredAds();
     final ad = _rewardedAd;
@@ -624,8 +532,6 @@ class AdsService {
   int? _interstitialLoadRevision;
 
   void _loadInterstitial() {
-    // Reachable from the ad-dismissed callbacks too, so it has to
-    // re-check consent rather than assume the boot-time answer holds.
     if (!_canRequestAds ||
         _interstitialAd != null ||
         _interstitialLoadRevision != null) {
@@ -650,7 +556,11 @@ class AdsService {
           _interstitialLoadedAt = DateTime.now();
         },
         onAdFailedToLoad: (error) {
-          _reportNoFill(AdPlacements.interstitial, AdKind.interstitial, error);
+          reportLoadFailure(
+            AdPlacements.interstitial,
+            AdKind.interstitial,
+            error,
+          );
           _interstitialLoadRevision = null;
           _interstitialAd = null;
           _interstitialRetry.schedule(_loadInterstitial);
@@ -659,9 +569,8 @@ class AdsService {
     );
   }
 
-  /// Shows the cached interstitial, returning a future that completes once it
-  /// has left the screen — or null, having shown nothing, when there is no
-  /// ad in hand or one was on screen too recently.
+  /// Shows the cached interstitial, returning a future that completes when it
+  /// leaves the screen, or null if there is no ad or one ran too recently.
   Future<void>? _showInterstitial() {
     dropExpiredAds();
     final ad = _interstitialAd;
@@ -700,20 +609,11 @@ class AdsService {
     return closed.future;
   }
 
-  /// Counts a finished run toward the interstitial cadence, and shows one
-  /// when the cadence is due. Completes once any interstitial it showed has
-  /// been dismissed, so a caller about to start a new run can wait for it —
-  /// otherwise the run would start ticking behind the ad.
-  ///
-  /// The counters reset only when an ad is actually shown. A cadence that
-  /// comes due with nothing loaded stays due, and the next run-end gets it.
-  ///
-  /// There is no per-session grace run: the counters persist across cold
-  /// starts, so a player coming back with the cap nearly reached is shown one
-  /// on their first run-end, as they would have been had they never left. The
-  /// one exception is straight after a rewarded continue — an interstitial on
-  /// the heels of an ad the player chose to watch is the fastest way to teach
-  /// them not to.
+  /// Counts a finished run toward the interstitial cadence and shows one when
+  /// due, completing once it is dismissed so a new run doesn't tick behind it.
+  /// Counters reset only when an ad is shown, so a due cadence with nothing
+  /// loaded stays due. They persist across cold starts; the one exception is
+  /// straight after a rewarded continue.
   Future<void> notifyRunEnded(Duration runDuration) async {
     final skipThisOne = _justWatchedRewardedContinue;
     _justWatchedRewardedContinue = false;
@@ -740,8 +640,6 @@ class AdsService {
   int? _appOpenLoadRevision;
 
   void _loadAppOpen() {
-    // Reachable from the ad-dismissed callbacks too, so it has to
-    // re-check consent rather than assume the boot-time answer holds.
     if (!_canRequestAds ||
         _appOpenAd != null ||
         _appOpenLoadRevision != null) {
@@ -766,7 +664,7 @@ class AdsService {
           _appOpenLoadedAt = DateTime.now();
         },
         onAdFailedToLoad: (error) {
-          _reportNoFill(AdPlacements.appOpen, AdKind.interstitial, error);
+          reportLoadFailure(AdPlacements.appOpen, AdKind.interstitial, error);
           _appOpenLoadRevision = null;
           _appOpenAd = null;
           _appOpenRetry.schedule(_loadAppOpen);
@@ -777,18 +675,16 @@ class AdsService {
 
   void _onAppLifecycleStateChange(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      // On Android a full-screen ad is its own activity, so showing one — or
-      // following a tap on one out to the browser — backgrounds the app just
-      // as leaving does. Neither is the player leaving, and counting them
-      // would greet the end of every rewarded video with an app-open ad.
+      // On Android a full-screen ad (or a tap out to the browser) backgrounds
+      // the app like leaving does; counting that would follow every rewarded
+      // video with an app-open ad.
       final lastClick = _lastAdClickAt;
       final leftForAd =
           _fullScreenAdShowing.value ||
           (lastClick != null &&
               DateTime.now().difference(lastClick) < _adClickGrace);
       _backgroundedAt = leftForAd ? null : DateTime.now();
-      // Nothing requested from the background can be shown, and the network
-      // may well be asleep with the device.
+      // Nothing requested from the background can be shown.
       _rewardedRetry.pause();
       _interstitialRetry.pause();
       _appOpenRetry.pause();
@@ -796,9 +692,8 @@ class AdsService {
       dropExpiredAds();
       _maybeShowAppOpenAd();
       _backgroundedAt = null;
-      // The likeliest moment for the network to have changed while nothing
-      // was watching — and the one chance to recover a session that started
-      // with no internet if the connectivity stream missed the transition.
+      // The likeliest moment for the network to have changed, and a chance to
+      // recover if the connectivity stream missed it.
       _connectivity?.refresh();
       _retryNow();
     }
@@ -807,8 +702,7 @@ class AdsService {
   void _maybeShowAppOpenAd() {
     final backgroundedAt = _backgroundedAt;
     if (backgroundedAt == null) return;
-    // A player still in their first session — tutorial not yet finished — is
-    // exactly the one an early ad is most likely to lose.
+    // An early ad is most likely to lose a first-session player.
     if (!_storage.tutorialSeen) return;
     if (_tooSoonAfterFullScreenAd) return;
     if (DateTime.now().difference(backgroundedAt) <
@@ -847,8 +741,7 @@ class AdsService {
     );
     AnalyticsService.ad(
       outcome: AdOutcome.shown,
-      // GameAnalytics has no app-open type; Interstitial is the closest fit,
-      // and the placement keeps the two apart on the dashboard.
+      // GameAnalytics has no app-open type; the placement tells them apart.
       kind: AdKind.interstitial,
       placement: AdPlacements.appOpen,
     );
@@ -856,17 +749,10 @@ class AdsService {
     _storage.saveLastAppOpenAdShownAt(DateTime.now());
   }
 
-  /// Whether ad diagnostics are printed: debug and profile builds only.
   static const _diagnostics = !kReleaseMode;
 
-  /// Prints why a load failed, network by network.
-  ///
-  /// The top-level error only says "no fill". The reason lives in the
-  /// response info: one entry per ad source AdMob tried, each with the
-  /// adapter's own error code and message — for Meta, 101-111 are the
-  /// adapter's (bad placement ID, SDK failed to initialise, ...) and
-  /// 1000-9999 are Meta's own (see Meta's error checklist). Used by the
-  /// banner slot too, which owns its own load.
+  /// Prints why a load failed, network by network: the top-level error only
+  /// says "no fill", the reason is in the per-adapter response info.
   static void logLoadFailure(String placement, LoadAdError error) {
     if (!_diagnostics) return;
     debugPrint(
@@ -889,28 +775,29 @@ class AdsService {
     }
   }
 
-  /// Reports a failed load as a GameAnalytics `FailedShow` with a reason, so
-  /// no-fill (an inventory problem) is separable from being offline (not one).
-  ///
-  /// AdMob's numeric codes are not documented as a stable enum, so this maps
-  /// only the two that change what you would do about them and lets the rest
-  /// fall through to `unknown` rather than guessing.
-  static void _reportNoFill(String placement, AdKind kind, LoadAdError error) {
+  /// Reports a failed load as a GameAnalytics `FailedShow`, keeping no-fill
+  /// (inventory) apart from being offline. Maps only the AdMob codes that
+  /// change what you'd do about them: 0 internal, 2 network, 3 no fill.
+  static void reportLoadFailure(
+    String placement,
+    AdKind kind,
+    LoadAdError error,
+  ) {
     logLoadFailure(placement, error);
     AnalyticsService.ad(
       outcome: AdOutcome.failed,
       kind: kind,
       placement: placement,
       reason: switch (error.code) {
-        2 => AdFailure.internalError,
+        0 => AdFailure.internalError,
+        2 => AdFailure.offline,
         3 => AdFailure.noFill,
         _ => AdFailure.unknown,
       },
     );
   }
 
-  /// The app holds one of these for its whole life, so this exists for tests —
-  /// which would otherwise leave retry timers running past the end of a case.
+  /// For tests, to stop retry timers outliving a case.
   void dispose() {
     _rewardedRetry.pause();
     _interstitialRetry.pause();

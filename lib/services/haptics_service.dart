@@ -2,9 +2,8 @@ import 'package:flutter/services.dart' show HapticFeedback;
 
 import 'storage_service.dart';
 
-/// Every buzz goes through here so the Settings vibration switch is one
-/// gate. The setting is read per call, so toggling it from the pause menu
-/// lands on the next lock without anything being rebuilt.
+/// Every buzz goes through here so the Settings vibration switch is one gate,
+/// read per call.
 class HapticsService {
   const HapticsService(this._storage);
 

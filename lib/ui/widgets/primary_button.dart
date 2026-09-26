@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
 
-/// Port of `.btn-primary` — the one bright, high-emphasis action on a
-/// screen (PLAY, Play Again, Resume).
+/// The one bright, high-emphasis action on a screen.
 class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
     super.key,
@@ -18,8 +17,7 @@ class PrimaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final Widget? icon;
 
-  /// Null means "the scaled default" — callers only pass this to pick a
-  /// different step on the type scale, not to opt out of scaling.
+  /// Null means the scaled default; pass to pick a different type-scale step.
   final double? fontSize;
 
   @override
@@ -46,9 +44,8 @@ class PrimaryButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (icon != null) ...[icon!, SizedBox(width: ui.spaceSm)],
-            // Shrinks to fit rather than overflowing. A long label inside a
-            // panel-width column on a 320pt screen — "Watch Ad to Continue"
-            // is the worst case — has nowhere else to go.
+            // Shrinks to fit; "Watch Ad to Continue" on a 320pt screen has
+            // nowhere else to go.
             Flexible(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -70,30 +67,16 @@ class PrimaryButton extends StatelessWidget {
   }
 }
 
-/// Port of `.btn-secondary` — outline/panel-toned button (Restart, Quit's
-/// louder sibling, Settings-from-pause, Watch Ad to Continue).
+/// Outline/panel-toned button for secondary actions.
 class SecondaryButton extends StatelessWidget {
   const SecondaryButton({
     super.key,
     required this.label,
     required this.onPressed,
-    this.icon,
-    this.highlighted = false,
-    this.fontSize,
   });
 
   final String label;
   final VoidCallback? onPressed;
-  final Widget? icon;
-
-  /// Null means "the scaled default". Matches [PrimaryButton] — without it,
-  /// game-over's "Watch Ad to Continue" had no way to shrink on a narrow
-  /// screen while the button beside it did.
-  final double? fontSize;
-
-  /// Gold "active/confirmed" tint — e.g. main-menu.html's `.is-purchased`
-  /// state — distinct from the disabled (null onPressed) dim.
-  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -106,14 +89,10 @@ class SecondaryButton extends StatelessWidget {
           vertical: ui.px(Tokens.buttonPadYMd),
         ),
         decoration: BoxDecoration(
-          color: highlighted
-              ? const Color(0x2EF2B632)
-              : pressed
-              ? const Color(0x1AFFFFFF)
-              : Tokens.colorPanel,
+          color: pressed ? const Color(0x1AFFFFFF) : Tokens.colorPanel,
           borderRadius: BorderRadius.circular(ui.radiusLg),
           border: Border.all(
-            color: highlighted ? Tokens.colorGold : Tokens.colorPanelBorder,
+            color: Tokens.colorPanelBorder,
             width: ui.borderThick,
           ),
         ),
@@ -121,7 +100,6 @@ class SecondaryButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[icon!, SizedBox(width: ui.spaceSm)],
             Flexible(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -129,9 +107,9 @@ class SecondaryButton extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontFamily: Tokens.fontDisplay,
-                    fontSize: fontSize ?? ui.fontMd,
+                    fontSize: ui.fontMd,
                     fontWeight: FontWeight.w600,
-                    color: highlighted ? Tokens.colorGold : Tokens.colorText,
+                    color: Tokens.colorText,
                   ),
                 ),
               ),
@@ -143,8 +121,7 @@ class SecondaryButton extends StatelessWidget {
   }
 }
 
-/// Shared press feedback: scale to 0.96 on tap-down, matching
-/// `:active { transform: scale(0.96) }` from components.css.
+/// Shared press feedback: scale to 0.96 on tap-down.
 class _JuiceButton extends StatefulWidget {
   const _JuiceButton({required this.onPressed, required this.builder});
 

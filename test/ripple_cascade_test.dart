@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tetrofall/game/engine/cell.dart';
-import 'package:tetrofall/game/engine/column_cascade.dart';
 import 'package:tetrofall/game/engine/grid.dart';
 import 'package:tetrofall/game/engine/ripple_cascade.dart';
 
@@ -11,6 +10,22 @@ void main() {
   void paint(Grid grid, int row, String mask) {
     for (var c = 0; c < grid.cols; c++) {
       grid.set(row, c, mask[c] == '#' ? Cell(BlockType.wood) : null);
+    }
+  }
+
+  /// Reference oracle: repacks every column to its final resting position.
+  void collapseColumns(Grid grid) {
+    for (var col = 0; col < grid.cols; col++) {
+      var write = grid.maxRow;
+      for (var r = grid.maxRow; r >= 0; r--) {
+        final cell = grid.at(r, col);
+        if (cell == null) continue;
+        if (r != write) {
+          grid.set(write, col, cell);
+          grid.set(r, col, null);
+        }
+        write--;
+      }
     }
   }
 
@@ -179,7 +194,7 @@ void main() {
     });
   });
 
-  test('rippling bottom-up converges on the same board as ColumnCascade', () {
+  test('rippling bottom-up converges on the same board as a column collapse', () {
     Grid seeded() {
       final grid = Grid(cols: 5, visibleRows: 8, spawnRows: 2);
       paint(grid, 1, '#..#.');
@@ -202,7 +217,7 @@ void main() {
     }
 
     final collapsed = seeded();
-    ColumnCascade().resolve(collapsed);
+    collapseColumns(collapsed);
 
     for (var r = 0; r <= collapsed.maxRow; r++) {
       expect(read(rippled, r), read(collapsed, r), reason: 'row $r');

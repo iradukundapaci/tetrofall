@@ -14,9 +14,8 @@ class PieceLockedEvent extends GameEvent {
 
 enum PlayerAction { moveLeft, moveRight, rotate, softDrop, hardDrop }
 
-/// A player intent that actually took effect. Emitted only for input the
-/// engine acted on — a swipe into a wall moves nothing and says nothing — so
-/// the tutorial can tell "they tried" from "they did it".
+/// A player intent that actually took effect; a swipe into a wall emits
+/// nothing.
 class PlayerActionEvent extends GameEvent {
   const PlayerActionEvent(this.action);
   final PlayerAction action;
@@ -39,17 +38,13 @@ class RowsClearedEvent extends GameEvent {
   final List<int> rows;
   final List<ClearedCell> cells;
 
-  /// How much the engine compressed this shatter, so the crack sequence can
-  /// run at the same speed the engine is waiting for.
+  /// How much the engine compressed this shatter; the crack sequence runs at
+  /// the same speed.
   final double timeScale;
 
-  /// Whether the engine wiped this row rather than the player completing it —
-  /// the board-clearing sweep a rewarded continue pays for.
-  ///
-  /// It still shatters and still sounds like a clear, because that is the
-  /// point of it. But it is not something the player did: [Scoring] already
-  /// declines to award it, and anything counting what the player achieved
-  /// must skip it too, or one continue reads as thirty-two line clears.
+  /// True for the board-clearing sweep a rewarded continue pays for. It
+  /// shatters like a clear but is not something the player did, so anything
+  /// counting achievements must skip it.
   final bool forced;
 }
 
@@ -66,9 +61,8 @@ class BlockFallEvent {
   final int col;
   final BlockType type;
 
-  /// Flight time the engine budgeted for this block. The engine owns resolve
-  /// timing, so the animator uses this rather than re-deriving it from
-  /// [Motion.gravityCellsPerS2] and drifting out of sync.
+  /// Flight time the engine budgeted; the animator must use this rather than
+  /// re-deriving it.
   final double durationSeconds;
 }
 

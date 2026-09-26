@@ -7,32 +7,24 @@ import '../../theme/app_icons.dart';
 import '../../theme/tokens.dart';
 import '../../theme/ui_scale.dart';
 
-/// Which gesture animation plays over the board. Lives here rather than with
-/// the controller because the widget below is the only thing that can draw one.
+/// Which gesture animation plays over the board.
 enum TutorialHint { none, swipeHorizontal, tap, dragDown, flickDown }
 
-/// The plate the label sits on. Dark enough to read display type against the
-/// board's lit wood, translucent enough to see the board through.
+/// The label plate: dark enough to read against lit wood, translucent enough
+/// to see the board.
 const _labelFill = Color(0xE0140C06);
 
 /// How quickly one label gives way to the next.
 const _labelFade = Duration(milliseconds: 180);
 
-/// The looping "do this" prompt that floats over the board: a translucent
-/// fingertip with chevrons pointing the way it travels, and a word or two
-/// underneath naming what the gesture does.
-///
-/// Hand-rolled from one [AnimationController] in the same idiom as the splash
-/// sequence (`splash_screen.dart`) — explicit millisecond constants and
-/// hand-cut segments — rather than pulling in an animation package for four
-/// short loops.
+/// The looping "do this" prompt over the board: a fingertip with chevrons and
+/// a label naming what the gesture does, driven by one [AnimationController].
 class GestureHint extends StatefulWidget {
   const GestureHint({super.key, required this.hint, this.label});
 
   final TutorialHint hint;
 
-  /// One or two words under the animation, or null for none. The animation
-  /// already says what the gesture *is*, so this names what it does.
+  /// One or two words naming what the gesture does, or null.
   final String? label;
 
   @override
@@ -41,13 +33,11 @@ class GestureHint extends StatefulWidget {
 
 class _GestureHintState extends State<GestureHint>
     with SingleTickerProviderStateMixin {
-  /// Resolved in [build] and read by the paint helpers below, which have no
-  /// `BuildContext` of their own.
+  /// Resolved in [build] for the paint helpers, which have no `BuildContext`.
   late UiScale _ui;
   double get _fingerSize => _ui.px(Tokens.fingerHint);
 
-  /// Each loop is one demonstration plus a beat of rest, so the gesture reads
-  /// as a discrete action rather than a continuous wobble.
+  /// Each loop is one demonstration plus a beat of rest.
   static const _durations = {
     TutorialHint.swipeHorizontal: Duration(milliseconds: 1800),
     TutorialHint.tap: Duration(milliseconds: 1300),
@@ -58,10 +48,8 @@ class _GestureHintState extends State<GestureHint>
   static Duration _durationFor(TutorialHint hint) =>
       _durations[hint] ?? const Duration(milliseconds: 1500);
 
-  /// Built here rather than in a `late` field initializer: a [TutorialHint.none]
-  /// step never reads [_controller] from [build], so a lazy field would first
-  /// run its initializer inside [dispose] — asking a defunct element for
-  /// [TickerMode].
+  /// Built in [initState], not a lazy field: a [TutorialHint.none] step never
+  /// reads it in [build], so a lazy initializer would first run in [dispose].
   late final AnimationController _controller;
 
   @override
@@ -129,8 +117,7 @@ class _GestureHintState extends State<GestureHint>
     );
   }
 
-  /// Cross-faded in place rather than swapped, so `Move → Rotate → Slam` reads
-  /// as one prompt answering the player rather than three prompts arriving.
+  /// Cross-faded in place so the labels read as one prompt.
   Widget _buildLabel() {
     final label = widget.label;
     return AnimatedSwitcher(
@@ -186,12 +173,8 @@ class _GestureHintState extends State<GestureHint>
     );
   }
 
-  /// Where the fingertip sits inside [AppIcons.handPoint], as a fraction of the
-  /// icon box, measured off the index finger's tip in its 24×24 viewBox.
-  ///
-  /// The ripple has to start there rather than at the middle of the icon: a
-  /// ring centred on the whole hand reads as the hand glowing, not as the
-  /// fingertip striking the board.
+  /// The fingertip's position in [AppIcons.handPoint] as a fraction of the box
+  /// (24×24 viewBox); the tap ripple starts there, not at the hand's centre.
   static const _tipX = 10.5 / 24;
   static const _tipY = 4.5 / 24;
 
@@ -216,10 +199,7 @@ class _GestureHintState extends State<GestureHint>
                 height: _fingerSize * 0.5 + ring * _ui.px(46),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  // The hand's own outline colour, not gold. Gold was legible
-                  // around the old translucent disc, but this ring starts half
-                  // that size against lit wood, and at low opacity it simply
-                  // disappeared — the tap loop had no visible ripple at all.
+                  // The hand's outline colour: gold vanishes against lit wood.
                   border: Border.all(
                     color: const Color(0xFF2A1A0B),
                     width: _ui.borderThick,
@@ -228,18 +208,15 @@ class _GestureHintState extends State<GestureHint>
               ),
             ),
           ),
-          // Scaled, never translated. A hand that travels downward — even 4px,
-          // even on a loop — reads as a short drag, which is the soft-drop
-          // hint, not this one. The ripple above is what says "tap"; the press
-          // only has to keep the hand alive underneath it.
+          // Scaled, never translated: a moving hand reads as the soft-drop
+          // hint.
           Transform.scale(scale: 1 - press * 0.12, child: _finger()),
         ],
       ),
     );
   }
 
-  /// Both downward gestures are the same shape — a fingertip travelling down
-  /// with chevrons under it — separated only by how far and how fast it goes.
+  /// Both downward gestures share a shape, differing in distance and speed.
   Widget _buildDrag(double t, double travel, double start, double end) {
     final slide = Curves.easeInOut.transform(_seg(t, start, end));
     final opacity = _seg(t, 0, start) * (1 - _seg(t, end + 0.08, end + 0.28));
@@ -259,14 +236,8 @@ class _GestureHintState extends State<GestureHint>
     );
   }
 
-  /// The hand doing the gesture.
-  ///
-  /// Drawn without a `colorFilter` — [AppIcons.handPoint] carries its own cream
-  /// palm and dark outline, and flattening it to one colour would leave a
-  /// silhouette that disappears into the board's lit wood.
-  ///
-  /// The drop shadow is a second copy underneath rather than a `BoxShadow`,
-  /// which would shadow the widget's square box instead of the hand inside it.
+  /// The hand, without a `colorFilter` (it carries its own palette). The shadow
+  /// is a second copy underneath; a `BoxShadow` would shadow the square box.
   Widget _finger() => SizedBox(
     width: _fingerSize,
     height: _fingerSize,

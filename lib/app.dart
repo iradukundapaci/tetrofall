@@ -25,11 +25,9 @@ class TetrofallApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      // Wraps the Navigator, so one install covers splash, menu, gameplay,
-      // settings and every overlay. The text scaler is clamped *before*
-      // [UiScale] reads the metrics, so the two can never disagree about how
-      // large text is — 1.15 is the ceiling a fixed-height game HUD and a
-      // board with a locked aspect ratio can stay honest at.
+      // Wraps the Navigator so every route is covered. Text scale is clamped
+      // before [UiScale] reads it; 1.15 is the most a fixed-height HUD and a
+      // locked-aspect board can absorb.
       builder: (context, child) {
         final data = MediaQuery.of(context);
         final clamped = data.copyWith(

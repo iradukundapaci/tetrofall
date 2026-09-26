@@ -2,22 +2,21 @@ import 'dart:math' as math;
 
 import '../director/adaptive_director.dart';
 import '../director/director.dart';
+import '../director/skill_model.dart';
 import 'difficulty.dart';
 
-/// How the floor rises. Today there is one shape, the [Difficulty] curve; the
-/// only knob is a gentler start.
+/// How the floor rises: the [Difficulty] curve, optionally with a gentler
+/// start.
 class RiseConfig {
   const RiseConfig({this.introScale = 1.0, this.introFadeSeconds = 90});
 
   static const curve = RiseConfig();
 
-  /// Multiplies the base rise interval at the very start of a run, fading
-  /// back to 1.0 over [introFadeSeconds] of the run. 1.36 turns the opening
-  /// 22 s interval into about 30 s.
+  /// Multiplies the rise interval at the start of a run, fading back to 1.0
+  /// over [introFadeSeconds].
   final double introScale;
   final double introFadeSeconds;
 
-  /// The interval multiplier [elapsed] seconds into the run's clock.
   double scaleAt(double elapsed) {
     if (introScale == 1.0) return 1.0;
     final t = (elapsed / introFadeSeconds).clamp(0.0, 1.0);
@@ -25,12 +24,12 @@ class RiseConfig {
   }
 }
 
-/// What the game knows about the player, as far as the endless run is
-/// concerned. Plain data, so the engine layer never imports storage.
+/// What the game knows about the player. Plain data, so the engine layer
+/// never imports storage.
 class EndlessProfile {
   const EndlessProfile({
     this.bestScore = 0,
-    this.skill = 0.2,
+    this.skill = SkillModel.initial,
     this.runCount = 0,
     this.daysSinceInstall = 0,
     this.adaptiveStartOptIn = false,
@@ -54,9 +53,8 @@ class EndlessProfile {
   final bool gentleFirstRuns;
 }
 
-/// Everything that distinguishes one kind of run from another. The engine is
-/// handed one and never learns which mode it is playing: endless is simply a
-/// run with no goals and no limit.
+/// Everything that distinguishes one run from another; the engine is handed
+/// one and never learns which mode it is playing.
 class RunConfig {
   const RunConfig({
     this.rise = RiseConfig.curve,
@@ -64,8 +62,7 @@ class RunConfig {
     this.initialElapsed = Duration.zero,
   });
 
-  /// A run with none of the adaptive systems: what the engine did before the
-  /// Director existed.
+  /// No adaptive systems.
   static const plain = RunConfig();
 
   final RiseConfig rise;
@@ -76,15 +73,14 @@ class RunConfig {
   /// Where the difficulty clock starts.
   final Duration initialElapsed;
 
-  /// A returning player who opted in to starting partway up the curve is
-  /// still given a fresh start for this long after installing: session two
-  /// must never be harder than session one.
+  /// Adaptive start stays off for this long after install: session two must
+  /// never be harder than session one.
   static const freshStartDays = 7;
 
   /// How many of a player's first runs get a gentler opening.
   static const gentleRuns = 3;
 
-  /// 22 s → ~30 s.
+  /// Stretches the opening 22 s rise interval to about 30 s.
   static const _gentleIntroScale = 30 / 22;
 
   factory RunConfig.endless(EndlessProfile profile, {math.Random? random}) {

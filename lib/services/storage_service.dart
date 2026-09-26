@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../game/director/skill_model.dart';
+
 class StorageService {
   StorageService(this._prefs);
 
@@ -38,14 +40,13 @@ class StorageService {
   bool get adaptiveStartSpeedEnabled =>
       _prefs.getBool(_adaptiveStartSpeedKey) ?? false;
 
-  /// 0.0–1.0. Defaults match settings.html's mockup sliders (70/85%).
+  /// 0.0–1.0.
   double get musicVolume => _prefs.getDouble(_musicVolumeKey) ?? 0.70;
 
   double get sfxVolume => _prefs.getDouble(_sfxVolumeKey) ?? 0.85;
 
-  /// Where the mute button puts the slider back to. Kept out of the volume
-  /// itself because muting has to write a zero there, and remembered across
-  /// screens so leaving Settings doesn't cost the player their level.
+  /// Where un-muting puts the slider back to; kept apart from the volume
+  /// because muting writes a zero there.
   double get musicRestoreLevel =>
       _prefs.getDouble(_musicRestoreLevelKey) ?? 0.70;
 
@@ -53,21 +54,15 @@ class StorageService {
 
   bool get vibrateEnabled => _prefs.getBool(_vibrateEnabledKey) ?? true;
 
-  /// Enabled by default per game.md §1.2.
   bool get ghostPieceEnabled => _prefs.getBool(_ghostPieceEnabledKey) ?? true;
 
-  /// Whether the first-run tutorial has already been shown. Written the moment
-  /// it starts rather than when it ends, so quitting or force-killing halfway
-  /// through does not queue it up all over again.
-  ///
-  /// The fallback covers players updating into this build: anyone who already
-  /// has a score has already learned the game the hard way, and must not be
-  /// dragged back through a tutorial for it.
+  /// Whether the tutorial has been shown. Written when it starts, so quitting
+  /// halfway doesn't repeat it. Anyone with a score counts as having seen it
+  /// (players updating into this build).
   bool get tutorialSeen =>
       _prefs.getBool(_tutorialSeenKey) ?? (_prefs.getInt(_bestScoreKey) ?? 0) > 0;
 
-  /// Interstitial frequency cap (phase11_monetization_plan.md §3) — number
-  /// of completed runs since the last interstitial was shown.
+  /// Completed runs since the last interstitial (frequency cap).
   int get runsSinceLastInterstitial =>
       _prefs.getInt(_runsSinceLastInterstitialKey) ?? 0;
 
@@ -75,7 +70,7 @@ class StorageService {
   double get playSecondsSinceLastInterstitial =>
       _prefs.getDouble(_playSecondsSinceLastInterstitialKey) ?? 0;
 
-  /// Epoch ms of the last app-open ad shown, or null if none yet.
+  /// When the last app-open ad was shown, or null.
   DateTime? get lastAppOpenAdShownAt {
     final epochMs = _prefs.getInt(_lastAppOpenAdEpochMsKey);
     return epochMs == null
@@ -83,22 +78,16 @@ class StorageService {
         : DateTime.fromMillisecondsSinceEpoch(epochMs);
   }
 
-  /// Last measured anchored-adaptive banner height for a screen [width] in
-  /// logical pixels, or null if this device hasn't measured one yet. Lets
-  /// gameplay reserve the banner slot on the very first frame of a cold
-  /// start instead of resizing the board when the ad arrives.
+  /// Last measured banner height for a screen [width], or null; lets gameplay
+  /// reserve the slot on the first frame instead of resizing when the ad
+  /// arrives.
   int? bannerAdHeightForWidth(int width) =>
       _prefs.getInt(_bannerAdWidthKey) == width
       ? _prefs.getInt(_bannerAdHeightKey)
       : null;
 
-  /// Whether the player lets their ads be personalised. On by default, and
-  /// that default is not a decision this switch makes on anyone's behalf:
-  /// where UMP governs (the EEA/UK and the regulated US states) the consent
-  /// form is still the gate, and this can only narrow what it allowed;
-  /// everywhere else personalised is what the AdMob SDK does anyway. The
-  /// switch exists so there is a way to turn it off — see
-  /// `AdsService.setPersonalizedAds`.
+  /// On by default. Where UMP governs, its consent form is still the gate and
+  /// this can only narrow it; see `AdsService.setPersonalizedAds`.
   bool get personalizedAdsEnabled =>
       _prefs.getBool(_personalizedAdsKey) ?? true;
 
@@ -148,9 +137,8 @@ class StorageService {
   Future<void> savePersonalizedAdsEnabled(bool value) =>
       _prefs.setBool(_personalizedAdsKey, value);
 
-  /// When this install first ran. Set once, at first launch of a build that
-  /// knows about it: a player updating into it is treated as installed *now*,
-  /// which errs on the side of asking for a rating late rather than early.
+  /// When this install first ran. A player updating into this build counts as
+  /// installed now, which errs toward asking for a rating late.
   DateTime? get installDate {
     final epochMs = _prefs.getInt(_installDateKey);
     return epochMs == null
@@ -172,7 +160,7 @@ class StorageService {
     return (now ?? DateTime.now()).difference(installed).inDays;
   }
 
-  /// App launches so far, counting the current one once it has begun.
+  /// App launches so far, including the current one.
   int get sessionCount => _prefs.getInt(_sessionCountKey) ?? 0;
 
   Future<int> incrementSessionCount() async {
@@ -181,25 +169,26 @@ class StorageService {
     return next;
   }
 
-  /// Endless runs started, for the gentler first runs.
+  /// Runs started, for the gentler first runs.
   int get endlessRunCount => _prefs.getInt(_endlessRunCountKey) ?? 0;
 
   Future<void> incrementEndlessRunCount() =>
       _prefs.setInt(_endlessRunCountKey, endlessRunCount + 1);
 
-  /// The Director's long-run estimate of how well the player plays, 0–1.
-  double get directorSkill => _prefs.getDouble(_directorSkillKey) ?? 0.2;
+  /// The Director's skill estimate, 0–1.
+  double get directorSkill =>
+      _prefs.getDouble(_directorSkillKey) ?? SkillModel.initial;
 
   Future<void> saveDirectorSkill(double value) =>
       _prefs.setDouble(_directorSkillKey, value);
 
-  /// Consecutive endless runs that ended in under a minute.
+  /// Consecutive runs that ended in under a minute.
   int get quickDeathStreak => _prefs.getInt(_quickDeathStreakKey) ?? 0;
 
   Future<void> saveQuickDeathStreak(int value) =>
       _prefs.setInt(_quickDeathStreakKey, value);
 
-  /// Scores of the last few finished endless runs, oldest first.
+  /// Scores of the last few runs, oldest first.
   List<int> get recentScores => [
     for (final s in _prefs.getStringList(_recentScoresKey) ?? const <String>[])
       ?int.tryParse(s),

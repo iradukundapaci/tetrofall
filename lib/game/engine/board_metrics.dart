@@ -2,9 +2,8 @@ import 'dart:math' as math;
 
 import 'grid.dart';
 
-/// A read-only summary of the stack, computed on demand. Pure functions over
-/// [Grid]: the Director reads it to judge how much trouble the player is in,
-/// and to find the column they are keeping open.
+/// A read-only summary of the stack, computed on demand, that the Director
+/// uses to judge how much trouble the player is in.
 class BoardMetrics {
   BoardMetrics._({
     required this.rows,
@@ -15,7 +14,6 @@ class BoardMetrics {
     required this.wellColumn,
   });
 
-  /// Visible rows, i.e. the most a column can hold.
   final int rows;
 
   /// Per-column stack height, in rows.
@@ -29,9 +27,8 @@ class BoardMetrics {
   /// Sum of height differences between neighbouring columns.
   final int bumpiness;
 
-  /// The column the player is keeping open, or null when there isn't one: a
-  /// column at least [minWellDepth] rows below every neighbour it has. The
-  /// deepest wins.
+  /// The deepest column at least [minWellDepth] rows below every neighbour,
+  /// or null.
   final int? wellColumn;
 
   static const minWellDepth = 3;
@@ -69,8 +66,7 @@ class BoardMetrics {
       final neighbours = [?left, ?right];
       final lowestNeighbour = neighbours.reduce(math.min);
       final depth = lowestNeighbour - heights[c];
-      // Every neighbour must stand above it, not just one: a step on a
-      // staircase is not a well.
+      // Every neighbour must stand above it: a staircase step is not a well.
       final isWell = neighbours.every((n) => n - heights[c] >= minWellDepth);
       if (isWell && depth > wellDepth) {
         wellDepth = depth;

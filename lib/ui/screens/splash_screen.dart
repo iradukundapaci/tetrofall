@@ -13,12 +13,9 @@ import '../widgets/logo_wordmark.dart';
 import '../widgets/progress_bar.dart';
 import 'main_menu_screen.dart';
 
-/// Boot screen 1 (game.md §P.2 / Phase 8) — 1:1 port of splash.html.
-/// The block mark falls into place under gravity (ease-in), lands with a
-/// squash, then the wordmark and loader reveal. The loader fills while
-/// assets precache in the background; the whole stage fades out once
-/// both the animation and the real load are done, handing off to the
-/// main menu.
+/// The block mark falls into place, lands with a squash, then the wordmark and
+/// loader reveal. The stage fades out once both the animation and the asset
+/// precache are done, handing off to the main menu.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, required this.storage, required this.ads});
 
@@ -63,17 +60,14 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // MediaQuery (which precacheImage needs) isn't available until after
-    // initState, so the real preload future is wired up here instead.
+    // precacheImage needs MediaQuery, which isn't available in initState.
     if (_assetsPrecacheStarted) return;
     _assetsPrecacheStarted = true;
     _assetsReady = _preloadAssets();
   }
 
   Future<void> _preloadAssets() async {
-    // Measured here rather than in gameplay so the banner slot's height is
-    // already known on the play screen's first frame and the board never
-    // resizes once the ad shows up.
+    // Measured here so the banner height is known on gameplay's first frame.
     unawaited(
       widget.ads.resolveBannerSize(MediaQuery.sizeOf(context).width.truncate()),
     );
@@ -84,23 +78,23 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _runSequence() async {
-    // 1. Tetromino falls into place.
+    // Tetromino falls into place.
     await _dropController.forward();
     if (!mounted) return;
 
-    // 2. Landing squash + this is what triggers the rest of the reveal.
+    // Landing squash, which triggers the reveal.
     setState(() {
       _landed = true;
       _revealed = true;
     });
     unawaited(_squashController.forward());
 
-    // 3. Loading bar fills.
+    // Loading bar fills.
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
     setState(() => _loaderStarted = true);
 
-    // 4. Load finishes -> fade out -> hand off to the real main menu.
+    // Load finishes, fade out, hand off to the main menu.
     await Future.wait([Future.delayed(_loaderFillDuration), _assetsReady]);
     if (!mounted) return;
     setState(() => _fadingOut = true);
@@ -285,10 +279,8 @@ class _DroppingLogo extends StatelessWidget {
   }
 }
 
-/// 14 upward-drifting gold dust particles, matching splash.html's
-/// `.dust-particle` keyframes: fade in over the first 10% of travel,
-/// hold, then fade out over the last 10%, drifting 820px upward with a
-/// small randomized horizontal wobble.
+/// Upward-drifting gold dust: fades in over the first 10% of travel, holds,
+/// fades out over the last 10%, with a small random horizontal wobble.
 class _SplashDust extends StatefulWidget {
   const _SplashDust();
 
@@ -352,9 +344,7 @@ class _SplashDustState extends State<_SplashDust>
                       : 0.4 * (1 - (t - 0.9) / 0.1);
                   return Positioned(
                     left: _specs[i].left * constraints.maxWidth,
-                    // Travels the real viewport rather than a hardcoded 820,
-                    // which used to stop short on a tall screen and overshoot
-                    // a short one.
+                    // Travels the real viewport height.
                     bottom: -20 + t * (constraints.maxHeight + 40),
                     child: Opacity(
                       opacity: opacity.clamp(0.0, 1.0),

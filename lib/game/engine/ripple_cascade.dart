@@ -1,27 +1,15 @@
-import 'gravity_resolver.dart';
+import 'block_fall.dart';
 import 'grid.dart';
 
-/// Gravity as a wave rather than a single collapse.
-///
-/// [ColumnCascade] repacks every column to its final position in one step, so
-/// the whole stack teleports down together. This settles the board one row at
-/// a time instead: a released row drops into whatever holes are beneath it
-/// while everything above it stays exactly where it was, and the caller walks
-/// the cursor upward a row per animation step.
-///
-/// Because a released row lands on an uneven surface, its cells merge into the
-/// partial rows below — and a merge can complete a row, which is what makes
-/// chains fall out of a plain bottom-up walk.
-///
-/// Spawn rows (negative indices) are left alone, matching [ColumnCascade].
+/// Gravity as a wave: a released row drops into the holes beneath it while
+/// everything above stays put, and the caller walks the cursor up one row per
+/// step. Landing on an uneven surface can complete a row, which is how chains
+/// fall out of a plain bottom-up walk. Spawn rows (negative indices) are
+/// left alone.
 abstract final class RippleCascade {
-  /// Largest row index at or above [fromRow] holding a cell with empty space
-  /// directly beneath it. Null once everything from [fromRow] down is settled.
-  ///
-  /// Rows are indexed downward, so "at or above" means `<= fromRow`, and the
-  /// search runs bottom-up to find the row gravity should release next.
+  /// Largest row index at or above [fromRow] (rows count downward, so
+  /// `<= fromRow`) holding a cell with empty space directly beneath it.
   static int? nextFloatingRow(Grid grid, {required int fromRow}) {
-    // The bottom row has nothing beneath it, so it can never float.
     var r = fromRow < grid.maxRow ? fromRow : grid.maxRow - 1;
     for (; r >= 0; r--) {
       for (var c = 0; c < grid.cols; c++) {
@@ -31,9 +19,7 @@ abstract final class RippleCascade {
     return null;
   }
 
-  /// Drops every floating cell in [row] to its resting position in its own
-  /// column. Everything above [row] is left untouched — that is the whole
-  /// point: the rows above have not been released yet.
+  /// Drops every floating cell in [row] to rest in its own column.
   static List<BlockFall> settleRow(Grid grid, int row) {
     if (row < 0 || row >= grid.maxRow) return const [];
 
@@ -57,10 +43,8 @@ abstract final class RippleCascade {
     return falls;
   }
 
-  /// The board the wave converges on, in one pass — for the hard cap, where
-  /// the engine gives up on animating and collapses whatever is left. Rows at
-  /// or below [floorRow] keep their overhangs, exactly as they do during the
-  /// wave: releasing them is not this clear's business.
+  /// The board the wave converges on, in one pass. Rows at or below
+  /// [floorRow] keep their overhangs, as they do during the wave.
   static List<BlockFall> settleAbove(Grid grid, {required int floorRow}) {
     final falls = <BlockFall>[];
     for (var r = floorRow - 1; r >= 0; r--) {
@@ -69,10 +53,8 @@ abstract final class RippleCascade {
     return falls;
   }
 
-  /// Rows at or above [fromRow] that still hold at least one block, i.e. how
-  /// many more ripple steps the cascade could still take. Used to pace the
-  /// wave against its time budget so a tall stack compresses instead of
-  /// running long.
+  /// Rows at or above [fromRow] that still hold a block, i.e. how many more
+  /// ripple steps remain. Used to pace the wave against its time budget.
   static int rowsRemaining(Grid grid, {required int fromRow}) {
     var count = 0;
     for (var r = fromRow < grid.maxRow ? fromRow : grid.maxRow; r >= 0; r--) {

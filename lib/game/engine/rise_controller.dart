@@ -20,16 +20,13 @@ class RiseController {
 
   double elapsed = 0.0;
 
-  /// The run's own shape of the rise, set by `GameEngine` from `RunConfig`.
   RiseConfig riseConfig = RiseConfig.curve;
 
   /// The Director's nudge to the rise interval; above 1 the floor is slower.
-  /// Composes with [debugSpeedMultiplier] rather than replacing it.
   double directorIntervalScale = 1.0;
 
-  /// Asked for a [RowPlan] each time a row is generated. Null means every row
-  /// follows today's rules. Called for the row *after* the one that is showing:
-  /// the visible [pendingRow] is never rewritten.
+  /// Asked for a [RowPlan] whenever a row is generated, i.e. for the row after
+  /// the visible [pendingRow], which is never rewritten. Null means normal.
   RowPlan Function()? rowPlanner;
 
   late List<Cell?> pendingRow;
@@ -102,9 +99,7 @@ class RiseController {
     return row;
   }
 
-  /// One run of [count] neighbouring gaps. With [aroundCol] the run is
-  /// centred on it, so the gaps line up with the well the player is keeping
-  /// open; the draw is only spent when there is nothing to line up with.
+  /// One run of [count] neighbouring gaps, centred on [aroundCol] when given.
   List<int> _adjacentGaps(int count, {int? aroundCol}) {
     final start = aroundCol == null
         ? _random.nextInt(grid.cols - count + 1)
@@ -116,27 +111,24 @@ class RiseController {
   /// nothing stacks into a tidy shaft.
   List<int> _spreadGaps(int count) {
     for (var attempt = 0; attempt < 8; attempt++) {
-      final cols = <int>{};
-      while (cols.length < count) {
-        cols.add(_random.nextInt(grid.cols));
-      }
+      final cols = _randomCols(count);
       final tooClose = cols.any(
         (c) => _previousGapCols.any((p) => (c - p).abs() < 2),
       );
-      if (!tooClose) return cols.toList();
+      if (!tooClose) return cols;
     }
     return _scatteredGaps(count);
   }
 
   List<int> _scatteredGaps(int count) {
     for (var attempt = 0; attempt < 8; attempt++) {
-      final cols = <int>{};
-      while (cols.length < count) {
-        cols.add(_random.nextInt(grid.cols));
-      }
-      final overlapsPrevious = cols.any(_previousGapCols.contains);
-      if (!overlapsPrevious) return cols.toList();
+      final cols = _randomCols(count);
+      if (!cols.any(_previousGapCols.contains)) return cols;
     }
+    return _randomCols(count);
+  }
+
+  List<int> _randomCols(int count) {
     final cols = <int>{};
     while (cols.length < count) {
       cols.add(_random.nextInt(grid.cols));

@@ -3,21 +3,17 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
 
-/// Port of `.btn-icon` — the circular icon button used for settings, pause,
-/// and home affordances across every screen. Sized from [UiScale.tap], which
-/// never drops below the 44pt minimum touch target.
+/// The circular icon button, sized from [UiScale.tap] (never below 44pt).
 class CircleIconButton extends StatelessWidget {
   const CircleIconButton({
     super.key,
     required this.icon,
     required this.onPressed,
-    this.active = false,
     this.tooltip,
   });
 
   final Widget icon;
   final VoidCallback? onPressed;
-  final bool active;
   final String? tooltip;
 
   @override
@@ -29,11 +25,9 @@ class CircleIconButton extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: active ? const Color(0x2EF2B632) : Tokens.colorPanel,
+          color: Tokens.colorPanel,
           shape: BoxShape.circle,
-          border: Border.all(
-            color: active ? Tokens.colorGold : Tokens.colorPanelBorder,
-          ),
+          border: Border.all(color: Tokens.colorPanelBorder),
           boxShadow: const [Tokens.shadowSoft],
         ),
         child: Center(child: icon),

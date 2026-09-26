@@ -1,8 +1,6 @@
 const _lineBaseScore = {1: 100, 2: 300, 3: 500, 4: 800};
 
-/// Ripple gravity clears each merge as it happens instead of after one big
-/// collapse, so chains run several links longer than they used to. The
-/// multiplier stops climbing here (5.0x) rather than compounding without end.
+/// Chain multiplier stops climbing here (5.0x).
 const _maxChainMultiplierSteps = 8;
 
 class Scoring {
@@ -20,13 +18,11 @@ class Scoring {
 
   int score = 0;
 
-  int blocksDestroyedThisResolve = 0;
-
   int totalBlocksDestroyed = 0;
   int maxChain = 0;
 
-  /// Rows cleared this run, counting every link of a chain. The forced sweep
-  /// that follows a rewarded continue is not scored and not counted.
+  /// Rows cleared this run, counting every chain link but not the continue
+  /// sweep.
   int totalLines = 0;
 
   /// Clears of four or more rows at once.
@@ -58,18 +54,10 @@ class Scoring {
     _notify();
   }
 
-  void addDestroyed(int count) {
-    blocksDestroyedThisResolve += count;
-    totalBlocksDestroyed += count;
-  }
-
-  void startResolve() {
-    blocksDestroyedThisResolve = 0;
-  }
+  void addDestroyed(int count) => totalBlocksDestroyed += count;
 
   void reset() {
     score = 0;
-    blocksDestroyedThisResolve = 0;
     totalBlocksDestroyed = 0;
     maxChain = 0;
     totalLines = 0;

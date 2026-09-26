@@ -2,21 +2,18 @@ import 'analytics_service.dart';
 import 'firebase_analytics_service.dart';
 import 'run_summary.dart';
 
-/// Every product event, defined once and fanned out to both analytics SDKs, so
-/// a name or a parameter can never drift between them.
+/// Every product event, defined once and fanned out to both analytics SDKs so
+/// names and parameters can't drift.
 ///
 ///  * **GameAnalytics** gets a design event id (`a:b:c`, fixed vocabulary, at
 ///    most five parts) with any number in its value.
 ///  * **Firebase** gets a snake_case event name (at most 40 characters, at most
 ///    25 parameters) with its parameters.
 ///
-/// Nothing here carries anything personal: no name, no email. Like the two
-/// services underneath it, every call is inert until they are ready and never
-/// throws.
+/// Nothing personal is carried. Calls are inert until the services are ready
+/// and never throw.
 abstract final class Telemetry {
   static const mode = 'endless';
-
-  // ---------------------------------------------------------------- session
 
   static void sessionStart({required int index}) {
     _send(
@@ -35,16 +32,6 @@ abstract final class Telemetry {
       value: durationSeconds.toDouble(),
     );
   }
-
-  static void modeSelect(String selected) {
-    _send(
-      firebase: 'mode_select',
-      params: {'mode': selected},
-      design: 'mode:select:$selected',
-    );
-  }
-
-  // ---------------------------------------------------------------- endless
 
   static void endlessStart({
     required String skillBucket,
@@ -86,14 +73,12 @@ abstract final class Telemetry {
       design: 'endless:end:${s.deathReason}',
       value: s.score.toDouble(),
     );
-    // Median-run-length dashboards want the duration as its own number.
+    // Duration as its own number, for median-run-length dashboards.
     AnalyticsService.design(
       'endless:duration:${s.skillBucket}',
       value: s.durationSeconds,
     );
   }
-
-  // ---------------------------------------------------------------- director
 
   static void directorRescue({
     required double stress,
@@ -112,8 +97,7 @@ abstract final class Telemetry {
     );
   }
 
-  /// Sampled by the caller; a phase changes every ~15 seconds and reporting
-  /// every one would drown the dashboard.
+  /// Sampled by the caller; phases change every ~15 seconds.
   static void directorPhase(String phase) {
     _send(
       firebase: 'director_phase',
@@ -122,10 +106,8 @@ abstract final class Telemetry {
     );
   }
 
-  // ---------------------------------------------------------------- rating
-
-  /// The OS decides whether the prompt actually shows, and the app is never
-  /// told; this only records that it was asked.
+  /// Records only that the prompt was requested; the OS decides whether it
+  /// shows.
   static void reviewRequest(String trigger) {
     _send(
       firebase: 'review_request',
@@ -142,8 +124,6 @@ abstract final class Telemetry {
     );
   }
 
-  // ---------------------------------------------------------------- who
-
   static void setSkillBucket(String bucket) {
     FirebaseAnalyticsService.setUserProperty('skill_bucket', bucket);
     AnalyticsService.setSkillBucketDimension(bucket);
@@ -152,8 +132,6 @@ abstract final class Telemetry {
   static void setExperiment(String name) {
     FirebaseAnalyticsService.setUserProperty('experiment', name);
   }
-
-  // ---------------------------------------------------------------- plumbing
 
   static void _send({
     required String firebase,

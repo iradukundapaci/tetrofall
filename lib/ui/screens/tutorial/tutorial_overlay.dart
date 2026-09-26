@@ -9,15 +9,9 @@ import '../../theme/ui_scale.dart';
 import 'gesture_hint.dart';
 import 'tutorial_controller.dart';
 
-/// The first-run tutorial's chrome: a looping gesture hint with a word or two
-/// under it, and Skip.
-///
-/// It draws no scrim and confines itself to the board's own rect, so every
-/// touch outside the Skip button still reaches the board, and nothing is ever
-/// painted over the banner ad below it. There is no modal branch — the whole
-/// tutorial is one live gameplay session, and a panel over the board would
-/// both stop it and, through the dim treatment's `IgnorePointer`, swallow the
-/// very gestures being taught.
+/// The tutorial's chrome: a looping gesture hint with a label, and Skip. No
+/// scrim, and confined to the board's rect, so touches outside Skip still reach
+/// the board and nothing paints over the banner ad.
 class TutorialOverlay extends StatefulWidget {
   const TutorialOverlay({
     super.key,
@@ -27,36 +21,28 @@ class TutorialOverlay extends StatefulWidget {
 
   final TutorialController controller;
 
-  /// Key on gameplay's board container. This layer needs the board's real
-  /// laid-out rect, which depends on the HUD above it and on the banner ad's
-  /// measured height below it, so it is read back from layout rather than
-  /// guessed at.
+  /// Key on gameplay's board container, whose laid-out rect depends on the HUD
+  /// and banner heights.
   final GlobalKey boardKey;
 
   @override
   State<TutorialOverlay> createState() => _TutorialOverlayState();
 }
 
-/// How quickly the chrome gets out of the way under a finger, and how quickly
-/// a satisfied prompt disappears.
+/// How quickly the chrome fades under a finger or when a prompt is satisfied.
 const _fadeDuration = Duration(milliseconds: 220);
 
 /// The plate behind Skip, matching the prompt's own label plate.
 const _skipFill = Color(0xE0140C06);
 
-/// What Skip dims to under a finger. Not zero: the prompt itself can go, but
-/// the one control that has to stay findable from any moment should not.
+/// What Skip dims to under a finger; not zero, so it stays findable.
 const _touchedOpacity = 0.15;
 
 class _TutorialOverlayState extends State<TutorialOverlay> {
   Rect? _boardRect;
 
-  /// Re-measured after every frame rather than once: the board resizes when
-  /// the banner ad finally reports its height, which on a first launch happens
-  /// while the tutorial is already up.
-  ///
-  /// Measured relative to this overlay rather than to the screen, so the rect
-  /// arrives already in the coordinate space the `Positioned` below wants.
+  /// Re-measured after every frame (the board resizes when the banner reports
+  /// its height), relative to this overlay so it fits the `Positioned` below.
   void _scheduleMeasure() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -73,8 +59,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   @override
   Widget build(BuildContext context) {
     _scheduleMeasure();
-    // `Positioned` has to be a direct child of a `Stack`, so the positioning
-    // lives here and everything below is plain layout inside the board's rect.
+    // `Positioned` must be a direct child of the `Stack`.
     return Positioned.fill(
       child: ListenableBuilder(
         listenable: widget.controller,
@@ -85,14 +70,12 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
 
   Widget _build() {
     final rect = _boardRect;
-    // Before the first post-frame measurement there is nowhere to put the
-    // prompt. The board is live and unobstructed for that one frame.
+    // Nowhere to put the prompt before the first measurement.
     if (rect == null) return const SizedBox.shrink();
 
     final c = widget.controller;
     final ui = context.scale;
-    // Mid-gesture the player is watching the board, not reading over it. The
-    // prompt and Skip both stand down until the finger comes off.
+    // Mid-gesture the player watches the board; the chrome stands down.
     final faded = c.boardTouched;
 
     return Stack(
@@ -101,11 +84,8 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
           rect: rect,
           child: Stack(
             children: [
-              // Over the piece the player is being asked to steer, rather than
-              // at a fixed height that happened to look about right. A
-              // satisfied lesson leaves [TutorialController.hint] at `none`,
-              // and the prompt fades out rather than being replaced — the live
-              // board is the confirmation.
+              // Over the piece being steered. A satisfied lesson leaves the
+              // hint at `none` and the prompt fades out; the board confirms.
               AnimatedOpacity(
                 opacity: faded ? 0.0 : 1.0,
                 duration: _fadeDuration,
@@ -114,8 +94,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                   child: GestureHint(hint: c.hint, label: c.label),
                 ),
               ),
-              // The hole the rigged floor left. "Fill the row" is only
-              // actionable once the player can see which row, and where.
+              // The hole the rigged floor left.
               if (c.gapAlignX != null)
                 AnimatedOpacity(
                   opacity: faded ? 0.0 : 1.0,
@@ -125,9 +104,8 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                     child: const _GapMarker(),
                   ),
                 ),
-              // Pieces spawn top-centre and the prompt hangs below them, so
-              // the top-right corner is the one piece of board that is never
-              // the thing the player has been told to look at.
+              // The top-right corner is never what the player is told to look
+              // at.
               Align(
                 alignment: Alignment.topRight,
                 child: Padding(
@@ -147,11 +125,8 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   }
 }
 
-/// A pulsing chevron over the gap in the rigged floor.
-///
-/// Deliberately not the [GestureHint] hand: that says "do this with your
-/// finger", and this is saying "put it *there*" — a different kind of
-/// instruction, and the two are on screen together.
+/// A pulsing chevron over the gap in the rigged floor. Not the [GestureHint]
+/// hand, which says "do this"; this says "put it there".
 class _GapMarker extends StatefulWidget {
   const _GapMarker();
 
@@ -179,8 +154,7 @@ class _GapMarkerState extends State<_GapMarker>
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
-          // One nudge downward per loop, with a rest at the end, so it reads
-          // as pointing rather than bouncing.
+          // One nudge per loop with a rest, so it reads as pointing.
           final t = Curves.easeInOut.transform(
             (_controller.value / 0.55).clamp(0.0, 1.0),
           );
@@ -209,11 +183,8 @@ class _GapMarkerState extends State<_GapMarker>
   }
 }
 
-/// Skip, as it appears on the bare board.
-///
-/// Muted text is right on [AppPanel]'s near-black; on lit wood it all but
-/// disappears, and Skip is the one control that has to stay findable from any
-/// moment. So it gets the prompt's own plate behind it.
+/// Skip on the bare board: muted text vanishes on lit wood, so it gets the
+/// prompt's own plate.
 class _SkipButton extends StatelessWidget {
   const _SkipButton({required this.onPressed});
 

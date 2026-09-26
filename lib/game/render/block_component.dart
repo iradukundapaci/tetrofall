@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import '../../models/theme_definition.dart';
 import 'tile_cache.dart';
 
-/// A single drawn block. Used for the bounded, moving cases — the active
-/// piece, its ghost, blocks mid-fall and the pending rise row. The settled
-/// board is drawn in one batch by `BoardBlocksComponent` instead.
+/// A single drawn block for the moving cases: the active piece, its ghost,
+/// blocks mid-fall and the pending row. Settled blocks are batched by
+/// `BoardBlocksComponent`.
 class BlockComponent extends PositionComponent {
   BlockComponent({required this.theme, this.ghost = false});
 
@@ -21,8 +21,6 @@ class BlockComponent extends PositionComponent {
 
   double opacity = 1.0;
 
-  // Reused across frames: this used to allocate a Paint and a ColorFilter on
-  // every render call, for every block.
   final Paint _paint = Paint()..filterQuality = FilterQuality.low;
 
   @override
@@ -42,9 +40,8 @@ class BlockComponent extends PositionComponent {
 
     final ui.Image? tile = ghost ? null : TileCache.tile(theme, size.x);
     if (tile != null) {
-      // Opacity rides on the paint's alpha rather than a saveLayer. The
-      // pending row fades every frame, and an offscreen layer per block is
-      // not a price worth paying for a cross-fade.
+      // Alpha on the paint rather than a saveLayer, which is too costly for
+      // the per-frame pending-row fade.
       _paint
         ..style = PaintingStyle.fill
         ..color = opacity >= 1.0
@@ -63,8 +60,7 @@ class BlockComponent extends PositionComponent {
     if (needsSquash) canvas.restore();
   }
 
-  /// The ghost outline, and the flat fallback fill for the few frames before
-  /// the baked tile is ready.
+  /// The ghost outline, and the flat fill used until the baked tile is ready.
   void _renderVector(Canvas canvas) {
     final inset = size.x * 0.015;
     final rect = Rect.fromLTWH(

@@ -57,8 +57,8 @@ class Grid {
     }
   }
 
-  /// Fills every empty cell in a single visible [row] — used one row at a
-  /// time, bottom-to-top, by the Watch-Ad-To-Continue fill animation.
+  /// Fills every empty cell in [row]; the continue animation calls this one
+  /// row at a time.
   void fillRow(int row) {
     for (var c = 0; c < cols; c++) {
       if (at(row, c) == null) {
@@ -67,10 +67,8 @@ class Grid {
     }
   }
 
-  /// Empties the spawn buffer above the board. It isn't rendered, so
-  /// unlike a visible-row clear it needs no animation — just a direct
-  /// wipe so nothing left over there can block the next spawn after a
-  /// Watch-Ad-To-Continue.
+  /// Wipes the unrendered spawn buffer so nothing left there can block the
+  /// next spawn after a continue.
   void clearSpawnRows() {
     for (var r = minRow; r < 0; r++) {
       for (var c = 0; c < cols; c++) {

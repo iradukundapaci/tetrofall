@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
 
-/// The gradient "TETROFALL" text, ported from splash.html's
-/// `.splash-logo-word`. A vertical gold gradient clipped to the text,
-/// with a hard drop shadow plus a soft one for depth.
+/// The "TETROFALL" text: a vertical gold gradient with a hard and a soft drop
+/// shadow.
 class LogoWordmark extends StatelessWidget {
   const LogoWordmark({super.key, this.fontSize = 32});
 

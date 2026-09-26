@@ -1,13 +1,10 @@
-/// How the next rising row should be laid out. Chosen by the Director, built
-/// by `RiseController`.
+/// How the next rising row is laid out. Chosen by the Director, built by
+/// `RiseController`.
 enum RowStyle {
-  /// Today's rules, unchanged: adjacent gaps for the first minute, scattered
-  /// after that.
+  /// Adjacent gaps for the first minute, scattered after that.
   normal,
 
-  /// One gap, directly under the column the player is keeping open. Dropping
-  /// into the well then finishes two rows at once, which reads as a plan
-  /// coming together rather than as a handout.
+  /// One gap, directly under the player's well.
   gift,
 
   /// Adjacent gaps, lined up with the player's well when they have one.
@@ -24,6 +21,6 @@ class RowPlan {
 
   final RowStyle style;
 
-  /// Where the gap(s) should go, when the style cares.
+  /// Where the gap(s) should go, for styles that care.
   final int? wellColumn;
 }

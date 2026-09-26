@@ -4,21 +4,12 @@ import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
-/// Whether the device can actually reach the internet, as opposed to whether
-/// it has a link.
-///
-/// The distinction matters here because everything downstream is an ad
-/// request: a phone on hotel wifi behind a captive portal reports
-/// [ConnectivityResult.wifi] and still cannot talk to AdMob. So the radio
-/// state from `connectivity_plus` is used only as a *hint* that something
-/// changed, and the answer this class publishes always comes from an actual
-/// lookup.
-///
-/// [isOnline] starts false and is never optimistic — callers wait for it to
-/// turn true rather than trying and failing.
+/// Whether the device can actually reach the internet, not merely has a link
+/// (a captive portal reports wifi and still can't reach AdMob). The radio
+/// state is only a hint that something changed; the published answer always
+/// comes from a real lookup. [isOnline] starts false and is never optimistic.
 class ConnectivityService {
-  /// [probe] and [changes] exist so tests can drive this without a platform
-  /// channel or a DNS server; production passes neither.
+  /// [probe] and [changes] let tests drive this without a platform channel.
   ConnectivityService({
     Future<bool> Function()? probe,
     Stream<List<ConnectivityResult>>? changes,
@@ -28,15 +19,11 @@ class ConnectivityService {
     unawaited(_check());
   }
 
-  /// Backoff for re-probing while offline. Only runs while offline: once the
-  /// answer is true, the radio stream is enough to tell us it stopped being
-  /// true, and a timer polling DNS forever would be a battery cost for
-  /// nothing.
+  /// Backoff for re-probing, which only runs while offline: once online, the
+  /// radio stream reports it stopping.
   static const _firstRetry = Duration(seconds: 5);
   static const _maxRetry = Duration(seconds: 60);
 
-  /// Short enough that a dead network doesn't hold a probe open across a
-  /// backoff step, long enough for a slow mobile connection to answer.
   static const _probeTimeout = Duration(seconds: 5);
 
   final Future<bool> Function() _probe;
@@ -50,13 +37,11 @@ class ConnectivityService {
 
   final ValueNotifier<bool> _isOnline = ValueNotifier(false);
 
-  /// False until a probe has proven otherwise, and back to false the moment
-  /// the radio reports no link.
+  /// False until a probe proves otherwise, and again once the radio reports
+  /// no link.
   ValueListenable<bool> get isOnline => _isOnline;
 
-  /// Probes now instead of waiting out the backoff. Called when the app is
-  /// resumed: coming back from the background is the single most likely moment
-  /// for the network to have changed while nobody was listening.
+  /// Probes now instead of waiting out the backoff; called on app resume.
   void refresh() {
     if (_disposed) return;
     _resetRetry();
@@ -69,8 +54,7 @@ class ConnectivityService {
       _setOnline(false);
       return;
     }
-    // A link came up — but that is exactly the claim we don't trust, so the
-    // backoff is reset and the answer comes from the probe.
+    // A link came up, but only the probe is trusted.
     _resetRetry();
     unawaited(_check());
   }
@@ -81,9 +65,7 @@ class ConnectivityService {
     try {
       _setOnline(await _probe());
     } catch (_) {
-      // Anything the probe throws means the same thing here, and letting it
-      // escape would put an unhandled error in the zone over what is, at
-      // worst, a wrong guess we will make again in a few seconds.
+      // Any probe failure means offline; don't let it escape.
       _setOnline(false);
     } finally {
       _probing = false;
@@ -100,18 +82,15 @@ class ConnectivityService {
     _isOnline.value = value;
   }
 
-  /// Drops any pending re-probe and forgets the accumulated wait. Cancelling
-  /// matters as much as the delay does: a timer already counting down a
-  /// minute would otherwise swallow the whole point of resetting.
+  /// Drops any pending re-probe and the accumulated wait.
   void _resetRetry() {
     _retryTimer?.cancel();
     _retryTimer = null;
     _retryDelay = _firstRetry;
   }
 
-  /// Catches what the radio stream misses: a link that was up all along but
-  /// only just started resolving, and platforms where the stream is unreliable
-  /// (iOS simulators, notably).
+  /// Catches what the radio stream misses: a link that only just started
+  /// resolving, and unreliable streams (iOS simulators).
   void _scheduleRetry() {
     if (_disposed || _retryTimer != null) return;
     final delay = _retryDelay;
@@ -129,7 +108,7 @@ class ConnectivityService {
       ).timeout(_probeTimeout);
       return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
     } on SocketException {
-      // The ordinary offline answer, not a fault worth reporting.
+      // The ordinary offline answer.
       return false;
     } on TimeoutException {
       return false;

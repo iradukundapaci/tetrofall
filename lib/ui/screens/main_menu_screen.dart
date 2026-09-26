@@ -21,15 +21,10 @@ import '../widgets/primary_button.dart';
 import 'gameplay_screen.dart';
 import 'settings_screen.dart';
 
-/// 1:1 port of main-menu.html — plus a live, self-playing game running
-/// full-bleed behind the menu in place of main-menu.html's empty
-/// `.menu-video-slot` (there's no gameplay clip to drop in, so the real
-/// engine stands in for one). It's purely decorative: a separate
-/// throwaway `TetrofallGame` that never touches saved best score or
-/// settings, autoplaying itself and restarting whenever it tops out —
-/// tuned to actively hunt for line clears so the shatter/cascade "juice"
-/// (the whole point of the game) actually shows up on the menu instead
-/// of just watching pieces stack.
+/// The main menu, over a live self-playing game. The demo is a decorative
+/// throwaway `TetrofallGame` that never touches the saved best score or
+/// settings, restarts when it tops out, and hunts line clears so the
+/// shatter/cascade shows.
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key, required this.storage, required this.ads});
 
@@ -41,11 +36,9 @@ class MainMenuScreen extends StatefulWidget {
 }
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
-  /// Nullable (rather than the live-forever `late final` this started as)
-  /// so the demo can be fully torn down while a real run is in progress:
-  /// dropping the reference lets the GameWidget unmount, which makes Flame
-  /// release the demo's component tree and stop ticking it in the
-  /// background instead of burning memory/CPU behind the gameplay screen.
+  /// Nullable so the demo can be torn down during a real run: dropping the
+  /// reference unmounts the GameWidget and stops it burning CPU behind
+  /// gameplay.
   TetrofallGame? _demoGame;
   Timer? _autoplayTimer;
   Timer? _restartTimer;
@@ -216,8 +209,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 }
 
-/// Darkens the live demo board so the topbar and buttons on top of it
-/// stay readable, lighter in the middle so the board is still visible.
+/// Darkens the demo so the controls stay readable, lighter in the middle.
 class _MenuScrim extends StatelessWidget {
   const _MenuScrim();
 

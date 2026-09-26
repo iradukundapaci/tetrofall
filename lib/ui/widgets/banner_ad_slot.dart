@@ -7,18 +7,15 @@ import '../../services/ad_unit_ids.dart';
 import '../../services/ads_service.dart';
 import '../../services/analytics_service.dart';
 
-/// Bottom banner slot that always occupies the same height, so the play
-/// area above it never resizes when an ad loads late, fails to load, or
-/// isn't requested at all.
+/// Bottom banner slot that always occupies the same height, so the play area
+/// never resizes when an ad loads late, fails, or isn't requested.
 class BannerAdSlot extends StatefulWidget {
   const BannerAdSlot({super.key, required this.ads, this.bottomInset = 0});
 
   final AdsService ads;
 
-  /// Bottom safe-area inset to keep clear *below* the ad. Gameplay passes
-  /// whatever vertical slack it has left after sizing the board, so the
-  /// banner is held above the home indicator when there is room to spare and
-  /// runs edge to edge when there is not.
+  /// Bottom safe-area inset to keep clear below the ad; gameplay passes its
+  /// leftover slack.
   final double bottomInset;
 
   @override
@@ -26,9 +23,7 @@ class BannerAdSlot extends StatefulWidget {
 }
 
 class _BannerAdSlotState extends State<BannerAdSlot> {
-  /// Backoff between attempts, matching the one [AdsService] uses for the
-  /// cached formats. The banner needs its own because it owns its own load:
-  /// nothing in the service knows this slot exists.
+  /// Backoff matching [AdsService]'s; the banner owns its own load.
   static const _firstRetry = Duration(seconds: 4);
   static const _maxRetry = Duration(seconds: 60);
 
@@ -40,8 +35,7 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
   Timer? _retryTimer;
   Duration _retryDelay = _firstRetry;
 
-  /// Bumped every time a load is started or abandoned, so a banner that
-  /// arrives after its request stopped being the current one can tell.
+  /// Bumped when a load starts or is abandoned, so a stale banner can tell.
   int _generation = 0;
 
   @override
@@ -59,8 +53,7 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
 
     final screen = MediaQuery.sizeOf(context);
     _width = screen.width.truncate();
-    // Locked in for the lifetime of this slot: even if the measured size
-    // arrives later and differs, the layout must not shift mid-run.
+    // Locked for the slot's lifetime so the layout never shifts mid-run.
     _slotHeight = widget.ads.reservedBannerHeight(
       _width,
       screenHeight: screen.height,
@@ -68,11 +61,8 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
     _load();
   }
 
-  /// Consent or the personalisation switch changed while this banner was on
-  /// screen, so the ad in it was served under an answer that no longer holds.
-  /// Take it down and, if ads are still allowed at all, fetch one under the
-  /// new answer. The slot keeps its height throughout, so the board above it
-  /// never moves — the same reason the slot exists.
+  /// Consent or personalisation changed, so the ad on screen is stale: take it
+  /// down and fetch one under the new answer. The slot keeps its height.
   void _onAdConfigChanged() {
     if (!mounted) return;
     setState(() {
@@ -83,9 +73,8 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
     _load();
   }
 
-  /// The network came back, the app was resumed, or consent finally resolved.
-  /// Only interesting to a slot that has nothing to show — one already
-  /// holding an ad has no reason to request another.
+  /// Network back, app resumed or consent resolved; only matters to an empty
+  /// slot.
   void _onRetryPulse() {
     if (!mounted || !_requested || _bannerAd != null) return;
     _resetRetry();
@@ -98,8 +87,7 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
     if (!_isCurrent(generation)) return;
 
     if (!widget.ads.canRequestAds) {
-      // Not necessarily a refusal — consent may simply not have resolved yet,
-      // which is what a start with no internet looks like from here.
+      // Not necessarily a refusal: consent may not have resolved yet.
       _scheduleRetry();
       return;
     }
@@ -122,8 +110,7 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
             return;
           }
           _resetRetry();
-          // A banner is on screen the moment it loads — there is no separate
-          // show step to hang this off, the way the full-screen formats have.
+          // A banner is shown the moment it loads; there is no show step.
           AnalyticsService.ad(
             outcome: AdOutcome.shown,
             kind: AdKind.banner,
@@ -131,22 +118,17 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
           );
           setState(() {
             _bannerAd = ad as BannerAd;
-            // An *estimated* reserve can undershoot on a first-ever cold
-            // start, before this device has measured a banner at all.
-            // Growing the slot once beats clipping the ad; from the second
-            // run on the height is measured and persisted, so this never
-            // fires and the board still never moves mid-run.
+            // An estimated reserve can undershoot on a first-ever cold start;
+            // growing once beats clipping. Later runs use the stored height.
             final loaded = ad.size.height.toDouble();
             if (loaded > _slotHeight) _slotHeight = loaded;
           });
         },
         onAdFailedToLoad: (ad, error) {
-          AdsService.logLoadFailure(AdPlacements.banner, error);
-          AnalyticsService.ad(
-            outcome: AdOutcome.failed,
-            kind: AdKind.banner,
-            placement: AdPlacements.banner,
-            reason: error.code == 3 ? AdFailure.noFill : AdFailure.unknown,
+          AdsService.reportLoadFailure(
+            AdPlacements.banner,
+            AdKind.banner,
+            error,
           );
           if (identical(ad, _bannerAd) && mounted) {
             setState(() => _bannerAd = null);
@@ -195,11 +177,8 @@ class _BannerAdSlotState extends State<BannerAdSlot> {
       height: _slotHeight + widget.bottomInset,
       child: Padding(
         padding: EdgeInsets.only(bottom: widget.bottomInset),
-        // Bottom-aligned, not centred. The slot is a *reservation*, and any
-        // slack between what was reserved and the ad that actually turned up
-        // has to collect above the ad, where it reads as board padding.
-        // `Center` split it in two, and the half below the ad showed as a
-        // dark band between the banner and the home indicator.
+        // Bottom-aligned so reserved slack collects above the ad as board
+        // padding, not as a dark band below it.
         child: ad == null
             ? null
             : Align(

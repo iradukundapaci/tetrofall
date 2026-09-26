@@ -1,5 +1,4 @@
 import 'cell.dart';
-import 'grid.dart';
 
 class BlockFall {
   const BlockFall({
@@ -12,10 +11,5 @@ class BlockFall {
   final int col;
   final int fromRow;
   final int toRow;
-
   final BlockType type;
-}
-
-abstract class GravityResolver {
-  List<BlockFall> resolve(Grid grid);
 }

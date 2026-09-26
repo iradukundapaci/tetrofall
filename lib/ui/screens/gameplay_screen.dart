@@ -44,32 +44,16 @@ class GameplayScreen extends StatefulWidget {
   final StorageService storage;
   final AdsService ads;
 
-  /// Runs the first-run coached tutorial over this screen before handing off
-  /// to a normal scored run. Set by the main menu on the very first PLAY.
+  /// Runs the coached tutorial before handing off to a scored run; set by the
+  /// menu on the very first PLAY.
   final bool startTutorial;
 
-  /// Capture-only seam (android_release_plan.md §4.7). Fires once with the
-  /// live game so `tools/capture/main.dart` can seed a hand-authored board —
-  /// the money-shot states are three frames long and cannot be reached by
-  /// playing. Always null in the shipped app: nothing in `lib/` passes it, and
-  /// the capture harness is a separate entrypoint that the release build never
-  /// compiles.
+  /// Capture-only: fires once with the live game so `tools/capture/main.dart`
+  /// can seed a board. Nothing in `lib/` passes it.
   final void Function(TetrofallGame game)? onGameCreated;
 
-  /// Capture-only (android_release_plan.md §4.7). Gives the board the whole
-  /// viewport: no banner reservation, no padding, and the HUD floated over
-  /// the board instead of stacked above it.
-  ///
-  /// The board is `AspectRatio(18/32)` — exactly 9:16 — so on a 9:16 screen
-  /// every point of chrome the layout spends vertically comes straight back
-  /// out of the board's *width* at 0.5625pt a time. In the shipped layout the
-  /// HUD, the status bar and a ~90pt banner reservation between them cost the
-  /// board roughly two thirds of its area, which is what makes an honest
-  /// screenshot look like a small board on a large empty background.
-  ///
-  /// Defaults to false and nothing in `lib/` passes true: the shipped app
-  /// keeps its banner, and its revenue. Only the separate capture entrypoint
-  /// under `tools/` turns this on.
+  /// Capture-only: gives the board the whole viewport, with the HUD floated
+  /// over it and no banner reservation. Only `tools/` passes true.
   final bool immersive;
 
   @override
@@ -83,23 +67,21 @@ class _GameplayScreenState extends State<GameplayScreen> {
   GameOverReason? _gameOverReason;
   Duration _runElapsedAtGameOver = Duration.zero;
 
-  /// Set by [_prepareRun] just ahead of the game asking for it, so the screen
-  /// and the engine agree on which config the run is using.
+  /// Set by [_prepareRun] just ahead of the game asking for it.
   RunConfig? _pendingConfig;
   RunConfig _activeConfig = RunConfig.plain;
 
-  /// Zero-based index of the current run among all endless runs.
+  /// Zero-based index of the current run.
   int _runIndex = 0;
 
-  /// The best score as the current run began, before [ScoreHud] overwrites it.
+  /// The best as the run began, before [ScoreHud] overwrites it.
   late int _bestBefore = widget.storage.bestScore;
 
-  /// Whether this run has been folded into the skill model, recent scores and
-  /// analytics yet. A run bought back with an ad reaches game over twice; it
-  /// counts once.
+  /// Whether this run has been recorded; a run bought back with an ad reaches
+  /// game over twice but counts once.
   bool _runRecorded = false;
 
-  /// After several quick deaths in a row, game over offers "Too hard? Tell us".
+  /// After several quick deaths, game over offers "Too hard? Tell us".
   bool _offerTooHard = false;
 
   late final ReviewPrompter _reviewPrompter = ReviewPrompter(
@@ -115,14 +97,11 @@ class _GameplayScreenState extends State<GameplayScreen> {
   /// Non-null only for the duration of the first-run tutorial.
   TutorialController? _tutorial;
 
-  /// Lets [TutorialOverlay] read the board's real on-screen rect so its
-  /// caption stays inside the board — clear of the HUD above and, more to the
-  /// point, clear of the banner ad below.
+  /// Lets [TutorialOverlay] read the board's on-screen rect.
   final GlobalKey _boardKey = GlobalKey();
 
-  /// Whether the run was already paused when the quit prompt opened, so
-  /// "Keep Playing" returns to the pause modal instead of resuming a game
-  /// the player deliberately paused.
+  /// Whether the run was already paused when the quit prompt opened, so "Keep
+  /// Playing" returns to the pause modal.
   bool _wasPausedBeforeConfirm = false;
 
   @override
@@ -131,7 +110,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
     _game.engine.addEventListener(_onEngineEvent);
     widget.ads.fullScreenAdShowing.addListener(_onFullScreenAdShowing);
     AnalyticsService.design('screen:gameplay');
-    // The menu loop keeps playing if there's no gameplay track to swap to.
+    // The menu loop keeps playing if there's no gameplay track.
     MusicService(widget.storage).play(MusicTrack.gameplay);
     if (widget.startTutorial) {
       _tutorial = TutorialController(
@@ -140,9 +119,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
         onFinished: _finishTutorial,
       )..addListener(_onTutorialChanged);
     }
-    // Coaching is not a run. The tutorial opens its own run when it hands off
-    // in [_finishTutorial], which is the same boundary [AdsService] already
-    // draws with `notifyRunEnded`.
+    // Coaching is not a run; [_finishTutorial] opens one on hand-off.
     if (!widget.startTutorial) {
       _pendingConfig = _prepareRun();
       _startTrackedRun();
@@ -151,9 +128,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
     if (onGameCreated != null) onGameCreated(_game);
   }
 
-  /// What the game asks for each time it starts a run. During the coached
-  /// tutorial that is the plain game — the Director joins when the tutorial
-  /// hands over, see [_finishTutorial].
+  /// What the game asks for at each run start: plain during the tutorial (the
+  /// Director joins in [_finishTutorial]).
   RunConfig _newRunConfig() {
     if (_tutorial != null) return RunConfig.plain;
     final config = _pendingConfig ?? _prepareRun();
@@ -161,8 +137,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
     return config;
   }
 
-  /// Reads everything the Director should know — the player's skill, how many
-  /// runs they have had, the flags — and builds the config for the next run.
+  /// Builds the next run's config from the player's skill, run count and flags.
   RunConfig _prepareRun() {
     final storage = widget.storage;
     _runIndex = storage.endlessRunCount;
@@ -200,7 +175,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
           comeback: _lastRescueWasComeback,
         );
       case PhaseChanged(:final phase):
-        // A phase turns over every ~15 s; one report in five is plenty.
+        // One report in five is plenty.
         if (_phaseChanges++ % 5 == 0) Telemetry.directorPhase(phase.name);
     }
   }
@@ -209,8 +184,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
   void _startTrackedRun() {
     _tracker.runStarted(
       initialElapsed: _activeConfig.initialElapsed,
-      // Read now, before the run overwrites it — ScoreHud saves a new best the
-      // moment it is passed, so by game over `storage.bestScore` is this run.
+      // Read now: ScoreHud saves a new best as soon as it is passed.
       bestBefore: widget.storage.bestScore,
     );
     Telemetry.endlessStart(
@@ -220,8 +194,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
     );
   }
 
-  /// Closes the analytics run out. Idempotent inside [RunTracker], so the
-  /// game-over path and the quit path can both reach it.
+  /// Closes the analytics run; idempotent, so game over and quit can both
+  /// call it.
   void _endTrackedRun(String reason, Duration elapsed) {
     final scoring = _game.engine.scoring;
     _tracker.runEnded(
@@ -252,31 +226,20 @@ class _GameplayScreenState extends State<GameplayScreen> {
     if (mounted) setState(() {});
   }
 
-  /// Hands off from the tutorial into the real run — without touching the
-  /// board.
-  ///
-  /// The coached session *is* the run. It rigs nothing and wipes nothing, so
-  /// there is no practice state to scrub, and a restart here would be the one
-  /// jarring screen change in an otherwise continuous session. The engine was
-  /// already started with the right difficulty clock at
-  /// `tetrofall_game.dart:175`, and the controller releases the rise on its
-  /// way out, so the run's grace period begins here.
-  ///
-  /// Pointedly *without* [AdsService.notifyRunEnded], because the tutorial is
-  /// not a run the interstitial cadence should count.
+  /// Hands off from the tutorial into the real run without touching the board:
+  /// the coached session is the run. No [AdsService.notifyRunEnded], since the
+  /// tutorial doesn't count toward the interstitial cadence.
   void _finishTutorial() {
     final tutorial = _tutorial;
     if (tutorial == null) return;
     _dropTutorial(tutorial);
-    // The coached session is the player's first run, and the one where the
-    // Director's help matters most: bring it in without touching the board.
+    // The coached session is the first run, where the Director matters most.
     _game.engine.adoptConfig(_prepareRun());
     _startTrackedRun();
   }
 
-  /// Detaches the controller and schedules its disposal for after the frame
-  /// that drops it from the tree, so the overlay is never left listening to a
-  /// dead notifier mid-build.
+  /// Detaches the controller and disposes it after the frame that drops it, so
+  /// the overlay never listens to a dead notifier.
   void _dropTutorial(TutorialController tutorial) {
     tutorial.removeListener(_onTutorialChanged);
     if (mounted) {
@@ -293,9 +256,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
       _runElapsedAtGameOver = Duration(
         milliseconds: (_game.engine.riseController.elapsed * 1000).round(),
       );
-      // A run that ends under the tutorial hands the screen straight to the
-      // game-over overlay; the controller releases the engine on its way out
-      // rather than asking for the usual hand-off restart.
+      // A run ending under the tutorial goes straight to game over.
       final tutorial = _tutorial;
       if (tutorial != null) {
         tutorial.abandon();
@@ -304,8 +265,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
       _endTrackedRun(event.reason.name, _runElapsedAtGameOver);
       final endedInTutorial = tutorial != null;
       if (!endedInTutorial && !_runRecorded) _recordRun(event.reason);
-      // Reported here rather than from `build`, which reruns on every pause
-      // and every rebuild behind the overlay.
+      // Here rather than in `build`, which reruns on every pause.
       widget.ads.dropExpiredAds();
       if (widget.ads.isRewardedContinueReady &&
           _game.engine.canContinueThisRun) {
@@ -318,9 +278,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
     }
   }
 
-  /// Folds a finished endless run into everything that learns from it: the
-  /// skill model, the recent-scores window behind the rating prompt's "beat
-  /// your median" rule, the quick-death streak, analytics, and the prompt.
+  /// Folds a finished run into the skill model, recent scores, quick-death
+  /// streak, analytics and the rating prompt.
   void _recordRun(GameOverReason reason) {
     _runRecorded = true;
     final storage = widget.storage;
@@ -370,8 +329,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
     LastRun.summary = summary;
     Telemetry.endlessEnd(summary);
 
-    // Three runs under a minute in a row is someone for whom the game is too
-    // hard right now; a longer run breaks the streak.
+    // Three runs under a minute in a row suggests it's too hard.
     final quick = seconds < 60;
     final streak = quick ? storage.quickDeathStreak + 1 : 0;
     storage.saveQuickDeathStreak(streak);
@@ -382,9 +340,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
     _askForReview(summary, recentBefore);
   }
 
-  /// Asks the store for a rating a moment after the game-over screen appears,
-  /// so the player sees their result first. Never mid-run, and skipped if they
-  /// have already moved on (Play Again, or an ad continue).
+  /// Asks for a rating shortly after game over so the result shows first;
+  /// skipped if the player has moved on.
   Future<void> _askForReview(
     EndlessRunSummary summary,
     List<int> recentBefore,
@@ -411,10 +368,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
   }
 
   void _restart() {
-    // Reached from the pause menu as well as from game over, and only the
-    // latter has already closed the run out. A pause-menu restart abandons a
-    // live run, which is worth its own reason: it is the one run ending that
-    // says the player chose to walk away from a board rather than lost it.
+    // Also reached from the pause menu, where the run is still open; that
+    // abandonment gets its own reason.
     if (_tracker.isRunning) {
       _endTrackedRun(
         'restart',
@@ -466,10 +421,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
   }
 
   void _goHome() {
-    // Quitting mid-run still counts toward the interstitial cadence, so use
-    // the live clock when the run never reached game over. Quitting mid-
-    // *tutorial* does not: coaching is not a run, and burning a slot in the
-    // frequency cap on it would bring an interstitial forward for free.
+    // Quitting mid-run counts toward the interstitial cadence (live clock if
+    // it never reached game over); quitting the tutorial does not.
     if (_tutorial == null) {
       final elapsed = _gameOverReason != null
           ? _runElapsedAtGameOver
@@ -486,17 +439,15 @@ class _GameplayScreenState extends State<GameplayScreen> {
   Future<void> _continueAfterAd() async {
     AnalyticsService.design('continue:accepted');
     final earned = await widget.ads.showRewardedContinue();
+    if (!mounted) return;
     if (!earned) {
       AnalyticsService.design('continue:declined');
       setState(() {});
       return;
     }
     AnalyticsService.design('continue:earned');
-    // The run the player is buying back into was already closed out by the
-    // GameOverEvent, so this opens a fresh one rather than resuming the old
-    // counters — reported as `run:resume` so continues are separable from
-    // clean starts, and without a second progression Start, which would
-    // otherwise show up as two attempts for one life.
+    // GameOverEvent already closed the run, so open a fresh one, reported as
+    // `run:resume` and without a second progression Start.
     _tracker.runStarted(resumed: true, bestBefore: widget.storage.bestScore);
     _tracker.continueUsed();
     _game.continueAfterAd();
@@ -506,8 +457,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      // A back gesture mid-run never leaves directly — it opens the quit
-      // prompt (or dismisses it, if it is already up).
+      // Back never leaves directly: it opens or dismisses the quit prompt.
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
@@ -535,16 +485,12 @@ class _GameplayScreenState extends State<GameplayScreen> {
                   ads: widget.ads,
                   boardKey: _boardKey,
                   immersive: widget.immersive,
-                  // Lets the coached caption duck out of the way while a
-                  // finger is on the glass. Null outside the tutorial, which
-                  // is every frame of a real run.
+                  // Lets the coached caption fade while a finger is down.
                   onBoardTouched: tutorial?.setBoardTouched,
-                  // Coaching is not a run — the same line drawn for
-                  // RunTracker above and for the interstitial cadence.
+                  // Coaching is not a run.
                   recordsBest: tutorial == null,
-                  // The tutorial never dims: the dim treatment applies
-                  // `IgnorePointer`, which would swallow the very gestures it
-                  // is teaching.
+                  // The tutorial never dims: dimming applies `IgnorePointer`,
+                  // which would swallow the gestures being taught.
                   dimmed: showPause || _confirmingQuit,
                 ),
                 if (tutorial != null &&
@@ -581,9 +527,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
                           : null,
                       onRestart: _restartAfterGameOver,
                       onHome: _goHome,
-                      // Gated on consent rather than on the ad being loaded:
-                      // with ads refused the ad can never arrive, and a
-                      // button stuck on "Loading" would be a lie.
+                      // Gated on consent, not on the ad being loaded: with ads
+                      // refused a "Loading" button would never resolve.
                       canContinueWithAd:
                           widget.ads.canRequestAds &&
                           _game.engine.canContinueThisRun,
@@ -618,21 +563,17 @@ class _GameplayBody extends StatelessWidget {
   final bool dimmed;
   final GlobalKey boardKey;
 
-  /// See [GameplayScreen.immersive]. Capture-only; false in the shipped app.
+  /// See [GameplayScreen.immersive].
   final bool immersive;
 
-  /// Told whenever a touch starts or ends on the board. Only the tutorial
-  /// listens; it fades its chrome down for the duration of the gesture.
+  /// Told when a touch starts or ends on the board; only the tutorial listens.
   final ValueChanged<bool>? onBoardTouched;
 
-  /// Whether this board's score may become the player's best. False while the
-  /// tutorial is coaching over it.
+  /// False while the tutorial is coaching over the board.
   final bool recordsBest;
 
-  /// Aspect ratio of the visible grid — 18:32, which is exactly 9:16. That
-  /// equality is why the layout below is so miserly with vertical space: on a
-  /// 9:16 phone the board is height-bound, so every point of chrome above or
-  /// below it comes back out of the board's *width* at 0.5625 points a time.
+  /// 18:32, exactly 9:16: on a 9:16 phone the board is height-bound, so every
+  /// point of vertical chrome comes off its width.
   static const _boardAspect = BoardConfig.cols / BoardConfig.rows;
 
   @override
@@ -641,8 +582,8 @@ class _GameplayBody extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     final viewPadding = MediaQuery.viewPaddingOf(context);
 
-    // Every input here is known before layout — which is the whole reason
-    // ScoreHud has a fixed height and the banner slot reserves synchronously.
+    // Every input is known before layout: ScoreHud has a fixed height and the
+    // banner slot reserves synchronously.
     final bannerHeight = immersive
         ? 0.0
         : ads.reservedBannerHeight(
@@ -653,21 +594,17 @@ class _GameplayBody extends StatelessWidget {
         ? 0.0
         : viewPadding.top + ui.hudHeight + bannerHeight + ui.spaceXs * 2;
 
-    // What the board would want if it were width-bound: filling the screen
-    // edge to edge. Anything left over after that is genuine slack.
+    // Height the board wants if width-bound; what's left is slack.
     final boardWantsHeight = (size.width - ui.spaceSm * 2) / _boardAspect;
     final slack = size.height - chrome - boardWantsHeight;
 
-    // Spend whatever slack exists on holding the banner clear of the home
-    // indicator. When there is none, the banner runs edge to edge rather than
-    // taking the inset out of the board.
+    // Spend slack holding the banner clear of the home indicator; with none,
+    // the banner runs edge to edge rather than shrinking the board.
     final bannerBottomInset = slack <= 0
         ? 0.0
         : math.min(viewPadding.bottom, slack);
 
-    // Immersive drops the frame entirely rather than merely thinning it: a
-    // rounded gold border is a nicety when the board floats on a background,
-    // and a visible seam once the board *is* the screen.
+    // Immersive drops the frame: a border would be a visible seam.
     final boardPadding = immersive
         ? EdgeInsets.zero
         : EdgeInsets.symmetric(horizontal: ui.spaceSm, vertical: ui.spaceXs);
@@ -726,9 +663,8 @@ class _GameplayBody extends StatelessWidget {
 
     final content = DecoratedBox(
       decoration: const BoxDecoration(gradient: Tokens.bgWoodGradient),
-      // Immersive floats the HUD *over* the board so it costs no height;
-      // the shipped layout stacks it above, where its fixed `ui.hudHeight`
-      // is what lets the budget above be computed before layout runs.
+      // Immersive floats the HUD over the board; otherwise its fixed height
+      // lets the budget above be computed before layout.
       child: immersive
           ? Stack(
               children: [
@@ -757,13 +693,8 @@ class _GameplayBody extends StatelessWidget {
             ),
     );
 
-    // The dim treatment is switched by parameter rather than by wrapping, and
-    // that is load-bearing rather than tidy: returning a different widget
-    // *shape* for the paused frame changes the type of this element's child,
-    // which reinflates everything below it — including the `GameWidget`. That
-    // teardown runs Flame's `onRemove` on the still-live game, which is how
-    // opening the pause menu used to unhook the run from its own sound
-    // effects and haptics for good.
+    // Dimming is a parameter, not a wrapper: a different widget shape would
+    // reinflate the `GameWidget` and run Flame's `onRemove` on the live game.
     return IgnorePointer(
       ignoring: dimmed,
       child: ImageFiltered(

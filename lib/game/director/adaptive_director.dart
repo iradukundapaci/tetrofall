@@ -5,16 +5,13 @@ import '../engine/board_metrics.dart';
 import '../engine/tetromino.dart';
 import 'director.dart';
 
-/// The Director that steers endless play.
-///
-/// Two tiers, so the smaller one can ship first behind its own flag:
+/// The Director that steers endless play, in two tiers:
 ///
 ///  * **rescue only** ([pacing] false): when the stack gets dangerously tall
-///    the floor slows and the next rows are gifts lined up under the player's
-///    well.
+///    the floor slows and the next rows are gifts under the player's well.
 ///  * **full** ([pacing] true): adds the build / peak / relief wave, skill
-///    scaling, row styles, best-fit bag picks, reward breathers, lucky
-///    streaks and a graceful ending.
+///    scaling, row styles, best-fit bag picks, breathers, lucky streaks and a
+///    graceful ending.
 ///
 /// Everything it does is bounded and smooth, and none of it changes anything
 /// the player can already see.
@@ -43,8 +40,6 @@ class AdaptiveDirector implements Director {
   @override
   bool get isActive => true;
 
-  // --- tuning ---------------------------------------------------------------
-
   static const _rescueEnter = 0.8;
   static const _rescueExit = 0.6;
   static const _rescueCooldown = 10.0;
@@ -68,8 +63,6 @@ class AdaptiveDirector implements Director {
   static const _luckyEvery = 120.0;
   static const _lerpSeconds = 3.0;
 
-  // --- state ----------------------------------------------------------------
-
   double _elapsed = 0;
   double _runStart = 0;
   double _lastClearAt = 0;
@@ -87,18 +80,13 @@ class AdaptiveDirector implements Director {
   int _picksSinceBias = 2;
   double _breatherUntil = 0;
 
-  DirectorPhase get phase => _phase;
-  double get stress => _stress;
-  bool get inRescue => _rescue;
-
-  /// How much help this player gets: full at the low end, gone above 0.8, so
-  /// the top of the all-time board is effectively unassisted.
+  /// Full help at the low end of skill, none above 0.8.
   double get _skillHelp => ((0.8 - skill) / 0.6).clamp(0.0, 1.0);
 
   double get _runSeconds => _elapsed - _runStart;
 
-  /// The run length the Director aims for, by skill. Past it, help fades and
-  /// the base curve takes over: runs still end.
+  /// The run length aimed for, by skill. Past it, help fades so runs still
+  /// end.
   double get _targetRunSeconds => skill < 0.5
       ? 180 + (300 - 180) * (skill / 0.5)
       : 300 + 180 * (skill - 0.5) / 0.5;
@@ -139,8 +127,7 @@ class AdaptiveDirector implements Director {
     if (pacing) _updatePhase();
 
     final target = _targetScale();
-    // Ease toward the target, never snap: a lurch in rise speed would be felt
-    // as the game changing its mind.
+    // Ease toward the target; a lurch in rise speed would be felt.
     final step = _lerpSeconds <= 0 ? 1.0 : math.min(1.0, dt / _lerpSeconds);
     _currentScale += (target - _currentScale) * step;
     return DirectorOutput(riseIntervalScale: _currentScale);
@@ -177,14 +164,12 @@ class AdaptiveDirector implements Director {
     }
   }
 
-  // --- pacing ---------------------------------------------------------------
-
   double _buildLength() => 35 + _random.nextDouble() * 10;
   double _peakLength() => 10 + _random.nextDouble() * 5;
   static const _reliefLength = 15.0;
 
   void _updatePhase() {
-    // A rescue is its own relief; the wave waits.
+    // A rescue is its own relief.
     if (_rescue) return;
 
     if (_phase == DirectorPhase.build &&
@@ -200,7 +185,7 @@ class AdaptiveDirector implements Director {
     if (_elapsed < _phaseEnds) return;
     switch (_phase) {
       case DirectorPhase.build:
-        // Never send someone who is already struggling into a peak.
+        // Never send a struggling player into a peak.
         if (_stress > 0.6) {
           _enter(DirectorPhase.relief, _reliefLength);
         } else {
@@ -221,7 +206,7 @@ class AdaptiveDirector implements Director {
   }
 
   double _targetScale() {
-    // Peaks sharpen with skill: gentle for beginners, real for experts.
+    // Peaks sharpen with skill.
     final amplitude = 0.3 + 0.7 * skill;
     final phaseFactor = !pacing
         ? 1.0
@@ -230,21 +215,18 @@ class AdaptiveDirector implements Director {
             DirectorPhase.peak => 1 - (1 - _peakScale) * amplitude,
             DirectorPhase.relief => _reliefScale,
           };
-    // Beginners get a slower floor; from skill ~0.7 up it is neutral, so an
-    // expert's baseline is exactly the curve.
+    // Beginners get a slower floor; from skill ~0.7 up it is neutral.
     final skillFactor = pacing ? math.max(1.0, 1.25 - 0.35 * skill) : 1.0;
     final breather = pacing && _elapsed < _breatherUntil ? _breatherScale : 1.0;
 
     var wave = phaseFactor * skillFactor * breather;
-    // Only the helpful half of the wave fades out; a peak never does.
+    // Only the helpful half of the wave fades; a peak never does.
     if (wave > 1) wave = 1 + (wave - 1) * _fade;
     wave = wave.clamp(1 - _maxDeviation, 1 + _maxDeviation);
 
     final rescue = _rescue ? _rescueScale : 1.0;
     return (wave * rescue).clamp(1 - _maxDeviation, _hardMax);
   }
-
-  // --- reports --------------------------------------------------------------
 
   @override
   void onPlacement(PlacementReport report) {
@@ -270,8 +252,7 @@ class AdaptiveDirector implements Director {
     final big = lines >= 4 || chainIndex >= 2;
     if (!big) return;
     _breatherUntil = _elapsed + _breatherSeconds;
-    // A big clear earns a breath, and for anyone still finding their feet a
-    // relief phase too. Experts keep the wave as designed.
+    // A big clear earns a breath, and for newer players a relief phase.
     if (!_rescue && _phase != DirectorPhase.relief && skill < 0.7) {
       _enter(DirectorPhase.relief, _reliefLength);
     }
@@ -323,10 +304,8 @@ class AdaptiveDirector implements Director {
         }
         return RowPlan.normal;
       case DirectorPhase.peak:
-        // Tough rows are scattered ones; before the first minute the base
-        // curve is still handing out tidy adjacent gaps, and a peak must not
-        // turn that into a wall of scatter. So they wait for the scattered
-        // regime, where they only add the two-column spacing.
+        // Tough rows wait for the scattered regime (after the first minute),
+        // where they only add the two-column spacing.
         return skill >= 0.5 && _elapsed >= 60
             ? const RowPlan(RowStyle.tough)
             : RowPlan.normal;

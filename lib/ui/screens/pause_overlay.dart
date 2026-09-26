@@ -10,7 +10,7 @@ import '../widgets/panel.dart';
 import '../widgets/primary_button.dart';
 import 'settings_screen.dart';
 
-/// 1:1 port of pause.html's modal: Resume, Restart, Settings, Quit.
+/// Resume, Restart, Settings, Quit.
 class PauseOverlay extends StatelessWidget {
   const PauseOverlay({
     super.key,
@@ -24,13 +24,12 @@ class PauseOverlay extends StatelessWidget {
 
   final StorageService storage;
 
-  /// Passed straight through to [SettingsScreen] for its Privacy row.
   final AdsService ads;
   final TetrofallGame liveGame;
   final VoidCallback onResume;
   final VoidCallback onRestart;
 
-  /// Asks the host screen to confirm before abandoning the run.
+  /// Asks the host to confirm before abandoning the run.
   final VoidCallback onQuit;
 
   @override

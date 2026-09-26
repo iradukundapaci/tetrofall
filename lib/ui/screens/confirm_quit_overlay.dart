@@ -6,8 +6,7 @@ import '../widgets/modal_overlay.dart';
 import '../widgets/panel.dart';
 import '../widgets/primary_button.dart';
 
-/// Guard against losing a run by accident — shown when the player hits the
-/// system back gesture mid-game or taps Quit from the pause modal.
+/// Guards against losing a run by accident (back gesture or pause-menu Quit).
 class ConfirmQuitOverlay extends StatelessWidget {
   const ConfirmQuitOverlay({
     super.key,
@@ -30,10 +29,7 @@ class ConfirmQuitOverlay extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Nine display-font characters at the largest type size in the
-            // app, in the narrowest container it has — the one heading that
-            // cannot be trusted to fit, so it is allowed to shrink instead of
-            // wrapping mid-word.
+            // The one heading that may not fit: shrink rather than wrap.
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(

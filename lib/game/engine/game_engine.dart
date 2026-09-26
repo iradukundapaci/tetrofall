@@ -1,15 +1,15 @@
 import 'dart:collection';
 import 'dart:math';
 
-import '../config/difficulty.dart';
 import '../ai/placement_scorer.dart';
+import '../config/difficulty.dart';
 import '../config/motion.dart';
 import '../config/run_config.dart';
 import '../director/director.dart';
+import 'block_fall.dart';
 import 'board_metrics.dart';
 import 'clear_detector.dart';
 import 'events.dart';
-import 'gravity_resolver.dart';
 import 'grid.dart';
 import 'piece_controller.dart';
 import 'rise_controller.dart';
@@ -30,9 +30,8 @@ enum GameIntentType {
 }
 
 /// A resolve alternates between shattering the rows it just completed and
-/// rippling gravity up the stack one row at a time. `settle` is the pause that
-/// lets blocks already in flight finish landing before anything else touches
-/// the grid they are landing into.
+/// rippling gravity up the stack. `settle` lets blocks already in flight
+/// finish landing before anything else touches the grid.
 enum _ResolveStage { shatter, ripple, settle }
 
 enum _ContinueStage { filling, clearing }
@@ -52,7 +51,7 @@ class GameEngine {
       _random = random ?? Random() {
     pieceController = PieceController(this.grid);
     riseController = RiseController(this.grid, random: _random);
-    bag = SevenBag(_random);
+    _bag = SevenBag(_random);
     _applyConfig(config);
   }
 
@@ -61,17 +60,15 @@ class GameEngine {
 
   late final PieceController pieceController;
   late final RiseController riseController;
-  late final SevenBag bag;
+  late final SevenBag _bag;
 
   final Scoring scoring = Scoring();
 
   late RunConfig _config;
   late Director _director;
 
-  /// The run's Director. A [NullDirector] unless the config supplies one.
+  /// A [NullDirector] unless the config supplies one.
   Director get director => _director;
-
-  RunConfig get config => _config;
 
   void _applyConfig(RunConfig config) {
     _config = config;
@@ -80,28 +77,23 @@ class GameEngine {
     riseController.rowPlanner = _director.takeRowPlan;
   }
 
-  /// Swaps in [config] mid-run, without touching the board. The tutorial
-  /// plays its coached session on a plain engine and then hands the very same
-  /// run over to the Director with this; the Director's clock begins from the
-  /// run's clock as it stands.
+  /// Swaps in [config] mid-run without touching the board. The tutorial plays
+  /// on a plain engine and hands the same run to the Director with this.
   void adoptConfig(RunConfig config) {
     _applyConfig(config);
     _director.reset(elapsed: riseController.elapsed);
     _directorClock = 0;
   }
 
-  /// The piece after the one in play, drawn a spawn early so the HUD can show
-  /// it. A tutorial's scripted pieces come first. Null before the first spawn.
-  ///
-  /// This is the line the Director's bag bias may not cross: a piece is only
-  /// ever biased as it is drawn into this slot, never after the player could
-  /// have seen it.
+  /// The piece after the one in play, drawn a spawn early for the HUD. Tutorial
+  /// pieces come first. The Director may bias a piece only as it is drawn into
+  /// this slot, never after the player could have seen it.
   TetrominoType? get nextPiece =>
       _scriptedPieces.isNotEmpty ? _scriptedPieces.first : _lookahead;
 
   TetrominoType? _lookahead;
 
-  /// Time since the Director was last consulted; its rise scale eases on this.
+  /// Time since the Director was last consulted.
   double _directorClock = 0;
   static const _directorInterval = 0.25;
 
@@ -109,20 +101,13 @@ class GameEngine {
 
   int chainIndex = 0;
 
-  /// Tutorial hold. While set, the run's clocks stop — the rise neither
-  /// advances nor ages the difficulty curve, and the active piece stops
-  /// falling and stops accumulating lock delay.
-  ///
-  /// Intents are deliberately unaffected, and that is the whole point:
-  /// [_drainIntents] runs before the phase switch, so a frozen board still
-  /// answers every swipe, tap and rotation. It lets the tutorial teach one
-  /// gesture at a time against a board that is standing perfectly still.
+  /// Tutorial hold: stops the rise clock and the active piece's gravity and
+  /// lock delay. Intents are unaffected ([_drainIntents] runs before the phase
+  /// switch), so a frozen board still answers every gesture.
   bool freezeRise = false;
   bool freezeGravity = false;
 
-  /// Pieces to deal before falling back to the bag, used by the tutorial to
-  /// hand the player the exact piece its rigged board needs. Empty in a real
-  /// run, and cleared by [start] so a restart can never inherit one.
+  /// Pieces to deal before the bag, for the tutorial. Cleared by [start].
   final _scriptedPieces = Queue<TetrominoType>();
 
   void queuePieces(Iterable<TetrominoType> types) =>
@@ -131,23 +116,20 @@ class GameEngine {
   double _resolveTimer = 0;
   _ResolveStage _resolveStage = _ResolveStage.shatter;
 
-  /// Row gravity is releasing next. Walks upward; everything above it is
-  /// frozen where it stands until its turn comes.
+  /// Row gravity is releasing next; everything above stays frozen until its
+  /// turn.
   int _rippleRow = 0;
 
-  /// Rows still holding blocks at or above [_rippleRow], used to pace the wave
+  /// Rows still holding blocks at or above [_rippleRow], for pacing the wave
   /// against [Motion.rippleBudget].
   int _rippleRowsRemaining = 0;
 
   /// Bottom-most row cleared so far this resolve. Gravity releases only rows
-  /// strictly above it — a clear reopens space for the stack sitting on top of
-  /// it, not for the overhangs beneath it, which stay exactly as the player
-  /// left them. Null until the first clear, because gravity only ever runs as
-  /// part of a clear.
+  /// strictly above it; overhangs beneath stay as the player left them. Null
+  /// until the first clear.
   int? _gravityFloor;
 
-  /// Longest flight still in the air, counted down alongside [_resolveTimer].
-  /// Nothing may clear a row until this reaches zero.
+  /// Longest flight still in the air. Nothing may clear a row until it lands.
   double _flightRemaining = 0;
 
   /// Whole-resolve clock, against [Motion.resolveHardCap].
@@ -157,10 +139,7 @@ class GameEngine {
   _ContinueStage _continueStage = _ContinueStage.filling;
   int _continueRow = 0;
 
-  /// How long a move or rotation survives while the board is busy resolving
-  /// a clear. The shatter sequence runs close to a second on an 18-wide
-  /// board, and swipes made during it used to be thrown away outright.
-  /// Ripple gravity stretched resolves further still, hence the wider window.
+  /// How long a move or rotation survives while the board is resolving.
   static const inputBufferWindow = Duration(milliseconds: 250);
 
   final _intentQueue = <_BufferedIntent>[];
@@ -181,9 +160,7 @@ class GameEngine {
   void enqueueIntent(GameIntentType intent) =>
       _intentQueue.add(_BufferedIntent(intent));
 
-  /// How many times one run can be bought back with a rewarded ad. Two, not
-  /// one: a player chasing a personal best will happily watch a second, and
-  /// the continue is opt-in, so it costs nothing in goodwill to offer.
+  /// How many times one run can be bought back with a rewarded ad.
   static const maxContinuesPerRun = 2;
 
   int continuesUsedThisRun = 0;
@@ -194,6 +171,7 @@ class GameEngine {
     if (phase != GamePhase.gameOver || !canContinueThisRun) return;
     continuesUsedThisRun++;
     _intentQueue.clear();
+    pieceController.discard();
     grid.clearSpawnRows();
     phase = GamePhase.continuing;
     _continueStage = _ContinueStage.filling;
@@ -202,8 +180,7 @@ class GameEngine {
   }
 
   /// Starts a run. [config] replaces the engine's for this and later runs;
-  /// [initialElapsed] overrides where the difficulty clock starts, which
-  /// otherwise comes from the config.
+  /// [initialElapsed] overrides the config's difficulty clock start.
   void start({Duration? initialElapsed, RunConfig? config}) {
     if (config != null) _applyConfig(config);
     final startAt = initialElapsed ?? _config.initialElapsed;
@@ -220,9 +197,9 @@ class GameEngine {
     _trySpawn();
   }
 
-  /// Abandons the active piece and deals the next one, without going through
-  /// [start] — which would also wipe the grid and reset the score and the rise
-  /// clock. The tutorial uses it to swap in a rigged board mid-run.
+  /// Abandons the active piece and deals the next without [start], which would
+  /// also wipe the grid, score and rise clock. The tutorial uses it to swap
+  /// pieces mid-run.
   void respawnPiece() {
     _intentQueue.clear();
     pieceController.softDropActive = false;
@@ -261,8 +238,8 @@ class GameEngine {
         _resolveElapsed += dt;
         _flightRemaining = max(0, _flightRemaining - dt);
         if (!_flushed && _resolveElapsed > _hardCapSeconds) {
-          // Checked every frame rather than only between stages, so a long
-          // chain cannot overshoot by a whole shatter before bailing out.
+          // Checked every frame so a long chain can't overshoot the cap by a
+          // whole shatter.
           _flushResolve();
         } else if (_resolveTimer > 0) {
           _resolveTimer -= dt;
@@ -293,9 +270,8 @@ class GameEngine {
       return;
     }
     for (final buffered in _intentQueue) {
-      // A hard drop locks the piece and leaves the playing phase mid-drain.
-      // Anything queued behind it belonged to the piece that just landed, so
-      // it is dropped rather than replayed onto whatever spawns next.
+      // A hard drop leaves the playing phase mid-drain; anything queued behind
+      // it belonged to the piece that just landed.
       if (phase != GamePhase.playing) break;
       switch (buffered.type) {
         case GameIntentType.moveLeft:
@@ -307,9 +283,8 @@ class GameEngine {
             _emit(const PlayerActionEvent(PlayerAction.moveRight));
           }
         case GameIntentType.rotateCW:
-          // Emitted whether or not the piece turned: an O rotates onto itself
-          // and a kick can fail against a wall, but the player did the thing
-          // they were asked to do either way.
+          // Emitted whether or not the piece turned (an O rotates onto itself,
+          // a kick can fail): the player did what they were asked either way.
           pieceController.rotateCW();
           _emit(const PlayerActionEvent(PlayerAction.rotate));
         case GameIntentType.rotateCCW:
@@ -330,9 +305,7 @@ class GameEngine {
   }
 
   /// Carries recent moves and rotations across a resolve so they land on the
-  /// next piece rather than vanishing. Drops and soft-drop toggles are not
-  /// held — replaying those onto a freshly spawned piece would be a nasty
-  /// surprise.
+  /// next piece. Drops and soft-drop toggles are not held.
   void _ageBufferedIntents(double dt) {
     final window = inputBufferWindow.inMilliseconds / 1000;
     for (var i = _intentQueue.length - 1; i >= 0; i--) {
@@ -391,9 +364,8 @@ class GameEngine {
       type = _lookahead ?? _draw();
       _lookahead = null;
     }
-    // Keep the slot after this one filled, so the HUD always has something to
-    // show. Drawn here, once the previous piece's clears have settled, so a
-    // biased pick is judged against the board the player is actually facing.
+    // Drawn here, after the previous clears have settled, so a biased pick is
+    // judged against the board the player is actually facing.
     _lookahead ??= _draw();
 
     final spawned = pieceController.spawn(type);
@@ -406,8 +378,8 @@ class GameEngine {
   }
 
   TetrominoType _draw() {
-    if (!_director.takeBagBias()) return bag.next();
-    return bag.pickNext(
+    if (!_director.takeBagBias()) return _bag.pickNext();
+    return _bag.pickNext(
       chooser: (remaining) {
         var best = remaining.first;
         var bestFit = double.negativeInfinity;
@@ -476,13 +448,10 @@ class GameEngine {
     _flightRemaining = 0;
     _flushed = false;
     _gravityFloor = null;
-    scoring.startResolve();
   }
 
-  /// How much the whole resolve is compressed, tracked to the difficulty
-  /// curve's drop interval. Clearing gets faster at exactly the rate the game
-  /// does, so a row-by-row cascade never feels like it is holding the player
-  /// back at pace.
+  /// How much the whole resolve is compressed, tracking the difficulty curve's
+  /// drop interval so clearing gets faster at the rate the game does.
   double get resolveTimeScale {
     final base = Difficulty.checkpoints.first.dropInterval.inMicroseconds;
     final now = riseController.difficultyNow.dropInterval.inMicroseconds;
@@ -499,8 +468,7 @@ class GameEngine {
   void _resolvePass() {
     final fullRows = ClearDetector.findFullRows(grid);
     if (fullRows.isEmpty) {
-      // Gravity only runs as part of a clear. On a plain lock the stack keeps
-      // its overhangs — dropping those would rewrite how the game stacks.
+      // Gravity only runs as part of a clear; a plain lock keeps its overhangs.
       if (chainIndex == 0) {
         _resolveTimer = 0;
         phase = GamePhase.spawning;
@@ -510,37 +478,18 @@ class GameEngine {
       return;
     }
 
-    final removedCells = _stripRows(fullRows);
-    _lowerGravityFloor(fullRows);
-
-    _awardClear(fullRows.length, removedCells.length);
-
-    final scale = _chainTimeScale();
-    _emit(RowsClearedEvent(fullRows, removedCells, timeScale: scale));
-    _emit(ChainAdvancedEvent(chainIndex));
-    chainIndex++;
-
+    final scale = _clearRows(fullRows);
     _schedule(
       _ResolveStage.shatter,
       Motion.shatterSequenceSeconds(grid.cols) * scale,
     );
   }
 
-  /// Scores one clear and tells the Director. The one place both the animated
-  /// resolve and its hard-cap flush go through, so neither can forget.
-  void _awardClear(int lines, int cellsRemoved) {
-    scoring.addDestroyed(cellsRemoved);
-    scoring.awardLineClear(
-      lines: lines,
-      chainIndex: chainIndex,
-      elapsedSeconds: riseController.elapsed,
-    );
-    _director.onClear(lines: lines, chainIndex: chainIndex);
-  }
-
-  List<ClearedCell> _stripRows(List<int> rows) {
+  /// Strips, scores and announces one clear, returning the time scale its
+  /// shatter runs at. Shared by the animated resolve and its hard-cap flush.
+  double _clearRows(List<int> fullRows) {
     final removedCells = <ClearedCell>[];
-    for (final r in rows) {
+    for (final r in fullRows) {
       for (var c = 0; c < grid.cols; c++) {
         final cell = grid.at(r, c);
         if (cell == null) continue;
@@ -548,22 +497,33 @@ class GameEngine {
         grid.set(r, c, null);
       }
     }
-    return removedCells;
+    _lowerGravityFloor(fullRows);
+
+    scoring.addDestroyed(removedCells.length);
+    scoring.awardLineClear(
+      lines: fullRows.length,
+      chainIndex: chainIndex,
+      elapsedSeconds: riseController.elapsed,
+    );
+    _director.onClear(lines: fullRows.length, chainIndex: chainIndex);
+
+    final scale = _chainTimeScale();
+    _emit(RowsClearedEvent(fullRows, removedCells, timeScale: scale));
+    _emit(ChainAdvancedEvent(chainIndex));
+    chainIndex++;
+    return scale;
   }
 
-  /// Widens the settle window down to the rows just cleared. Monotonic on
-  /// purpose: a later chain link that clears higher up must not re-freeze rows
-  /// the wave already had permission to release, or blocks it had not reached
-  /// yet would be stranded in mid-air for the rest of the resolve.
+  /// Widens the settle window down to the rows just cleared. Monotonic: a later
+  /// link clearing higher up must not re-freeze rows the wave was already
+  /// allowed to release.
   void _lowerGravityFloor(List<int> clearedRows) {
     final lowest = clearedRows.reduce(max);
     final current = _gravityFloor;
     if (current == null || lowest > current) _gravityFloor = lowest;
   }
 
-  /// [resolveTimeScale], tightened further as a chain deepens. The player has
-  /// already watched the first shatter and the first wave; replaying both at
-  /// full length for every link would be a very long time to sit through.
+  /// [resolveTimeScale], tightened further as a chain deepens.
   double _chainTimeScale() {
     final falloff = max(
       Motion.chainShatterFloor,
@@ -573,14 +533,12 @@ class GameEngine {
   }
 
   /// When the engine gives up on animating and collapses the rest at once.
-  /// The final settle still plays out past this point.
   double get _hardCapSeconds =>
       Motion.resolveHardCap.inMilliseconds / 1000 * resolveTimeScale;
 
   /// Starts the gravity wave just above the cleared line. Every clear restarts
   /// it there, because a cleared row reopens a gap below whatever is still
-  /// frozen higher up — while everything at or below that line keeps standing
-  /// on its own overhangs, which this clear never disturbed.
+  /// frozen higher up.
   void _beginRipple() {
     final floor = _gravityFloor;
     final row = floor == null
@@ -596,27 +554,33 @@ class GameEngine {
     _schedule(_ResolveStage.ripple, 0);
   }
 
+  /// Emits [falls] and returns the flight time budgeted for the longest.
+  double _emitFalls(List<BlockFall> falls) {
+    final maxDistance = falls
+        .map((f) => (f.toRow - f.fromRow).abs())
+        .reduce(max);
+    final fallSeconds =
+        sqrt(2 * maxDistance / Motion.gravityCellsPerS2) * _chainTimeScale();
+    _emit(
+      BlocksFellEvent([
+        for (final f in falls)
+          BlockFallEvent(
+            fromRow: f.fromRow,
+            toRow: f.toRow,
+            col: f.col,
+            type: f.type,
+            durationSeconds: fallSeconds,
+          ),
+      ]),
+    );
+    return fallSeconds;
+  }
+
   /// Releases one row: its blocks drop to rest, everything above stays put.
   void _rippleStep() {
     final falls = RippleCascade.settleRow(grid, _rippleRow);
     if (falls.isNotEmpty) {
-      final maxDistance = falls
-          .map((f) => (f.toRow - f.fromRow).abs())
-          .reduce(max);
-      final fallSeconds =
-          sqrt(2 * maxDistance / Motion.gravityCellsPerS2) * _chainTimeScale();
-      _emit(
-        BlocksFellEvent([
-          for (final f in falls)
-            BlockFallEvent(
-              fromRow: f.fromRow,
-              toRow: f.toRow,
-              col: f.col,
-              type: f.type,
-              durationSeconds: fallSeconds,
-            ),
-        ]),
-      );
+      final fallSeconds = _emitFalls(falls);
       _flightRemaining = max(
         _flightRemaining,
         fallSeconds + Motion.impactSquash.inMilliseconds / 1000,
@@ -624,9 +588,9 @@ class GameEngine {
     }
     if (_rippleRowsRemaining > 0) _rippleRowsRemaining--;
 
-    // Blocks landing in the holes below can complete rows that were partial.
-    // Those clear, but only once everything in the air has landed — shattering
-    // a cell the fall animator is still drawing would tear the frame.
+    // Landing blocks can complete partial rows, but those clear only once
+    // everything in the air has landed: shattering a cell the fall animator is
+    // still drawing would tear the frame.
     if (ClearDetector.findFullRows(grid).isNotEmpty) {
       _schedule(_ResolveStage.settle, _flightRemaining);
       return;
@@ -641,9 +605,9 @@ class GameEngine {
     _schedule(_ResolveStage.ripple, _stepInterval());
   }
 
-  /// Gap between releasing one row and the next. Shorter than a one-cell fall,
-  /// so several rows are in the air at once and the wave reads as continuous;
-  /// compressed further when a tall stack would otherwise overrun the budget.
+  /// Gap between releasing one row and the next: shorter than a one-cell fall
+  /// so the wave reads as continuous, compressed further when a tall stack
+  /// would overrun the budget.
   double _stepInterval() {
     final scale = _chainTimeScale();
     final budget = Motion.rippleBudget.inMilliseconds / 1000 * scale;
@@ -652,55 +616,28 @@ class GameEngine {
     return max(Motion.rippleStepMin.inMilliseconds / 1000, min(base, paced));
   }
 
-  /// The flush's one-pass equivalent of the wave, under the same floor rule.
   List<BlockFall> _settleAboveFloor() {
     final floor = _gravityFloor;
     if (floor == null) return const [];
     return RippleCascade.settleAbove(grid, floorRow: floor);
   }
 
-  /// Escape hatch for a resolve that has outrun [Motion.resolveHardCap]:
-  /// collapse everything above the cleared line in one pass and sweep out any
-  /// rows that completes. Only the final settle animates — intermediate
-  /// movement snaps — because correctness of pace matters more here than
-  /// polish on a case that should almost never fire.
+  /// Escape hatch for a resolve that outran [Motion.resolveHardCap]: collapse
+  /// everything above the cleared line in one pass and sweep out any rows that
+  /// completes. Only the final settle animates.
   void _flushResolve() {
     _flushed = true;
     var falls = _settleAboveFloor();
     for (var guard = 0; guard <= grid.visibleRows; guard++) {
       final fullRows = ClearDetector.findFullRows(grid);
       if (fullRows.isEmpty) break;
-      final removedCells = _stripRows(fullRows);
-      _lowerGravityFloor(fullRows);
-      _awardClear(fullRows.length, removedCells.length);
-      _emit(
-        RowsClearedEvent(fullRows, removedCells, timeScale: _chainTimeScale()),
-      );
-      _emit(ChainAdvancedEvent(chainIndex));
-      chainIndex++;
+      _clearRows(fullRows);
       falls = _settleAboveFloor();
     }
 
     if (falls.isNotEmpty) {
-      final maxDistance = falls
-          .map((f) => (f.toRow - f.fromRow).abs())
-          .reduce(max);
-      final fallSeconds =
-          sqrt(2 * maxDistance / Motion.gravityCellsPerS2) * _chainTimeScale();
-      _emit(
-        BlocksFellEvent([
-          for (final f in falls)
-            BlockFallEvent(
-              fromRow: f.fromRow,
-              toRow: f.toRow,
-              col: f.col,
-              type: f.type,
-              durationSeconds: fallSeconds,
-            ),
-        ]),
-      );
       _flightRemaining =
-          fallSeconds + Motion.impactSquash.inMilliseconds / 1000;
+          _emitFalls(falls) + Motion.impactSquash.inMilliseconds / 1000;
     }
     _schedule(
       _ResolveStage.settle,

@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
 
-/// The Tetrofall T-tetromino mark, built from wood-block cells — the same
-/// language as the board — so it sits flush on the wood grain with no
-/// halo to mask out. Pure code, no raster asset (game.md §P.2).
-///
-/// Renders at a given [cellSize]; callers control scale, not this widget.
+/// The T-tetromino mark, built from wood-block cells at a given [cellSize];
+/// pure code, no raster asset.
 class LogoMark extends StatelessWidget {
   const LogoMark({super.key, this.cellSize = 40});
 
@@ -20,13 +17,13 @@ class LogoMark extends StatelessWidget {
       height: cellSize * 2 + gap,
       child: Stack(
         children: [
-          // Column 2, row 1 — the top of the T.
+          // The top of the T.
           Positioned(
             left: cellSize + gap,
             top: 0,
             child: _LogoBlock(size: cellSize),
           ),
-          // Row 2 — the crossbar.
+          // The crossbar.
           Positioned(left: 0, top: cellSize + gap, child: _LogoBlock(size: cellSize)),
           Positioned(
             left: cellSize + gap,
@@ -70,9 +67,8 @@ class _LogoBlock extends StatelessWidget {
         ),
         boxShadow: const [Tokens.shadowSoft],
       ),
-      // Fake the inset highlight (top) / inset shade (bottom) that CSS's
-      // `inset box-shadow` gives for free — Flutter's BoxShadow has no
-      // inset variant, so an overlay gradient carves the same bevel.
+      // BoxShadow has no inset variant, so an overlay gradient carves the
+      // bevel.
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),

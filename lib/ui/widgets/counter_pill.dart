@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
 
-/// Port of `.pill-counter` — an icon + label + value pill (BEST score,
-/// coin counts, etc).
+/// An icon + label + value pill (the BEST score).
 class CounterPill extends StatelessWidget {
   const CounterPill({
     super.key,

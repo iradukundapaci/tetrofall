@@ -9,12 +9,8 @@ import '../engine/game_engine.dart';
 import 'fall_animator.dart';
 import 'tile_cache.dart';
 
-/// Draws every settled block on the board in a single `drawRawAtlas` call.
-///
-/// The board used to be 576 individual `BlockComponent`s, so a nearly-full
-/// board meant 576 component-tree walks and 576 draws per frame — frame cost
-/// climbed as the player stacked up, which is exactly when they could least
-/// afford it. One atlas call keeps the cost flat no matter how full it gets.
+/// Draws every settled block in a single `drawRawAtlas` call, so frame cost
+/// stays flat however full the board gets.
 class BoardBlocksComponent extends PositionComponent {
   BoardBlocksComponent({
     required this.engine,
@@ -30,9 +26,8 @@ class BoardBlocksComponent extends PositionComponent {
 
   static const _capacity = BoardConfig.rows * BoardConfig.cols;
 
-  // Preallocated to the board's maximum, so a frame never allocates: four
-  // floats per sprite (scaled cos, scaled sin, translate x, translate y) for
-  // the transforms, and left/top/right/bottom for the source rects.
+  // Preallocated so a frame never allocates: per sprite, four floats of
+  // transform (scaled cos, sin, translate x, y) and four of source rect.
   final Float32List _transforms = Float32List(_capacity * 4);
   final Float32List _rects = Float32List(_capacity * 4);
 
@@ -59,8 +54,7 @@ class BoardBlocksComponent extends PositionComponent {
     for (var r = 0; r < BoardConfig.rows; r++) {
       for (var c = 0; c < BoardConfig.cols; c++) {
         if (grid.at(r, c) == null) continue;
-        // A cell a block is still falling into is drawn by FallAnimator
-        // until it settles, so it must not be drawn twice.
+        // FallAnimator draws cells still being fallen into.
         if (animating && fallAnimator.isFallTarget(r, c)) continue;
 
         final i = count * 4;

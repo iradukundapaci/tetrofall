@@ -8,9 +8,6 @@ class GridOffset {
   final int row;
   final int col;
 
-  GridOffset operator +(GridOffset other) =>
-      GridOffset(row + other.row, col + other.col);
-
   @override
   String toString() => '($row,$col)';
 }
@@ -19,10 +16,10 @@ enum TetrominoType { I, O, T, S, Z, J, L }
 
 enum RotationState { spawn, right, flip, left }
 
-extension on RotationState {
-  RotationState clockwise() =>
+extension RotationStateTransitions on RotationState {
+  RotationState rotatedCW() =>
       RotationState.values[(index + 1) % RotationState.values.length];
-  RotationState counterClockwise() =>
+  RotationState rotatedCCW() =>
       RotationState.values[(index + 3) % RotationState.values.length];
 }
 
@@ -219,25 +216,15 @@ abstract final class Tetromino {
   }
 }
 
-extension RotationStateTransitions on RotationState {
-  RotationState rotatedCW() => clockwise();
-  RotationState rotatedCCW() => counterClockwise();
-}
-
 class SevenBag {
   SevenBag(this._random);
 
   final Random _random;
   final List<TetrominoType> _queue = [];
 
-  List<TetrominoType> peekAll() => List.unmodifiable(_queue);
-
-  TetrominoType next() => pickNext();
-
-  /// Deals one piece. With a [chooser] it picks *which* of the pieces still
-  /// in the current bag, instead of the next one in shuffled order. Every bag
-  /// still yields exactly one of each type; only the timing changes, which is
-  /// what keeps a biased pick looking like luck.
+  /// Deals one piece. With a [chooser] it picks which of the pieces still in
+  /// the bag comes out, instead of the next one in shuffled order; every bag
+  /// still yields one of each type, so a biased pick looks like luck.
   TetrominoType pickNext({
     TetrominoType Function(List<TetrominoType> remaining)? chooser,
   }) {

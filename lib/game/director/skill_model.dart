@@ -19,12 +19,10 @@ class RunOutcome {
   final double? placementQuality;
 }
 
-/// The long-run estimate of how well someone plays, 0 (new) to 1 (expert).
-/// Updated once at the end of each run and persisted between sessions, so the
-/// Director's help follows the player rather than starting over.
+/// The long-run estimate of how well someone plays, 0 (new) to 1 (expert),
+/// updated at the end of each run and persisted between sessions.
 abstract final class SkillModel {
-  /// New players start low: the first sessions are where day-1 retention is
-  /// decided, so they get the most help.
+  /// New players start low so they get the most help early.
   static const initial = 0.2;
 
   /// Runs shorter than this say nothing about skill (an accidental quit).
@@ -40,9 +38,8 @@ abstract final class SkillModel {
     final lines = (linesPerMinute / 10).clamp(0.0, 1.0);
     final chain = (run.maxChain / 5).clamp(0.0, 1.0);
 
-    // Placement quality is the most accurate signal — it is what the player
-    // did rather than what happened to them — so it carries the most weight.
-    // Without it (nothing measured), the rest is renormalised.
+    // Placement quality is the most accurate signal, so it weighs most;
+    // without it the rest is renormalised.
     final quality = run.placementQuality;
     final estimate = quality == null
         ? (0.4 * time + 0.35 * lines + 0.25 * chain)

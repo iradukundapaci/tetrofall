@@ -37,9 +37,8 @@ class FallAnimator extends PositionComponent {
   final List<_FallingBlock> _falls = [];
   final List<BlockComponent> _pool = [];
 
-  // Packed as row * cols + col rather than a (row, col) record: the board
-  // renderer probes this once per occupied cell per frame, and a record
-  // literal per probe allocated tens of thousands of objects a second.
+  // Packed as row * cols + col: the renderer probes this per occupied cell
+  // per frame, and a record per probe would allocate heavily.
   final Set<int> _activeTargets = {};
 
   static int _targetKey(int row, int col) => row * BoardConfig.cols + col;
@@ -69,7 +68,7 @@ class FallAnimator extends PositionComponent {
           col: f.col,
           fromRow: f.fromRow,
           toRow: f.toRow,
-          // The engine paces the resolve, so it owns the flight time too.
+          // The engine owns resolve timing, flight time included.
           fallDuration: math.max(f.durationSeconds, 1e-6),
         ),
       );

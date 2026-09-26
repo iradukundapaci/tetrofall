@@ -7,17 +7,16 @@ import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
 import '../widgets/panel.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/screen_header.dart';
 
-/// "Send feedback": a short form for the players who are not about to leave a
-/// good rating. Reached from Settings, and from the game-over screen after a
-/// few quick deaths in a row (pre-filled with *too hard*).
+/// A short feedback form, reached from Settings and from game over after a few
+/// quick deaths (pre-filled with *too hard*).
 class FeedbackScreen extends StatefulWidget {
   const FeedbackScreen({super.key, this.initialCategory, this.lastRun});
 
   final FeedbackCategory? initialCategory;
 
-  /// The run to attach when the player ticks "Include my last run". Null hides
-  /// the toggle.
+  /// The run to attach on "Include my last run"; null hides the toggle.
   final EndlessRunSummary? lastRun;
 
   @override
@@ -61,7 +60,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       );
       Navigator.of(context).pop();
     } else {
-      // The text stays put so nothing typed is lost.
+      // The text stays so nothing typed is lost.
       setState(() => _sending = false);
       messenger.showSnackBar(
         const SnackBar(
@@ -83,7 +82,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              _Header(onBack: () => Navigator.of(context).pop()),
+              ScreenHeader(
+                title: 'FEEDBACK',
+                onBack: () => Navigator.of(context).pop(),
+              ),
               Expanded(
                 child: ListView(
                   padding: EdgeInsets.all(ui.spaceMd),
@@ -200,40 +202,6 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     borderRadius: BorderRadius.circular(ui.radiusSm),
     borderSide: BorderSide(color: color),
   );
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.onBack});
-
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    final ui = context.scale;
-    return Row(
-      children: [
-        IconButton(
-          onPressed: onBack,
-          icon: const Icon(Icons.arrow_back, color: Tokens.colorText),
-        ),
-        Expanded(
-          child: Text(
-            'FEEDBACK',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: Tokens.fontDisplay,
-              fontSize: ui.fontXl,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.6,
-              color: Tokens.colorText,
-            ),
-          ),
-        ),
-        // Mirrors the leading IconButton so the title stays centred.
-        SizedBox(width: ui.tap),
-      ],
-    );
-  }
 }
 
 class _CategoryChip extends StatelessWidget {

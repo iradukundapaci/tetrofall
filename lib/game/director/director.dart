@@ -8,9 +8,8 @@ export '../engine/row_plan.dart';
 /// Where a run is in the Director's build / peak / relief wave.
 enum DirectorPhase { build, peak, relief }
 
-/// The piece the player just placed, reported *before* it is written into the
-/// grid, so the Director can compare it with the best placement that was
-/// available on the board as it stood.
+/// The piece the player just placed, reported before it is written into the
+/// grid so it can be compared with the best placement then available.
 class PlacementReport {
   const PlacementReport({
     required this.grid,
@@ -89,48 +88,42 @@ class DirectorStats {
   }
 }
 
-/// Watches the player and quietly steers the three levers the engine already
-/// has: how fast the floor rises, what the next rows look like, and which
-/// piece comes next.
-///
-/// It must feel like luck, never like cheating. So it never touches what the
-/// player can already see — the visible pending row and the next-piece
-/// preview — and every change is smooth and bounded.
+/// Quietly steers three engine levers: how fast the floor rises, what the next
+/// rows look like, and which piece comes next. It must feel like luck, so it
+/// never touches the visible pending row or next-piece preview, and every
+/// change is smooth and bounded.
 abstract class Director {
-  /// False for [NullDirector]: lets the engine skip the work of describing the
-  /// board to something that will ignore it.
+  /// False for [NullDirector], letting the engine skip describing the board to
+  /// something that will ignore it.
   bool get isActive;
 
   DirectorStats get stats;
 
-  /// Raised as rescues start and end and as the pacing phase turns over.
   void Function(DirectorEvent event)? onEvent;
 
   /// Called when a run starts. [elapsed] is where the difficulty clock begins.
   void reset({required double elapsed});
 
-  /// Called roughly four times a second while playing, and on every lock.
-  /// [dt] is the time since the previous call.
+  /// Called about four times a second while playing, and on every lock; [dt]
+  /// is the time since the previous call.
   DirectorOutput update(BoardSnapshot snapshot, double dt);
 
   void onPlacement(PlacementReport report);
 
   void onClear({required int lines, required int chainIndex});
 
-  /// Called once per piece drawn into the lookahead. True means: deal the
-  /// remaining bag piece that best fits the board, instead of a random one.
+  /// Called once per piece drawn into the lookahead. True means deal the bag
+  /// piece that best fits the board.
   bool takeBagBias();
 
-  /// Called when the floor rises, for the row that will appear after the one
-  /// already showing.
+  /// Called when the floor rises, for the row after the one already showing.
   RowPlan takeRowPlan();
 
-  /// Called when the run ends, so a rescue in progress can be closed out.
+  /// Called when the run ends, to close out a rescue in progress.
   void onRunEnded();
 }
 
-/// Always neutral. Used when the flag is off, and in any mode where every
-/// player must get the identical game.
+/// Always neutral; used when the Director flag is off.
 class NullDirector implements Director {
   NullDirector();
 

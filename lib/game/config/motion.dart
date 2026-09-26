@@ -34,9 +34,8 @@ abstract final class Motion {
         1000;
   }
 
-  /// Watch-Ad-To-Continue: rows fill bottom-to-top, hold a beat once the
-  /// board is completely full, then clear top-to-bottom — one row per
-  /// step, each firing the standard per-row shatter effect.
+  /// Watch-Ad-To-Continue: rows fill bottom-to-top, hold, then clear
+  /// top-to-bottom one row per step.
   static const continueFillRowStep = Duration(milliseconds: 35);
   static const continueFullHold = Duration(milliseconds: 220);
   static const continueClearRowStep = Duration(milliseconds: 90);
@@ -45,29 +44,25 @@ abstract final class Motion {
   static const impactSquash = Duration(milliseconds: 60);
 
   /// Ripple cascade: gravity releases one row per step, walking up the stack.
-  /// The step interval is deliberately far shorter than a one-cell fall
-  /// (~183ms), so three or four rows are in flight at once and the wave reads
-  /// as continuous rather than as a queue of separate drops.
+  /// Far shorter than a one-cell fall (~183ms), so several rows are in flight
+  /// at once and the wave reads as continuous.
   static const rippleStepBase = Duration(milliseconds: 55);
   static const rippleStepMin = Duration(milliseconds: 14);
 
-  /// Time the wave is allowed to take for one pass at full scale. A tall stack
-  /// compresses its step interval to fit rather than running proportionally
-  /// longer.
+  /// Time one pass may take at full scale; a tall stack compresses its steps
+  /// to fit.
   static const rippleBudget = Duration(milliseconds: 900);
 
-  /// Ceiling on an entire resolve, chains included. Blowing it drops the
-  /// remaining work into a single [ColumnCascade] collapse — an escape hatch so
-  /// a pathological board can never stall the game.
+  /// Ceiling on an entire resolve, chains included. Past it the engine
+  /// collapses the remaining work in one pass so a pathological board can
+  /// never stall the game.
   static const resolveHardCap = Duration(milliseconds: 3500);
 
-  /// Floor on the difficulty-derived resolve speed scale. The drop interval
-  /// falls to 0.25x of its opening value by the last checkpoint; clearing that
-  /// fast reads as a glitch, so the resolve stops speeding up at 0.35x.
+  /// Floor on the difficulty-derived resolve speed scale; clearing faster
+  /// than this reads as a glitch.
   static const resolveMinTimeScale = 0.35;
 
-  /// Later links in a chain shatter faster, so a four-deep chain does not cost
-  /// four full shatter sequences.
+  /// Later links in a chain shatter faster.
   static const chainShatterFalloff = 0.35;
   static const chainShatterFloor = 0.45;
 

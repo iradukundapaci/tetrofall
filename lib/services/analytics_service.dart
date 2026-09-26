@@ -7,10 +7,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import 'analytics_keys.dart';
 
-/// Reports what an analytics call could not do, without ever letting it reach
-/// the player. Mirrors `logAudioFailure` — deliberately not a bare `catch (_)`,
-/// so a channel that has started throwing on every event is visible in debug
-/// instead of silently reporting nothing for a whole release.
+/// Logs (debug only) what an analytics call couldn't do, instead of a bare
+/// `catch (_)`, so a channel that starts throwing is visible.
 void logAnalyticsFailure(String what, Object error) {
   if (kDebugMode) {
     debugPrint('[analytics] $what failed: $error');
@@ -18,41 +16,27 @@ void logAnalyticsFailure(String what, Object error) {
 }
 
 /// GameAnalytics, wrapped so the rest of the app never touches the SDK.
-///
-/// Static rather than an injected instance, for the same reason [AudioService]
-/// and [MusicService] are: there is exactly one analytics stream per process,
-/// and the call sites that need it — a Flame render component, a pure-Dart
-/// tracker, an ad callback buried in a listener closure — have no constructor
-/// to thread a handle through.
-///
-/// Every method is a no-op until [init] has resolved, and every one of them
-/// swallows its own failures. Nothing in here is allowed to change what the
-/// game does; analytics that crashes the app it is measuring is worse than no
-/// analytics at all.
+/// Static because call sites (render components, trackers, ad callbacks) have
+/// no constructor to thread a handle through. Every method is a no-op until
+/// [init] resolves and swallows its own failures.
 abstract final class AnalyticsService {
   static Future<void>? _initFuture;
   static bool _ready = false;
 
-  /// Whether events are actually going anywhere. False in tests, on desktop,
-  /// and in any build where [AnalyticsKeys] were left blank.
+  /// False in tests, on desktop, and when [AnalyticsKeys] are blank.
   static bool get isReady => _ready;
 
-  /// Safe to call more than once; only the first call does anything.
-  ///
-  /// Completes when the initialisation *attempt* is over, not when the SDK has
-  /// reached the network — the same contract as [AdsService.init].
+  /// Only the first call does anything. Completes when the attempt is over,
+  /// not when the SDK has reached the network.
   static Future<void> init() => _initFuture ??= _init();
 
   static Future<void> _init() async {
     if (!AnalyticsKeys.configured) return;
-    // The plugin only registers a method channel on Android and iOS. Under
-    // `flutter test` there is no channel at all, and every call would throw
-    // MissingPluginException — so don't make them.
+    // No method channel exists off Android/iOS; calls would throw.
     if (!Platform.isAndroid && !Platform.isIOS) return;
     try {
       await GameAnalytics.setEnabledInfoLog(kDebugMode);
-      // Both dimension vocabularies must be declared before `initialize`;
-      // GameAnalytics drops any value that isn't in the list it was given.
+      // Dimension vocabularies must be declared before `initialize`.
       await GameAnalytics.configureAvailableCustomDimensions01(const [
         adaptiveOn,
         adaptiveOff,
@@ -77,8 +61,7 @@ abstract final class AnalyticsService {
     }
   }
 
-  /// The installed version, so events are tagged with the build that sent
-  /// them rather than with a constant someone has to remember to bump.
+  /// The installed version, so events carry the build that sent them.
   static Future<String> _buildVersion() async {
     try {
       return (await PackageInfo.fromPlatform()).version;
@@ -87,14 +70,9 @@ abstract final class AnalyticsService {
     }
   }
 
-  // ---------------------------------------------------------------- events
-
-  /// A design event. [eventId] is a `a:b:c` hierarchy of at most five parts.
-  ///
-  /// Ids must come from a fixed vocabulary — never interpolate a score, a
-  /// duration or anything else player-derived into one. GameAnalytics indexes
-  /// on the id, and an unbounded set of them makes the dashboard useless.
-  /// Numbers go in [value].
+  /// A design event. [eventId] is an `a:b:c` hierarchy of at most five parts
+  /// from a fixed vocabulary; never put player-derived values in it, use
+  /// [value].
   static void design(String eventId, {double? value}) {
     if (!_ready) return;
     try {
@@ -109,13 +87,9 @@ abstract final class AnalyticsService {
     }
   }
 
-  /// The run's progression funnel. Tetrofall is endless and has no win state,
-  /// so every run is a [GAProgressionStatus.Start] followed by a
-  /// [GAProgressionStatus.Fail] — quitting mid-run included. There is
-  /// deliberately only one progression level: with adaptive start speed a run
-  /// can begin partway up the difficulty curve, and putting the tier in
-  /// `progression02` would pair starts and fails that GameAnalytics then
-  /// counts as separate funnels.
+  /// Every run is a Start followed by a Fail (there is no win state). One
+  /// progression level only: with adaptive start, a tier in `progression02`
+  /// would split start/fail pairs into separate funnels.
   static const _progression = 'endless';
 
   static void progressionStart() {
@@ -161,11 +135,8 @@ abstract final class AnalyticsService {
     }
   }
 
-  /// An ad impression, reward or failure. [placement] is a stable friendly
-  /// name (`rewarded_continue`, `banner`, …) rather than the AdMob unit id, so
-  /// the dashboard survives a unit being swapped out.
-  ///
-  /// [reason] only means anything alongside [AdOutcome.failed].
+  /// An ad impression, reward or failure. [placement] is an [AdPlacements]
+  /// name; [reason] only matters with [AdOutcome.failed].
   static void ad({
     required AdOutcome outcome,
     required AdKind kind,
@@ -188,16 +159,13 @@ abstract final class AnalyticsService {
     }
   }
 
-  // ------------------------------------------------------ custom dimensions
-
   static const adaptiveOn = 'adaptive_on';
   static const adaptiveOff = 'adaptive_off';
   static const tutorialNew = 'tutorial_new';
   static const tutorialSeen = 'tutorial_seen';
 
-  /// Segments every subsequent event by whether the player starts runs partway
-  /// up the difficulty curve — without it, adaptive-start runs drag the
-  /// run-length distribution down and look like a difficulty problem.
+  /// Segments events by adaptive start, which otherwise drags run lengths down
+  /// and looks like a difficulty problem.
   static void setAdaptiveDimension(bool enabled) =>
       _setDimension01(enabled ? adaptiveOn : adaptiveOff);
 
@@ -208,8 +176,7 @@ abstract final class AnalyticsService {
   static const skillMid = 'mid';
   static const skillHigh = 'high';
 
-  /// Segments events by the Director's estimate of the player's skill
-  /// (`low` / `mid` / `high`), so run length can be read per bucket.
+  /// Segments events by the Director's skill estimate.
   static void setSkillBucketDimension(String bucket) {
     if (!_ready) return;
     if (bucket != skillLow && bucket != skillMid && bucket != skillHigh) return;
@@ -239,11 +206,9 @@ abstract final class AnalyticsService {
   }
 }
 
-/// What happened to an ad. Named for what the app knows rather than for
-/// GameAnalytics' vocabulary, so [AdsService] never has to import the SDK.
+/// What happened to an ad, so [AdsService] never imports the SDK.
 enum AdOutcome {
   shown(GAAdAction.Show),
-  clicked(GAAdAction.Clicked),
   rewarded(GAAdAction.RewardReceived),
   failed(GAAdAction.FailedShow);
 
@@ -262,16 +227,13 @@ enum AdKind {
   final int _ga;
 }
 
-/// GameAnalytics' `no_ad_reason` vocabulary. The Flutter wrapper forwards the
-/// raw int to the native SDK without exposing an enum for it, so the values
-/// are spelled out here.
+/// GameAnalytics' `no_ad_reason` values; the Flutter wrapper doesn't expose
+/// them.
 enum AdFailure {
   unknown(1),
   offline(2),
   noFill(3),
-  internalError(4),
-  invalidRequest(5),
-  unableToPrecache(6);
+  internalError(4);
 
   const AdFailure(this._ga);
   final int _ga;
