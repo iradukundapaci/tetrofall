@@ -25,6 +25,13 @@ class Scoring {
   int totalBlocksDestroyed = 0;
   int maxChain = 0;
 
+  /// Rows cleared this run, counting every link of a chain. The forced sweep
+  /// that follows a rewarded continue is not scored and not counted.
+  int totalLines = 0;
+
+  /// Clears of four or more rows at once.
+  int tetrofalls = 0;
+
   int _lineScoreFor(int lines) {
     if (lines <= 0) return 0;
     final tabled = _lineBaseScore[lines];
@@ -37,6 +44,8 @@ class Scoring {
     required int chainIndex,
     required double elapsedSeconds,
   }) {
+    totalLines += lines;
+    if (lines >= 4) tetrofalls++;
     final base = _lineScoreFor(lines);
     final cappedChain = chainIndex < _maxChainMultiplierSteps
         ? chainIndex
@@ -63,6 +72,8 @@ class Scoring {
     blocksDestroyedThisResolve = 0;
     totalBlocksDestroyed = 0;
     maxChain = 0;
+    totalLines = 0;
+    tetrofalls = 0;
     _notify();
   }
 }

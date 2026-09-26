@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../game/tetrofall_game.dart';
@@ -8,10 +9,14 @@ import '../../services/analytics_service.dart';
 import '../../services/audio_service.dart';
 import '../../services/haptics_service.dart';
 import '../../services/music_service.dart';
+import '../../services/remote_flags.dart';
+import '../../services/review_service.dart';
+import '../../services/run_summary.dart';
 import '../../services/storage_service.dart';
 import '../theme/app_icons.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
+import 'feedback_screen.dart';
 
 /// Source of truth for the policy, and the same URL given to Play Console as
 /// the listing's privacy policy — the two must not diverge, because Play
@@ -92,10 +97,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// with nothing behind it is a defect a reviewer can see.
   bool _musicAvailable = MusicService.hasBundledTracks;
 
+  /// Read from the platform rather than hand-kept, so the About line can never
+  /// drift from the build that is actually installed.
+  String _version = '';
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _version = info.version);
+    } catch (_) {
+      // No platform behind it (tests, desktop): the line just stays generic.
+    }
+  }
+
+  /// Straight to the store page, with no quota — unlike the in-app rating
+  /// card, which the store rations. Also fine to offer at any time.
+  Future<void> _rateUs() async {
+    AnalyticsService.design('settings:rate');
+    try {
+      await InAppReviewService().openStoreListing();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't open the store right now.")),
+      );
+    }
+  }
+
+  void _openFeedback() {
+    AnalyticsService.design('settings:feedback');
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FeedbackScreen(lastRun: LastRun.summary),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     AnalyticsService.design('screen:settings');
+    _loadVersion();
 
     // Both Privacy rows are drawn from answers that only exist once UMP has
     // replied, and `main()` fires that off unawaited — so Settings reached
@@ -362,10 +404,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: _openPrivacyPolicy,
               ),
               SizedBox(height: ui.spaceLg),
+              _SectionTitle('SUPPORT'),
+              SizedBox(height: ui.spaceSm),
+              _LinkRow(icon: AppIcons.star, label: 'Rate us', onTap: _rateUs),
+              if (RemoteFlags.feedbackEnabled) ...[
+                SizedBox(height: ui.spaceSm),
+                _LinkRow(
+                  icon: AppIcons.message,
+                  label: 'Send feedback',
+                  onTap: _openFeedback,
+                ),
+              ],
+              SizedBox(height: ui.spaceLg),
               _SectionTitle('ABOUT'),
               SizedBox(height: ui.spaceSm),
               Text(
-                'Tetrofall v1.0.0',
+                _version.isEmpty ? 'Tetrofall' : 'Tetrofall v$_version',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: ui.fontXs,

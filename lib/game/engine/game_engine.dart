@@ -2,7 +2,11 @@ import 'dart:collection';
 import 'dart:math';
 
 import '../config/difficulty.dart';
+import '../ai/placement_scorer.dart';
 import '../config/motion.dart';
+import '../config/run_config.dart';
+import '../director/director.dart';
+import 'board_metrics.dart';
 import 'clear_detector.dart';
 import 'events.dart';
 import 'gravity_resolver.dart';
@@ -43,12 +47,13 @@ class _BufferedIntent {
 }
 
 class GameEngine {
-  GameEngine({Random? random, Grid? grid})
+  GameEngine({Random? random, Grid? grid, RunConfig config = RunConfig.plain})
     : grid = grid ?? Grid(),
       _random = random ?? Random() {
     pieceController = PieceController(this.grid);
     riseController = RiseController(this.grid, random: _random);
     bag = SevenBag(_random);
+    _applyConfig(config);
   }
 
   final Grid grid;
@@ -59,6 +64,46 @@ class GameEngine {
   late final SevenBag bag;
 
   final Scoring scoring = Scoring();
+
+  late RunConfig _config;
+  late Director _director;
+
+  /// The run's Director. A [NullDirector] unless the config supplies one.
+  Director get director => _director;
+
+  RunConfig get config => _config;
+
+  void _applyConfig(RunConfig config) {
+    _config = config;
+    _director = config.director ?? NullDirector();
+    riseController.riseConfig = config.rise;
+    riseController.rowPlanner = _director.takeRowPlan;
+  }
+
+  /// Swaps in [config] mid-run, without touching the board. The tutorial
+  /// plays its coached session on a plain engine and then hands the very same
+  /// run over to the Director with this; the Director's clock begins from the
+  /// run's clock as it stands.
+  void adoptConfig(RunConfig config) {
+    _applyConfig(config);
+    _director.reset(elapsed: riseController.elapsed);
+    _directorClock = 0;
+  }
+
+  /// The piece after the one in play, drawn a spawn early so the HUD can show
+  /// it. A tutorial's scripted pieces come first. Null before the first spawn.
+  ///
+  /// This is the line the Director's bag bias may not cross: a piece is only
+  /// ever biased as it is drawn into this slot, never after the player could
+  /// have seen it.
+  TetrominoType? get nextPiece =>
+      _scriptedPieces.isNotEmpty ? _scriptedPieces.first : _lookahead;
+
+  TetrominoType? _lookahead;
+
+  /// Time since the Director was last consulted; its rise scale eases on this.
+  double _directorClock = 0;
+  static const _directorInterval = 0.25;
 
   GamePhase phase = GamePhase.ready;
 
@@ -156,11 +201,19 @@ class GameEngine {
     _resolveTimer = 0;
   }
 
-  void start({Duration initialElapsed = Duration.zero}) {
+  /// Starts a run. [config] replaces the engine's for this and later runs;
+  /// [initialElapsed] overrides where the difficulty clock starts, which
+  /// otherwise comes from the config.
+  void start({Duration? initialElapsed, RunConfig? config}) {
+    if (config != null) _applyConfig(config);
+    final startAt = initialElapsed ?? _config.initialElapsed;
     grid.clearAll();
     _intentQueue.clear();
     _scriptedPieces.clear();
-    riseController.reset(initialElapsed: initialElapsed);
+    _lookahead = null;
+    _directorClock = 0;
+    _director.reset(elapsed: startAt.inMicroseconds / 1e6);
+    riseController.reset(initialElapsed: startAt);
     scoring.reset();
     continuesUsedThisRun = 0;
     phase = GamePhase.spawning;
@@ -178,6 +231,9 @@ class GameEngine {
   }
 
   void tick(double dt) {
+    if (phase == GamePhase.playing || phase == GamePhase.resolving) {
+      _directorClock += dt;
+    }
     _drainIntents(dt);
 
     switch (phase) {
@@ -188,6 +244,9 @@ class GameEngine {
       case GamePhase.playing:
         if (!freezeRise && riseController.tick(dt)) {
           _handleRiseCommit();
+        }
+        if (phase == GamePhase.playing && _directorClock >= _directorInterval) {
+          _consultDirector();
         }
         if (phase == GamePhase.playing && !freezeGravity) {
           pieceController.dropInterval =
@@ -297,8 +356,7 @@ class GameEngine {
 
   void _handleRiseCommit() {
     if (riseController.wouldTopOut()) {
-      phase = GamePhase.gameOver;
-      _emit(const GameOverEvent(GameOverReason.topOut));
+      _endRun(GameOverReason.topOut);
       return;
     }
 
@@ -318,8 +376,7 @@ class GameEngine {
       } else if (!pieceController.collidesAt(originalRow, piece.anchorCol)) {
         piece.anchorRow = originalRow;
       } else {
-        phase = GamePhase.gameOver;
-        _emit(const GameOverEvent(GameOverReason.topOut));
+        _endRun(GameOverReason.topOut);
         return;
       }
     }
@@ -327,24 +384,87 @@ class GameEngine {
   }
 
   void _trySpawn() {
-    final type = _scriptedPieces.isNotEmpty
-        ? _scriptedPieces.removeFirst()
-        : bag.next();
+    final TetrominoType type;
+    if (_scriptedPieces.isNotEmpty) {
+      type = _scriptedPieces.removeFirst();
+    } else {
+      type = _lookahead ?? _draw();
+      _lookahead = null;
+    }
+    // Keep the slot after this one filled, so the HUD always has something to
+    // show. Drawn here, once the previous piece's clears have settled, so a
+    // biased pick is judged against the board the player is actually facing.
+    _lookahead ??= _draw();
+
     final spawned = pieceController.spawn(type);
     if (!spawned) {
-      phase = GamePhase.gameOver;
-      _emit(const GameOverEvent(GameOverReason.blockOut));
+      _endRun(GameOverReason.blockOut);
       return;
     }
     phase = GamePhase.playing;
     _emit(const PieceSpawnedEvent());
   }
 
+  TetrominoType _draw() {
+    if (!_director.takeBagBias()) return bag.next();
+    return bag.pickNext(
+      chooser: (remaining) {
+        var best = remaining.first;
+        var bestFit = double.negativeInfinity;
+        for (final type in remaining) {
+          final fit = PlacementScorer.bestFit(grid, type);
+          if (fit > bestFit) {
+            bestFit = fit;
+            best = type;
+          }
+        }
+        return best;
+      },
+    );
+  }
+
+  void _endRun(GameOverReason reason) {
+    phase = GamePhase.gameOver;
+    _director.onRunEnded();
+    _emit(GameOverEvent(reason));
+  }
+
+  void _consultDirector() {
+    if (!_director.isActive) {
+      _directorClock = 0;
+      return;
+    }
+    final output = _director.update(
+      BoardSnapshot(
+        metrics: BoardMetrics.of(grid),
+        elapsed: riseController.elapsed,
+      ),
+      _directorClock,
+    );
+    _directorClock = 0;
+    riseController.directorIntervalScale = output.riseIntervalScale;
+  }
+
   void _lockAndResolve() {
-    if (pieceController.piece == null) return;
+    final piece = pieceController.piece;
+    if (piece == null) return;
+    if (_director.isActive) {
+      // Before the piece is written in, so the Director sees the board the
+      // player chose from.
+      _director.onPlacement(
+        PlacementReport(
+          grid: grid,
+          type: piece.type,
+          rotation: piece.rotation,
+          anchorRow: piece.anchorRow,
+          anchorCol: piece.anchorCol,
+        ),
+      );
+    }
     pieceController.lockPiece();
     pieceController.softDropActive = false;
     _emit(const PieceLockedEvent());
+    _consultDirector();
     _beginResolve();
     _resolvePass();
   }
@@ -393,12 +513,7 @@ class GameEngine {
     final removedCells = _stripRows(fullRows);
     _lowerGravityFloor(fullRows);
 
-    scoring.addDestroyed(removedCells.length);
-    scoring.awardLineClear(
-      lines: fullRows.length,
-      chainIndex: chainIndex,
-      elapsedSeconds: riseController.elapsed,
-    );
+    _awardClear(fullRows.length, removedCells.length);
 
     final scale = _chainTimeScale();
     _emit(RowsClearedEvent(fullRows, removedCells, timeScale: scale));
@@ -409,6 +524,18 @@ class GameEngine {
       _ResolveStage.shatter,
       Motion.shatterSequenceSeconds(grid.cols) * scale,
     );
+  }
+
+  /// Scores one clear and tells the Director. The one place both the animated
+  /// resolve and its hard-cap flush go through, so neither can forget.
+  void _awardClear(int lines, int cellsRemoved) {
+    scoring.addDestroyed(cellsRemoved);
+    scoring.awardLineClear(
+      lines: lines,
+      chainIndex: chainIndex,
+      elapsedSeconds: riseController.elapsed,
+    );
+    _director.onClear(lines: lines, chainIndex: chainIndex);
   }
 
   List<ClearedCell> _stripRows(List<int> rows) {
@@ -545,12 +672,7 @@ class GameEngine {
       if (fullRows.isEmpty) break;
       final removedCells = _stripRows(fullRows);
       _lowerGravityFloor(fullRows);
-      scoring.addDestroyed(removedCells.length);
-      scoring.awardLineClear(
-        lines: fullRows.length,
-        chainIndex: chainIndex,
-        elapsedSeconds: riseController.elapsed,
-      );
+      _awardClear(fullRows.length, removedCells.length);
       _emit(
         RowsClearedEvent(fullRows, removedCells, timeScale: _chainTimeScale()),
       );

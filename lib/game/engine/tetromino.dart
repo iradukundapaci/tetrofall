@@ -232,9 +232,19 @@ class SevenBag {
 
   List<TetrominoType> peekAll() => List.unmodifiable(_queue);
 
-  TetrominoType next() {
+  TetrominoType next() => pickNext();
+
+  /// Deals one piece. With a [chooser] it picks *which* of the pieces still
+  /// in the current bag, instead of the next one in shuffled order. Every bag
+  /// still yields exactly one of each type; only the timing changes, which is
+  /// what keeps a biased pick looking like luck.
+  TetrominoType pickNext({
+    TetrominoType Function(List<TetrominoType> remaining)? chooser,
+  }) {
     if (_queue.isEmpty) _refill();
-    return _queue.removeAt(0);
+    if (chooser == null) return _queue.removeAt(0);
+    final choice = chooser(List.unmodifiable(_queue));
+    return _queue.remove(choice) ? choice : _queue.removeAt(0);
   }
 
   void _refill() {

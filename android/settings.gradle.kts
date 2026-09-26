@@ -27,6 +27,9 @@ plugins {
     // missing, which is the intended safety net — a release without it
     // would report no conversions at all to Google Ads.
     id("com.google.gms.google-services") version "4.4.4" apply false
+    // Uploads the R8 mapping file so Crashlytics can de-obfuscate release
+    // stack traces (the release build minifies). Applied in app/build.gradle.kts.
+    id("com.google.firebase.crashlytics") version "3.0.6" apply false
 }
 
 include(":app")

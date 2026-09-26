@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// Deploy with:  firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Player feedback. Write-only from the app: a signed-in (anonymous is
+    // fine) user may create a document about themselves, and nothing can be
+    // read, changed or deleted from a client. Read it in the Firebase console.
+    match /feedback/{id} {
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() <= 1000
+                    && request.resource.data.category in
+                         ['bug', 'too_hard', 'too_easy', 'idea', 'other']
+                    && request.resource.data.keys().hasOnly([
+                         'uid', 'category', 'text', 'appVersion', 'buildNumber',
+                         'platform', 'deviceModel', 'locale', 'mode', 'createdAt',
+                         'lastScore', 'runSeconds', 'directorOn'
+                       ]);
+      allow read, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

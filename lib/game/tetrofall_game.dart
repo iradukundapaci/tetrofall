@@ -10,6 +10,7 @@ import '../services/haptics_service.dart';
 import '../services/storage_service.dart';
 import 'config/difficulty.dart';
 import 'config/motion.dart';
+import 'config/run_config.dart';
 import 'engine/events.dart';
 import 'engine/game_engine.dart';
 import 'input/gesture_handler.dart';
@@ -20,6 +21,7 @@ class TetrofallGame extends FlameGame {
     this.theme = ThemeDefinition.classicWood,
     required this.storage,
     this.feedbackEnabled = true,
+    this.newRunConfig,
     Random? random,
   }) : engine = GameEngine(random: random) {
     gestureHandler = GestureHandler(
@@ -41,6 +43,11 @@ class TetrofallGame extends FlameGame {
   /// a drum solo, and — the reason this covers haptics too — it must not
   /// sit there buzzing a phone nobody is touching.
   final bool feedbackEnabled;
+
+  /// Builds the [RunConfig] for each run as it starts, so what the game knows
+  /// about the player — skill, run count, flags — is read fresh every time.
+  /// Null for the menu's attract-mode demo, which just runs the plain game.
+  final RunConfig Function()? newRunConfig;
 
   late final AudioService _audio = AudioService(storage);
   late final HapticsService _haptics = HapticsService(storage);
@@ -93,7 +100,7 @@ class TetrofallGame extends FlameGame {
     // on its crack delay would land over an empty board.
     _cancelPendingSfx();
     if (paused) resumeEngine();
-    engine.start(initialElapsed: _adaptiveStartElapsed);
+    _startRun();
   }
 
   /// Watch-Ad-To-Continue from the game-over overlay (game.md §1.9).
@@ -103,6 +110,15 @@ class TetrofallGame extends FlameGame {
     _cancelPendingSfx();
     if (paused) resumeEngine();
     engine.continueAfterAd();
+  }
+
+  void _startRun() {
+    final builder = newRunConfig;
+    if (builder == null) {
+      engine.start(initialElapsed: _adaptiveStartElapsed);
+    } else {
+      engine.start(config: builder());
+    }
   }
 
   Duration get _adaptiveStartElapsed => storage.adaptiveStartSpeedEnabled
@@ -172,7 +188,7 @@ class TetrofallGame extends FlameGame {
     _board = board;
     await add(board);
 
-    engine.start(initialElapsed: _adaptiveStartElapsed);
+    _startRun();
   }
 
   /// The engine must advance *before* the component tree, and the order is

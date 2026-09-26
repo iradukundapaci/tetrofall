@@ -18,10 +18,14 @@ class GameOverOverlay extends StatelessWidget {
     required this.canContinueWithAd,
     required this.onContinueWithAd,
     this.continueAdReady = true,
+    this.onTooHard,
   });
 
   final GameOverReason reason;
   final int score;
+
+  /// The player's best *before this run*. Storage already holds this run's
+  /// score by the time the overlay is up, so it cannot be read from there.
   final int best;
   final VoidCallback onRestart;
   final VoidCallback onHome;
@@ -30,12 +34,44 @@ class GameOverOverlay extends StatelessWidget {
   final VoidCallback onContinueWithAd;
   final bool continueAdReady;
 
+  /// Set after several quick deaths in a row: offers "Too hard? Tell us".
+  final VoidCallback? onTooHard;
+
   bool get _isNewBest => score > best;
 
   String get _reasonLabel => switch (reason) {
     GameOverReason.topOut => 'The rising floor reached the top.',
     GameOverReason.blockOut => 'No room left to spawn the next piece.',
   };
+
+  /// How this run sits against the best: what it beat, or how close it came.
+  Widget _bestLine(UiScale ui) {
+    final muted = TextStyle(fontSize: ui.fontSm, color: Tokens.colorTextMuted);
+    const strong = TextStyle(
+      fontWeight: FontWeight.bold,
+      color: Tokens.colorText,
+    );
+    if (_isNewBest) {
+      if (best <= 0) return const SizedBox.shrink();
+      return Text.rich(
+        TextSpan(
+          text: 'Previous best: ',
+          style: muted,
+          children: [TextSpan(text: '$best', style: strong)],
+        ),
+      );
+    }
+    return Text.rich(
+      TextSpan(
+        style: muted,
+        children: [
+          TextSpan(text: '${best - score}', style: strong),
+          const TextSpan(text: ' from your best of '),
+          TextSpan(text: '$best', style: strong),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,24 +176,7 @@ class GameOverOverlay extends StatelessWidget {
                 ),
               ),
             ),
-            Text.rich(
-              TextSpan(
-                text: 'Previous best: ',
-                style: TextStyle(
-                  fontSize: ui.fontSm,
-                  color: Tokens.colorTextMuted,
-                ),
-                children: [
-                  TextSpan(
-                    text: '$best',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Tokens.colorText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _bestLine(ui),
             SizedBox(height: ui.spaceXl),
             SizedBox(
               width: ui.panelWidth,
@@ -191,11 +210,68 @@ class GameOverOverlay extends StatelessWidget {
                       onPressed: onHome,
                     ),
                   ),
+                  if (onTooHard != null) _TooHardLink(onTap: onTooHard!),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A small, dismissible nudge for someone who keeps dying early. Deliberately
+/// quiet: it must never look like part of the way forward.
+class _TooHardLink extends StatefulWidget {
+  const _TooHardLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_TooHardLink> createState() => _TooHardLinkState();
+}
+
+class _TooHardLinkState extends State<_TooHardLink> {
+  bool _dismissed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_dismissed) return const SizedBox.shrink();
+    final ui = context.scale;
+    final style = TextStyle(
+      fontSize: ui.fontSm,
+      color: Tokens.colorTextMuted,
+      decoration: TextDecoration.underline,
+      decorationColor: Tokens.colorTextMuted,
+    );
+    return Padding(
+      padding: EdgeInsets.only(top: ui.spaceSm),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onTap,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: ui.spaceXs),
+              child: Text('Too hard? Tell us', style: style),
+            ),
+          ),
+          SizedBox(width: ui.spaceSm),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => _dismissed = true),
+            child: Padding(
+              padding: EdgeInsets.all(ui.spaceXs),
+              child: Icon(
+                Icons.close,
+                size: ui.iconSm,
+                color: Tokens.colorTextMuted,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

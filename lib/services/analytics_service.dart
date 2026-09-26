@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:gameanalytics_sdk/gameanalytics.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'analytics_keys.dart';
 
@@ -60,7 +61,12 @@ abstract final class AnalyticsService {
         tutorialNew,
         tutorialSeen,
       ]);
-      await GameAnalytics.configureBuild(AnalyticsKeys.build);
+      await GameAnalytics.configureAvailableCustomDimensions03(const [
+        skillLow,
+        skillMid,
+        skillHigh,
+      ]);
+      await GameAnalytics.configureBuild(await _buildVersion());
       await GameAnalytics.initialize(
         AnalyticsKeys.gameKey,
         AnalyticsKeys.secretKey,
@@ -68,6 +74,16 @@ abstract final class AnalyticsService {
       _ready = true;
     } catch (error) {
       logAnalyticsFailure('initialising', error);
+    }
+  }
+
+  /// The installed version, so events are tagged with the build that sent
+  /// them rather than with a constant someone has to remember to bump.
+  static Future<String> _buildVersion() async {
+    try {
+      return (await PackageInfo.fromPlatform()).version;
+    } catch (_) {
+      return AnalyticsKeys.build;
     }
   }
 
@@ -187,6 +203,22 @@ abstract final class AnalyticsService {
 
   static void setTutorialDimension(bool seen) =>
       _setDimension02(seen ? tutorialSeen : tutorialNew);
+
+  static const skillLow = 'low';
+  static const skillMid = 'mid';
+  static const skillHigh = 'high';
+
+  /// Segments events by the Director's estimate of the player's skill
+  /// (`low` / `mid` / `high`), so run length can be read per bucket.
+  static void setSkillBucketDimension(String bucket) {
+    if (!_ready) return;
+    if (bucket != skillLow && bucket != skillMid && bucket != skillHigh) return;
+    try {
+      unawaited(GameAnalytics.setCustomDimension03(bucket));
+    } catch (error) {
+      logAnalyticsFailure('custom dimension 03', error);
+    }
+  }
 
   static void _setDimension01(String value) {
     if (!_ready) return;

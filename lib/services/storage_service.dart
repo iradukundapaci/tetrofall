@@ -19,6 +19,13 @@ class StorageService {
   static const _bannerAdWidthKey = 'ads_banner_width';
   static const _bannerAdHeightKey = 'ads_banner_height';
   static const _personalizedAdsKey = 'ads_personalized_enabled';
+  static const _installDateKey = 'install_date_ms';
+  static const _sessionCountKey = 'session_count';
+  static const _endlessRunCountKey = 'endless_run_count';
+  static const _directorSkillKey = 'director_skill';
+  static const _quickDeathStreakKey = 'quick_death_streak';
+  static const _recentScoresKey = 'recent_scores';
+  static const _reviewRequestTimesKey = 'review_request_times';
 
   final SharedPreferences _prefs;
 
@@ -140,4 +147,92 @@ class StorageService {
 
   Future<void> savePersonalizedAdsEnabled(bool value) =>
       _prefs.setBool(_personalizedAdsKey, value);
+
+  /// When this install first ran. Set once, at first launch of a build that
+  /// knows about it: a player updating into it is treated as installed *now*,
+  /// which errs on the side of asking for a rating late rather than early.
+  DateTime? get installDate {
+    final epochMs = _prefs.getInt(_installDateKey);
+    return epochMs == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(epochMs);
+  }
+
+  Future<void> ensureInstallDate([DateTime? now]) async {
+    if (_prefs.containsKey(_installDateKey)) return;
+    await _prefs.setInt(
+      _installDateKey,
+      (now ?? DateTime.now()).millisecondsSinceEpoch,
+    );
+  }
+
+  int daysSinceInstall([DateTime? now]) {
+    final installed = installDate;
+    if (installed == null) return 0;
+    return (now ?? DateTime.now()).difference(installed).inDays;
+  }
+
+  /// App launches so far, counting the current one once it has begun.
+  int get sessionCount => _prefs.getInt(_sessionCountKey) ?? 0;
+
+  Future<int> incrementSessionCount() async {
+    final next = sessionCount + 1;
+    await _prefs.setInt(_sessionCountKey, next);
+    return next;
+  }
+
+  /// Endless runs started, for the gentler first runs.
+  int get endlessRunCount => _prefs.getInt(_endlessRunCountKey) ?? 0;
+
+  Future<void> incrementEndlessRunCount() =>
+      _prefs.setInt(_endlessRunCountKey, endlessRunCount + 1);
+
+  /// The Director's long-run estimate of how well the player plays, 0–1.
+  double get directorSkill => _prefs.getDouble(_directorSkillKey) ?? 0.2;
+
+  Future<void> saveDirectorSkill(double value) =>
+      _prefs.setDouble(_directorSkillKey, value);
+
+  /// Consecutive endless runs that ended in under a minute.
+  int get quickDeathStreak => _prefs.getInt(_quickDeathStreakKey) ?? 0;
+
+  Future<void> saveQuickDeathStreak(int value) =>
+      _prefs.setInt(_quickDeathStreakKey, value);
+
+  /// Scores of the last few finished endless runs, oldest first.
+  List<int> get recentScores => [
+    for (final s in _prefs.getStringList(_recentScoresKey) ?? const <String>[])
+      ?int.tryParse(s),
+  ];
+
+  static const _recentScoresKept = 10;
+
+  Future<void> addRecentScore(int score) {
+    final scores = [...recentScores, score];
+    final kept = scores.length > _recentScoresKept
+        ? scores.sublist(scores.length - _recentScoresKept)
+        : scores;
+    return _prefs.setStringList(_recentScoresKey, [
+      for (final s in kept) '$s',
+    ]);
+  }
+
+  /// When the store's rating prompt was last requested, newest last.
+  List<DateTime> get reviewRequestTimes => [
+    for (final s
+        in _prefs.getStringList(_reviewRequestTimesKey) ?? const <String>[])
+      ?_epochOrNull(s),
+  ];
+
+  static DateTime? _epochOrNull(String s) {
+    final ms = int.tryParse(s);
+    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  Future<void> addReviewRequest(DateTime when) {
+    final times = [...reviewRequestTimes, when];
+    return _prefs.setStringList(_reviewRequestTimesKey, [
+      for (final t in times) '${t.millisecondsSinceEpoch}',
+    ]);
+  }
 }

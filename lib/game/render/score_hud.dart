@@ -7,6 +7,7 @@ import '../../ui/theme/app_icons.dart';
 import '../../ui/theme/tokens.dart';
 import '../../ui/theme/ui_scale.dart';
 import '../tetrofall_game.dart';
+import 'next_piece_preview.dart';
 
 class ScoreHud extends StatefulWidget {
   const ScoreHud({
@@ -14,6 +15,7 @@ class ScoreHud extends StatefulWidget {
     required this.game,
     required this.storage,
     this.recordsBest = true,
+    this.showNextPiece = true,
   });
 
   final TetrofallGame game;
@@ -28,6 +30,10 @@ class ScoreHud extends StatefulWidget {
   /// a best score they did not earn and, through
   /// [Difficulty.adaptiveStartElapsed], a head start on their first real game.
   final bool recordsBest;
+
+  /// Whether to show the next-piece preview. Off during the coached tutorial,
+  /// which hands the player scripted pieces one at a time.
+  final bool showNextPiece;
 
   @override
   State<ScoreHud> createState() => _ScoreHudState();
@@ -89,6 +95,8 @@ class _ScoreHudState extends State<ScoreHud> {
                   child: _ScoreBlock(score: scoring.score, best: _best),
                 ),
               ),
+              if (widget.showNextPiece)
+                NextPiecePreview(engine: widget.game.engine),
               _PauseButton(game: widget.game),
             ],
           ),

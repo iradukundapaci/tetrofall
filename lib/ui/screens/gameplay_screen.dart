@@ -5,19 +5,27 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import '../../game/config/board_config.dart';
-import '../../game/config/difficulty.dart';
+import '../../game/config/run_config.dart';
+import '../../game/director/director.dart';
+import '../../game/director/skill_model.dart';
 import '../../game/engine/events.dart';
 import '../../game/render/score_hud.dart';
 import '../../game/tetrofall_game.dart';
 import '../../services/ads_service.dart';
 import '../../services/analytics_service.dart';
+import '../../services/feedback_service.dart';
 import '../../services/music_service.dart';
+import '../../services/remote_flags.dart';
+import '../../services/review_service.dart';
+import '../../services/run_summary.dart';
 import '../../services/run_tracker.dart';
 import '../../services/storage_service.dart';
+import '../../services/telemetry.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
 import '../widgets/banner_ad_slot.dart';
 import 'confirm_quit_overlay.dart';
+import 'feedback_screen.dart';
 import 'game_over_overlay.dart';
 import 'pause_overlay.dart';
 import 'tutorial/tutorial_controller.dart';
@@ -69,10 +77,36 @@ class GameplayScreen extends StatefulWidget {
 }
 
 class _GameplayScreenState extends State<GameplayScreen> {
-  late final TetrofallGame _game = TetrofallGame(storage: widget.storage)
-    ..showGhost = widget.storage.ghostPieceEnabled;
+  late final TetrofallGame _game =
+      TetrofallGame(storage: widget.storage, newRunConfig: _newRunConfig)
+        ..showGhost = widget.storage.ghostPieceEnabled;
   GameOverReason? _gameOverReason;
   Duration _runElapsedAtGameOver = Duration.zero;
+
+  /// Set by [_prepareRun] just ahead of the game asking for it, so the screen
+  /// and the engine agree on which config the run is using.
+  RunConfig? _pendingConfig;
+  RunConfig _activeConfig = RunConfig.plain;
+
+  /// Zero-based index of the current run among all endless runs.
+  int _runIndex = 0;
+
+  /// The best score as the current run began, before [ScoreHud] overwrites it.
+  late int _bestBefore = widget.storage.bestScore;
+
+  /// Whether this run has been folded into the skill model, recent scores and
+  /// analytics yet. A run bought back with an ad reaches game over twice; it
+  /// counts once.
+  bool _runRecorded = false;
+
+  /// After several quick deaths in a row, game over offers "Too hard? Tell us".
+  bool _offerTooHard = false;
+
+  late final ReviewPrompter _reviewPrompter = ReviewPrompter(
+    storage: widget.storage,
+  );
+  int _phaseChanges = 0;
+  bool _lastRescueWasComeback = false;
 
   bool _confirmingQuit = false;
 
@@ -109,22 +143,80 @@ class _GameplayScreenState extends State<GameplayScreen> {
     // Coaching is not a run. The tutorial opens its own run when it hands off
     // in [_finishTutorial], which is the same boundary [AdsService] already
     // draws with `notifyRunEnded`.
-    if (!widget.startTutorial) _startTrackedRun();
+    if (!widget.startTutorial) {
+      _pendingConfig = _prepareRun();
+      _startTrackedRun();
+    }
     final onGameCreated = widget.onGameCreated;
     if (onGameCreated != null) onGameCreated(_game);
   }
 
+  /// What the game asks for each time it starts a run. During the coached
+  /// tutorial that is the plain game — the Director joins when the tutorial
+  /// hands over, see [_finishTutorial].
+  RunConfig _newRunConfig() {
+    if (_tutorial != null) return RunConfig.plain;
+    final config = _pendingConfig ?? _prepareRun();
+    _pendingConfig = null;
+    return config;
+  }
+
+  /// Reads everything the Director should know — the player's skill, how many
+  /// runs they have had, the flags — and builds the config for the next run.
+  RunConfig _prepareRun() {
+    final storage = widget.storage;
+    _runIndex = storage.endlessRunCount;
+    _runRecorded = false;
+    _offerTooHard = false;
+    _phaseChanges = 0;
+    _bestBefore = storage.bestScore;
+
+    final config = RunConfig.endless(
+      EndlessProfile(
+        bestScore: storage.bestScore,
+        skill: storage.directorSkill,
+        runCount: _runIndex,
+        daysSinceInstall: storage.daysSinceInstall(),
+        adaptiveStartOptIn: storage.adaptiveStartSpeedEnabled,
+        directorEnabled: RemoteFlags.directorEnabled,
+        directorV2: RemoteFlags.directorV2,
+        gentleFirstRuns: RemoteFlags.gentleFirstRuns,
+      ),
+    );
+    config.director?.onEvent = _onDirectorEvent;
+    _activeConfig = config;
+    storage.incrementEndlessRunCount();
+    return config;
+  }
+
+  void _onDirectorEvent(DirectorEvent event) {
+    switch (event) {
+      case RescueStarted(:final comeback):
+        _lastRescueWasComeback = comeback;
+      case RescueEnded(:final stress, :final survived):
+        Telemetry.directorRescue(
+          stress: stress,
+          survived: survived,
+          comeback: _lastRescueWasComeback,
+        );
+      case PhaseChanged(:final phase):
+        // A phase turns over every ~15 s; one report in five is plenty.
+        if (_phaseChanges++ % 5 == 0) Telemetry.directorPhase(phase.name);
+    }
+  }
+
   /// Opens an analytics run against the head start the game is about to take.
-  /// Mirrors [TetrofallGame]'s own `_adaptiveStartElapsed` — the value is only
-  /// reported, never used to drive anything.
   void _startTrackedRun() {
     _tracker.runStarted(
-      initialElapsed: widget.storage.adaptiveStartSpeedEnabled
-          ? Difficulty.adaptiveStartElapsed(widget.storage.bestScore)
-          : Duration.zero,
+      initialElapsed: _activeConfig.initialElapsed,
       // Read now, before the run overwrites it — ScoreHud saves a new best the
       // moment it is passed, so by game over `storage.bestScore` is this run.
       bestBefore: widget.storage.bestScore,
+    );
+    Telemetry.endlessStart(
+      skillBucket: SkillModel.bucketOf(widget.storage.directorSkill),
+      directorOn: _activeConfig.director != null,
+      runIndex: _runIndex,
     );
   }
 
@@ -143,6 +235,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
 
   @override
   void dispose() {
+    _activeConfig.director?.onEvent = null;
     _game.engine.removeEventListener(_onEngineEvent);
     widget.ads.fullScreenAdShowing.removeListener(_onFullScreenAdShowing);
     _tutorial?.dispose();
@@ -175,6 +268,9 @@ class _GameplayScreenState extends State<GameplayScreen> {
     final tutorial = _tutorial;
     if (tutorial == null) return;
     _dropTutorial(tutorial);
+    // The coached session is the player's first run, and the one where the
+    // Director's help matters most: bring it in without touching the board.
+    _game.engine.adoptConfig(_prepareRun());
     _startTrackedRun();
   }
 
@@ -206,6 +302,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
         _dropTutorial(tutorial);
       }
       _endTrackedRun(event.reason.name, _runElapsedAtGameOver);
+      final endedInTutorial = tutorial != null;
+      if (!endedInTutorial && !_runRecorded) _recordRun(event.reason);
       // Reported here rather than from `build`, which reruns on every pause
       // and every rebuild behind the overlay.
       widget.ads.dropExpiredAds();
@@ -218,6 +316,93 @@ class _GameplayScreenState extends State<GameplayScreen> {
         _confirmingQuit = false;
       });
     }
+  }
+
+  /// Folds a finished endless run into everything that learns from it: the
+  /// skill model, the recent-scores window behind the rating prompt's "beat
+  /// your median" rule, the quick-death streak, analytics, and the prompt.
+  void _recordRun(GameOverReason reason) {
+    _runRecorded = true;
+    final storage = widget.storage;
+    final engine = _game.engine;
+    final scoring = engine.scoring;
+    final stats = engine.director.stats;
+
+    final seconds =
+        (_runElapsedAtGameOver - _activeConfig.initialElapsed).inMilliseconds /
+        1000;
+
+    final outcome = RunOutcome(
+      seconds: seconds,
+      lines: scoring.totalLines,
+      maxChain: scoring.maxChain,
+      placementQuality: stats.placementQuality,
+    );
+    final skillBefore = storage.directorSkill;
+    final skillAfter = SkillModel.updated(skillBefore, outcome);
+    if (skillAfter != skillBefore) {
+      storage.saveDirectorSkill(skillAfter);
+      Telemetry.setSkillBucket(SkillModel.bucketOf(skillAfter));
+    }
+
+    final summary = EndlessRunSummary(
+      score: scoring.score,
+      bestBefore: _bestBefore,
+      durationSeconds: seconds,
+      lines: scoring.totalLines,
+      maxChain: scoring.maxChain,
+      tetrofalls: scoring.tetrofalls,
+      deathReason: switch (reason) {
+        GameOverReason.topOut => 'top_out',
+        GameOverReason.blockOut => 'block_out',
+      },
+      runIndex: _runIndex,
+      continuesUsed: engine.continuesUsedThisRun,
+      directorOn: engine.director.isActive,
+      skillBucket: SkillModel.bucketOf(skillBefore),
+      rescues: stats.rescues,
+      rescuesSurvived: stats.rescuesSurvived,
+      comebacks: stats.comebacks,
+      giftRows: stats.giftRows,
+      bagBiasPicks: stats.bagBiasPicks,
+      placementQuality: stats.placementQuality,
+    );
+    LastRun.summary = summary;
+    Telemetry.endlessEnd(summary);
+
+    // Three runs under a minute in a row is someone for whom the game is too
+    // hard right now; a longer run breaks the streak.
+    final quick = seconds < 60;
+    final streak = quick ? storage.quickDeathStreak + 1 : 0;
+    storage.saveQuickDeathStreak(streak);
+    _offerTooHard = streak >= 3 && RemoteFlags.feedbackEnabled;
+
+    final recentBefore = storage.recentScores;
+    storage.addRecentScore(summary.score);
+    _askForReview(summary, recentBefore);
+  }
+
+  /// Asks the store for a rating a moment after the game-over screen appears,
+  /// so the player sees their result first. Never mid-run, and skipped if they
+  /// have already moved on (Play Again, or an ad continue).
+  Future<void> _askForReview(
+    EndlessRunSummary summary,
+    List<int> recentBefore,
+  ) async {
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    if (!mounted || _gameOverReason == null) return;
+    await _reviewPrompter.maybeAsk(summary, recentScores: recentBefore);
+  }
+
+  void _openFeedback({FeedbackCategory? category}) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FeedbackScreen(
+          initialCategory: category,
+          lastRun: LastRun.summary,
+        ),
+      ),
+    );
   }
 
   void _resumeFromPause() {
@@ -238,6 +423,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
         ),
       );
     }
+    if (_tutorial == null) _pendingConfig = _prepareRun();
     _game.restart();
     _startTrackedRun();
     setState(() => _gameOverReason = null);
@@ -387,7 +573,12 @@ class _GameplayScreenState extends State<GameplayScreen> {
                     builder: (context, adReady, _) => GameOverOverlay(
                       reason: _gameOverReason!,
                       score: _game.engine.scoring.score,
-                      best: widget.storage.bestScore,
+                      best: _bestBefore,
+                      onTooHard: _offerTooHard
+                          ? () => _openFeedback(
+                              category: FeedbackCategory.tooHard,
+                            )
+                          : null,
                       onRestart: _restartAfterGameOver,
                       onHome: _goHome,
                       // Gated on consent rather than on the ad being loaded:
@@ -526,7 +717,12 @@ class _GameplayBody extends StatelessWidget {
       ),
     );
 
-    final hud = ScoreHud(game: game, storage: storage, recordsBest: recordsBest);
+    final hud = ScoreHud(
+      game: game,
+      storage: storage,
+      recordsBest: recordsBest,
+      showNextPiece: recordsBest,
+    );
 
     final content = DecoratedBox(
       decoration: const BoxDecoration(gradient: Tokens.bgWoodGradient),

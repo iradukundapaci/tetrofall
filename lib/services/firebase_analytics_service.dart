@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:io';
-
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 import 'analytics_service.dart' show logAnalyticsFailure;
+import 'firebase_bootstrap.dart';
 
 abstract final class FirebaseAnalyticsService {
   static Future<void>? _initFuture;
@@ -13,9 +11,9 @@ abstract final class FirebaseAnalyticsService {
   static Future<void> init() => _initFuture ??= _init();
 
   static Future<void> _init() async {
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    await FirebaseBootstrap.init();
+    if (!FirebaseBootstrap.isReady) return;
     try {
-      await Firebase.initializeApp();
       _analytics = FirebaseAnalytics.instance;
     } catch (error) {
       logAnalyticsFailure('initialising Firebase', error);
@@ -81,6 +79,28 @@ abstract final class FirebaseAnalyticsService {
       unawaited(analytics.logTutorialComplete());
     } catch (error) {
       logAnalyticsFailure('tutorial_complete', error);
+    }
+  }
+
+  /// A custom event. [name] must be snake_case and at most 40 characters, with
+  /// at most 25 parameters — Firebase silently drops anything else.
+  static void logEvent(String name, [Map<String, Object>? parameters]) {
+    final analytics = _analytics;
+    if (analytics == null) return;
+    try {
+      unawaited(analytics.logEvent(name: name, parameters: parameters));
+    } catch (error) {
+      logAnalyticsFailure(name, error);
+    }
+  }
+
+  static void setUserProperty(String name, String? value) {
+    final analytics = _analytics;
+    if (analytics == null) return;
+    try {
+      unawaited(analytics.setUserProperty(name: name, value: value));
+    } catch (error) {
+      logAnalyticsFailure('user property $name', error);
     }
   }
 }
