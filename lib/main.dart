@@ -42,10 +42,8 @@ void main() async {
   await _applyOrientationPolicy();
   final storage = await StorageService.load();
   await storage.ensureInstallDate();
-  // Hooks first so nothing after can crash unseen; also brings Firebase up.
   await CrashReporting.install();
   await FirebaseAnalyticsService.init();
-  // None of these may hold up the first frame.
   unawaited(AuthService.ensureAnonymous());
   unawaited(
     RemoteFlags.init().then(

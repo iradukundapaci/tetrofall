@@ -12,6 +12,10 @@ enum RowStyle {
 
   /// Scattered gaps, each shifted at least two columns off the previous row's.
   tough,
+
+  /// A single shaft that drifts by at most one column per row and slowly
+  /// widens or pinches, instead of picking gaps fresh each row.
+  meander,
 }
 
 class RowPlan {

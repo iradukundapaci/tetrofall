@@ -75,6 +75,9 @@ class GameEngine {
     _director = config.director ?? NullDirector();
     riseController.riseConfig = config.rise;
     riseController.rowPlanner = _director.takeRowPlan;
+    // TEMP playtest override: force the new meander shaft on every row so it
+    // shows up in real runs. Delete this line to go back to the Director.
+    riseController.rowPlanner = () => const RowPlan(RowStyle.meander);
   }
 
   /// Swaps in [config] mid-run without touching the board. The tutorial plays

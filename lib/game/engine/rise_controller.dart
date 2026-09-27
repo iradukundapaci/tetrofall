@@ -33,11 +33,20 @@ class RiseController {
 
   List<int> _previousGapCols = const [];
 
+  int? _meanderCenter;
+  int _meanderWidth = 1;
+  int _meanderWidthTarget = 1;
+  int _meanderRowsLeft = 0;
+
   void reset({Duration initialElapsed = Duration.zero}) {
     riseProgress = 0.0;
     directorIntervalScale = 1.0;
     elapsed = initialElapsed.inMicroseconds / 1e6;
     _previousGapCols = const [];
+    _meanderCenter = null;
+    _meanderWidth = 1;
+    _meanderWidthTarget = 1;
+    _meanderRowsLeft = 0;
     pendingRow = _generateRow();
   }
 
@@ -89,6 +98,7 @@ class RiseController {
       RowStyle.gift => [plan.wellColumn ?? _random.nextInt(grid.cols)],
       RowStyle.friendly => _adjacentGaps(gapCount, aroundCol: plan.wellColumn),
       RowStyle.tough => _spreadGaps(gapCount),
+      RowStyle.meander => _meanderGaps(gapCount),
     };
 
     final row = List<Cell?>.generate(
@@ -126,6 +136,35 @@ class RiseController {
       if (!cols.any(_previousGapCols.contains)) return cols;
     }
     return _randomCols(count);
+  }
+
+  /// One shaft, centred on [_meanderCenter], that drifts by at most one
+  /// column a row and eases its width toward a target held for several rows
+  /// at a time — the target ranges from 1 up to [maxWidth], so the shaft
+  /// pinches down to a single-column channel and widens back out on its own.
+  List<int> _meanderGaps(int maxWidth) {
+    maxWidth = maxWidth.clamp(1, grid.cols - 1);
+    if (_meanderRowsLeft <= 0) {
+      _meanderWidthTarget = 1 + _random.nextInt(maxWidth);
+      _meanderRowsLeft = 4 + _random.nextInt(8);
+    } else {
+      _meanderRowsLeft--;
+    }
+    if (_meanderWidth < _meanderWidthTarget) {
+      _meanderWidth++;
+    } else if (_meanderWidth > _meanderWidthTarget) {
+      _meanderWidth--;
+    }
+
+    final half = _meanderWidth ~/ 2;
+    final low = half;
+    final high = grid.cols - 1 - (_meanderWidth - 1 - half);
+    final center = _meanderCenter ?? _random.nextInt(grid.cols);
+    final drift = _random.nextInt(3) - 1;
+    _meanderCenter = (center + drift).clamp(low, high);
+
+    final start = _meanderCenter! - half;
+    return [for (var i = 0; i < _meanderWidth; i++) start + i];
   }
 
   List<int> _randomCols(int count) {
