@@ -103,7 +103,10 @@ class TetrofallGame extends FlameGame {
     }
   }
 
-  Duration get _adaptiveStartElapsed => storage.adaptiveStartSpeedEnabled
+  /// Mirrors `RunConfig.endless`'s rule so the menu demo ramps to the same
+  /// speed a real run would, for a returning player.
+  Duration get _adaptiveStartElapsed =>
+      storage.daysSinceInstall() >= RunConfig.freshStartDays
       ? Difficulty.adaptiveStartElapsed(storage.bestScore)
       : Duration.zero;
 
@@ -116,7 +119,15 @@ class TetrofallGame extends FlameGame {
       if (feedbackEnabled) _haptics.light();
       _playSfx(Sfx.blockSettle);
     } else if (event is RowsClearedEvent) {
-      if (feedbackEnabled) _haptics.medium();
+      if (feedbackEnabled) {
+        // A big clear earns a stronger buzz; the forced continue sweep stays
+        // gentle since it's a run of single-row clears, not a player feat.
+        if (event.rows.length >= 3 && !event.forced) {
+          _haptics.heavy();
+        } else {
+          _haptics.medium();
+        }
+      }
       // The crush lands with the shards, after the crack hold.
       _playSfx(Sfx.woodCrush, after: Motion.crackHold);
     }

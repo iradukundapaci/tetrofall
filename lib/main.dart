@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app.dart';
+import 'game/config/run_config.dart';
 import 'game/director/skill_model.dart';
 import 'services/ads_service.dart';
 import 'services/analytics_service.dart';
@@ -57,7 +58,9 @@ void main() async {
   unawaited(ads.init());
   unawaited(
     AnalyticsService.init().then((_) {
-      AnalyticsService.setAdaptiveDimension(storage.adaptiveStartSpeedEnabled);
+      AnalyticsService.setAdaptiveDimension(
+        storage.daysSinceInstall() >= RunConfig.freshStartDays,
+      );
       AnalyticsService.setTutorialDimension(storage.tutorialSeen);
       Telemetry.setSkillBucket(SkillModel.bucketOf(storage.directorSkill));
     }),

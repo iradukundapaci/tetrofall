@@ -52,7 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late double _musicVolume = widget.storage.musicVolume;
   late double _sfxVolume = widget.storage.sfxVolume;
   late bool _ghostPiece = widget.storage.ghostPieceEnabled;
-  late bool _adaptiveStartSpeed = widget.storage.adaptiveStartSpeedEnabled;
   late bool _vibrate = widget.storage.vibrateEnabled;
   late bool _personalizedAds = widget.ads.personalizedAds;
 
@@ -246,13 +245,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     widget.liveGame?.showGhost = value;
   }
 
-  void _onAdaptiveStartSpeedChanged(bool value) {
-    AnalyticsService.design('settings:adaptive', value: value ? 1 : 0);
-    AnalyticsService.setAdaptiveDimension(value);
-    setState(() => _adaptiveStartSpeed = value);
-    widget.storage.saveAdaptiveStartSpeedEnabled(value);
-  }
-
   void _onVibrateChanged(bool value) {
     AnalyticsService.design('settings:vibrate', value: value ? 1 : 0);
     setState(() => _vibrate = value);
@@ -309,13 +301,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: 'Ghost Piece',
                 value: _ghostPiece,
                 onChanged: _onGhostPieceChanged,
-              ),
-              SizedBox(height: ui.spaceSm),
-              _ToggleRow(
-                icon: AppIcons.trophy,
-                label: 'Adjust start speed to my best score',
-                value: _adaptiveStartSpeed,
-                onChanged: _onAdaptiveStartSpeedChanged,
               ),
               SizedBox(height: ui.spaceSm),
               _ToggleRow(

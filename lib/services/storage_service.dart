@@ -6,7 +6,6 @@ class StorageService {
   StorageService(this._prefs);
 
   static const _bestScoreKey = 'best_score';
-  static const _adaptiveStartSpeedKey = 'adaptive_start_speed_enabled';
   static const _musicVolumeKey = 'music_volume';
   static const _sfxVolumeKey = 'sfx_volume';
   static const _musicRestoreLevelKey = 'music_restore_level';
@@ -36,9 +35,6 @@ class StorageService {
   }
 
   int get bestScore => _prefs.getInt(_bestScoreKey) ?? 0;
-
-  bool get adaptiveStartSpeedEnabled =>
-      _prefs.getBool(_adaptiveStartSpeedKey) ?? false;
 
   /// 0.0–1.0.
   double get musicVolume => _prefs.getDouble(_musicVolumeKey) ?? 0.70;
@@ -100,9 +96,6 @@ class StorageService {
     await _prefs.setInt(_bannerAdWidthKey, width);
     await _prefs.setInt(_bannerAdHeightKey, height);
   }
-
-  Future<void> saveAdaptiveStartSpeedEnabled(bool value) =>
-      _prefs.setBool(_adaptiveStartSpeedKey, value);
 
   Future<void> saveMusicVolume(double value) =>
       _prefs.setDouble(_musicVolumeKey, value);

@@ -24,6 +24,7 @@ import '../../services/telemetry.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
 import '../widgets/banner_ad_slot.dart';
+import '../widgets/clear_callout.dart';
 import 'confirm_quit_overlay.dart';
 import 'feedback_screen.dart';
 import 'game_over_overlay.dart';
@@ -152,7 +153,6 @@ class _GameplayScreenState extends State<GameplayScreen> {
         skill: storage.directorSkill,
         runCount: _runIndex,
         daysSinceInstall: storage.daysSinceInstall(),
-        adaptiveStartOptIn: storage.adaptiveStartSpeedEnabled,
         directorEnabled: RemoteFlags.directorEnabled,
         directorV2: RemoteFlags.directorV2,
         gentleFirstRuns: RemoteFlags.gentleFirstRuns,
@@ -648,7 +648,12 @@ class _GameplayBody extends StatelessWidget {
               game.gestureHandler.onPointerCancel(e);
               onBoardTouched?.call(false);
             },
-            child: GameWidget(game: game),
+            child: Stack(
+              children: [
+                GameWidget(game: game),
+                ClearCallout(game: game),
+              ],
+            ),
           ),
         ),
       ),

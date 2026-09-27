@@ -32,7 +32,6 @@ class EndlessProfile {
     this.skill = SkillModel.initial,
     this.runCount = 0,
     this.daysSinceInstall = 0,
-    this.adaptiveStartOptIn = false,
     this.directorEnabled = true,
     this.directorV2 = true,
     this.gentleFirstRuns = true,
@@ -44,9 +43,6 @@ class EndlessProfile {
   /// Endless runs started before this one.
   final int runCount;
   final int daysSinceInstall;
-
-  /// The Settings toggle that starts a returning player partway up the curve.
-  final bool adaptiveStartOptIn;
 
   final bool directorEnabled;
   final bool directorV2;
@@ -85,9 +81,7 @@ class RunConfig {
 
   factory RunConfig.endless(EndlessProfile profile, {math.Random? random}) {
     final gentle = profile.gentleFirstRuns && profile.runCount < gentleRuns;
-    final useAdaptiveStart =
-        profile.adaptiveStartOptIn &&
-        profile.daysSinceInstall >= freshStartDays;
+    final useAdaptiveStart = profile.daysSinceInstall >= freshStartDays;
 
     return RunConfig(
       rise: gentle

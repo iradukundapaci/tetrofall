@@ -164,8 +164,9 @@ abstract final class AnalyticsService {
   static const tutorialNew = 'tutorial_new';
   static const tutorialSeen = 'tutorial_seen';
 
-  /// Segments events by adaptive start, which otherwise drags run lengths down
-  /// and looks like a difficulty problem.
+  /// Segments events by whether this run started ramped to the player's best
+  /// score (everyone past `RunConfig.freshStartDays`), which otherwise drags
+  /// run lengths down and looks like a difficulty problem.
   static void setAdaptiveDimension(bool enabled) =>
       _setDimension01(enabled ? adaptiveOn : adaptiveOff);
 

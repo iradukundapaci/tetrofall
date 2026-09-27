@@ -21,6 +21,11 @@ class HapticsService {
     if (_enabled) HapticFeedback.mediumImpact();
   }
 
+  /// A triple-or-better clear, or a chain link landing.
+  void heavy() {
+    if (_enabled) HapticFeedback.heavyImpact();
+  }
+
   /// Column shifts and rotations.
   void selection() {
     if (_enabled) HapticFeedback.selectionClick();

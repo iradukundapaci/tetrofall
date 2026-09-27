@@ -4,6 +4,8 @@ import 'analytics_service.dart';
 import 'firebase_analytics_service.dart';
 
 typedef DesignSink = void Function(String eventId, {double? value});
+typedef FirebaseEventSink =
+    void Function(String name, [Map<String, Object>? parameters]);
 typedef ProgressionStartSink = void Function();
 typedef ProgressionFailSink = void Function({required int score});
 typedef LevelStartSink = void Function();
@@ -11,22 +13,27 @@ typedef LevelEndSink = void Function({required int score, required int tier});
 
 /// Turns the engine's [GameEvent] stream into a few analytics events: it
 /// counts per-piece noise and reports a summary at the run boundary, with line
-/// clears (bucketed into five ids) the only per-occurrence event. Sinks are
-/// injectable for tests.
+/// clears (bucketed into five ids for GameAnalytics, plus a Firebase
+/// `line_clear`) the only per-occurrence event. Sinks are injectable for
+/// tests.
 class RunTracker {
   RunTracker({
     DesignSink? design,
+    FirebaseEventSink? firebaseEvent,
     ProgressionStartSink? progressionStart,
     ProgressionFailSink? progressionFail,
     LevelStartSink? levelStart,
     LevelEndSink? levelEnd,
   }) : _design = design ?? AnalyticsService.design,
-       _progressionStart = progressionStart ?? AnalyticsService.progressionStart,
+       _firebaseEvent = firebaseEvent ?? FirebaseAnalyticsService.logEvent,
+       _progressionStart =
+           progressionStart ?? AnalyticsService.progressionStart,
        _progressionFail = progressionFail ?? AnalyticsService.progressionFail,
        _levelStart = levelStart ?? FirebaseAnalyticsService.logLevelStart,
        _levelEnd = levelEnd ?? FirebaseAnalyticsService.logLevelEnd;
 
   final DesignSink _design;
+  final FirebaseEventSink _firebaseEvent;
   final ProgressionStartSink _progressionStart;
   final ProgressionFailSink _progressionFail;
 
@@ -87,6 +94,10 @@ class RunTracker {
       case RowsClearedEvent(:final rows):
         _lines += rows.length;
         _design(_clearEventId(rows.length), value: _chainLength.toDouble());
+        _firebaseEvent('line_clear', {
+          'lines': rows.length,
+          'chain_length': _chainLength,
+        });
       case _:
         break;
     }
