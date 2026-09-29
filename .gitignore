@@ -62,3 +62,6 @@ app.*.map.json
 # from `tools/capture/capture.sh reel`, so they stay out of history. Every
 # image under gameplay/ IS tracked — those are the upload artefacts.
 /gameplay/video/
+# Branded social exports — regenerable from gameplay/video/ via
+# tools/store/social_cut.py, same reasoning as gameplay/video/ above.
+/gameplay/ads_video/
