@@ -8,7 +8,7 @@ abstract final class AnalyticsKeys {
 
   /// Fallback build tag when `package_info_plus` can't answer. Keep in sync
   /// with `pubspec.yaml`'s `version:`.
-  static const build = '1.1.0';
+  static const build = '1.1.3';
 
   static bool get configured => gameKey.isNotEmpty && secretKey.isNotEmpty;
 }
