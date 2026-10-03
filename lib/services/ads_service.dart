@@ -13,13 +13,26 @@ import 'storage_service.dart';
 
 class _AdRetry {
   static const _first = Duration(seconds: 4);
-  static const _max = Duration(seconds: 60);
+  static const _max = Duration(minutes: 5);
+
+  /// Consecutive no-fills a dry slot retries on its own before going quiet.
+  /// Past this, only a real demand event (run start, resume, network
+  /// return) asks again — see `ad_request_waste_plan.md` Cause 1.
+  static const _maxAttempts = 4;
 
   Timer? _timer;
   Duration _delay = _first;
+  int _attempts = 0;
+
+  /// Whether a retry is currently counting down; callers that aren't new
+  /// information (see [AdsService._loadRewarded]'s `force`) check this
+  /// before requesting on top of it.
+  bool get isPending => _timer != null;
 
   void schedule(void Function() run) {
     if (_timer != null) return;
+    if (_attempts >= _maxAttempts) return;
+    _attempts++;
     final delay = _delay;
     _delay = delay * 2 > _max ? _max : delay * 2;
     _timer = Timer(delay, () {
@@ -28,15 +41,16 @@ class _AdRetry {
     });
   }
 
-  /// Drops any pending retry and the accumulated wait.
+  /// Drops any pending retry, the accumulated wait and the attempt count.
   void reset() {
     _timer?.cancel();
     _timer = null;
     _delay = _first;
+    _attempts = 0;
   }
 
-  /// Drops the pending retry but keeps the wait; for the background, where it
-  /// would only fail.
+  /// Drops the pending retry but keeps the wait and attempt count; for the
+  /// background, where it would only fail.
   void pause() {
     _timer?.cancel();
     _timer = null;
@@ -121,17 +135,23 @@ class AdsService {
 
   static bool _isExpired(DateTime? loadedAt, Duration ttl) =>
       loadedAt != null && DateTime.now().difference(loadedAt) > ttl;
-  void dropExpiredAds() {
+
+  /// Disposes any ad past its TTL. [refill] re-requests the dropped slot —
+  /// pass it from a real demand moment (about to show, or a run just ended);
+  /// leave it false from a plain resume, where nothing is about to consume
+  /// the ad and a re-request would only be speculative (see
+  /// `ad_request_waste_plan.md` Cause 5).
+  void dropExpiredAds({bool refill = false}) {
     if (_isExpired(_rewardedLoadedAt, _rewardedTtl)) {
       _rewardedAd?.dispose();
       _rewarded = null;
-      _loadRewarded();
+      if (refill) _loadRewarded();
     }
     if (_isExpired(_interstitialLoadedAt, _interstitialTtl)) {
       _interstitialAd?.dispose();
       _interstitialAd = null;
       _interstitialLoadedAt = null;
-      _loadInterstitial();
+      if (refill) _loadInterstitial();
     }
   }
 
@@ -270,11 +290,20 @@ class AdsService {
     ),
   );
 
-  /// Idempotent. The SDK starts once but caches are refilled every time, so a
-  /// player who withdraws then re-grants consent isn't left with empty slots.
+  /// Idempotent. The SDK starts once but caches are refilled on every call
+  /// after the first, so a player who withdraws then re-grants consent isn't
+  /// left with empty slots, and a resume or network return that finds a slot
+  /// empty refills it.
+  ///
+  /// The *first* successful call never prefetches: that would request before
+  /// any surface needs an ad (there is nothing to show at the home screen
+  /// since the banner and app-open removal). [notifyRunStarted] covers the
+  /// first real demand moment instead — see `ad_request_waste_plan.md`
+  /// Cause 4.
   Future<void> _startAdsIfAllowed() async {
     if (!_canRequestAds) return;
 
+    final isFirstStart = !_adsStarted;
     if (!_adsStarted) {
       try {
         if (_testDeviceIds.isNotEmpty) {
@@ -290,16 +319,21 @@ class AdsService {
       }
       _adsStarted = true;
     }
+    if (isFirstStart) return;
 
-    _loadRewarded();
-    _loadInterstitial();
+    _loadRewarded(force: true);
+    _loadInterstitial(force: true);
   }
 
   /// Prefetches the two ads a run might end on: the rewarded continue
   /// (offered at every game over) and the interstitial (shown on cadence or
-  /// an owed break). Both no-op if already held or in flight; called at run
-  /// start on top of the dismiss-triggered reloads so a quick run doesn't
-  /// reach game over before the previous show's reload has finished.
+  /// an owed break). Both no-op if already held, in flight, or mid-backoff
+  /// (a run start is a hint, not new information about fill — see
+  /// `ad_request_waste_plan.md` Cause 2); called at run start on top of the
+  /// dismiss-triggered reloads so a quick run doesn't reach game over before
+  /// the previous show's reload has finished. This is also the first fetch
+  /// of a session: [_startAdsIfAllowed] deliberately doesn't prefetch at app
+  /// start.
   void notifyRunStarted() {
     _loadRewarded();
     _loadInterstitial();
@@ -328,11 +362,25 @@ class AdsService {
     _retryNow();
   }
 
-  /// Conditions improved: reset backoff, retry startup if it never completed,
-  /// and refill empty slots.
+  /// Floor between two backoff resets from this method, so a flapping
+  /// connection or rapid resume/pause doesn't restart the ad retry ladder
+  /// from 4 s on every blip (`ad_request_waste_plan.md` Cause 3). Consent and
+  /// startup retries below are *not* gated by this — a network return still
+  /// needs to keep asking UMP until it gets an answer.
+  static const _adRetryResetGap = Duration(seconds: 60);
+  DateTime? _lastAdRetryResetAt;
+
+  /// Conditions improved: retry startup if it never completed, refill empty
+  /// slots, and — no more often than [_adRetryResetGap] apart — reset the ad
+  /// retry backoff.
   void _retryNow() {
-    _rewardedRetry.reset();
-    _interstitialRetry.reset();
+    final now = DateTime.now();
+    final last = _lastAdRetryResetAt;
+    if (last == null || now.difference(last) >= _adRetryResetGap) {
+      _lastAdRetryResetAt = now;
+      _rewardedRetry.reset();
+      _interstitialRetry.reset();
+    }
     _adRetryPulse.value++;
     unawaited(_attemptStart());
   }
@@ -392,16 +440,25 @@ class AdsService {
   /// against an overlapping load stranding an undisposed ad.
   int? _rewardedLoadRevision;
 
-  void _loadRewarded() {
+  /// [force] skips the "a retry is already counting down" guard — only
+  /// warranted when something changed since the ladder was last scheduled
+  /// (consent, network, a fresh app start). A routine demand hint like
+  /// [notifyRunStarted] leaves it false, so it doesn't request on top of a
+  /// backoff that's still waiting out the last no-fill.
+  void _loadRewarded({bool force = false}) {
     // Reachable from dismiss callbacks and consent paths, so re-check consent.
     if (!_canRequestAds ||
         _rewardedAd != null ||
-        _rewardedLoadRevision != null) {
+        _rewardedLoadRevision != null ||
+        (!force && _rewardedRetry.isPending)) {
       return;
     }
     final revision = _adConfigRevision.value;
     _rewardedLoadRevision = revision;
 
+    FirebaseAnalyticsService.logEvent('ad_requested', {
+      'placement': AdPlacements.rewardedContinue,
+    });
     RewardedAd.load(
       adUnitId: AdUnitIds.rewardedContinue,
       request: adRequest,
@@ -409,6 +466,9 @@ class AdsService {
         onAdLoaded: (ad) {
           _rewardedLoadRevision = null;
           _rewardedRetry.reset();
+          FirebaseAnalyticsService.logEvent('ad_loaded', {
+            'placement': AdPlacements.rewardedContinue,
+          });
           if (!_isCurrent(revision)) {
             ad.dispose();
             // The change that stranded this ad couldn't refill the in-flight
@@ -437,7 +497,7 @@ class AdsService {
   /// once the ad has left the screen (the reward fires while it is still up,
   /// and the caller resumes the run on this future).
   Future<bool> showRewardedContinue() async {
-    dropExpiredAds();
+    dropExpiredAds(refill: true);
     final ad = _rewardedAd;
     if (ad == null) return false;
     _rewarded = null;
@@ -487,15 +547,23 @@ class AdsService {
   final _interstitialRetry = _AdRetry();
   int? _interstitialLoadRevision;
 
-  void _loadInterstitial() {
+  /// [force]: see [_loadRewarded]. Unlike the retry-pending guard, the
+  /// session/day cap check below applies even when forced — a request that
+  /// cannot be shown this session is never worth making.
+  void _loadInterstitial({bool force = false}) {
     if (!_canRequestAds ||
         _interstitialAd != null ||
-        _interstitialLoadRevision != null) {
+        _interstitialLoadRevision != null ||
+        (!force && _interstitialRetry.isPending) ||
+        !_underInterstitialCap) {
       return;
     }
     final revision = _adConfigRevision.value;
     _interstitialLoadRevision = revision;
 
+    FirebaseAnalyticsService.logEvent('ad_requested', {
+      'placement': AdPlacements.interstitial,
+    });
     InterstitialAd.load(
       adUnitId: AdUnitIds.interstitial,
       request: adRequest,
@@ -503,6 +571,9 @@ class AdsService {
         onAdLoaded: (ad) {
           _interstitialLoadRevision = null;
           _interstitialRetry.reset();
+          FirebaseAnalyticsService.logEvent('ad_loaded', {
+            'placement': AdPlacements.interstitial,
+          });
           if (!_isCurrent(revision)) {
             ad.dispose();
             _loadInterstitial();
@@ -536,7 +607,7 @@ class AdsService {
   /// leaves the screen, or null if there is no ad, one ran too recently, or a
   /// guardrail cap is reached.
   Future<void>? _showInterstitial() {
-    dropExpiredAds();
+    dropExpiredAds(refill: true);
     final ad = _interstitialAd;
     if (ad == null || _tooSoonAfterFullScreenAd || !_underInterstitialCap) {
       return null;
@@ -627,6 +698,8 @@ class AdsService {
       _rewardedRetry.pause();
       _interstitialRetry.pause();
     } else if (state == AppLifecycleState.resumed) {
+      // No refill: nothing here is about to consume an ad. The next run
+      // start or show does the real fetch (Cause 5).
       dropExpiredAds();
       _maybeArmOwedBreak();
       _backgroundedAt = null;

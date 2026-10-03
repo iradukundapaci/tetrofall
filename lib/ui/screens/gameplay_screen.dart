@@ -267,8 +267,9 @@ class _GameplayScreenState extends State<GameplayScreen> {
       _endTrackedRun(event.reason.name, _runElapsedAtGameOver);
       final endedInTutorial = tutorial != null;
       if (!endedInTutorial && !_runRecorded) _recordRun(event.reason);
-      // Here rather than in `build`, which reruns on every pause.
-      widget.ads.dropExpiredAds();
+      // Here rather than in `build`, which reruns on every pause. Refills:
+      // the continue offer below needs the answer now.
+      widget.ads.dropExpiredAds(refill: true);
       if (widget.ads.isRewardedContinueReady &&
           _game.engine.canContinueThisRun) {
         AnalyticsService.design('continue:offered');
