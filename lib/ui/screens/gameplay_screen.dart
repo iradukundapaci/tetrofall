@@ -23,7 +23,6 @@ import '../../services/storage_service.dart';
 import '../../services/telemetry.dart';
 import '../theme/tokens.dart';
 import '../theme/ui_scale.dart';
-import '../widgets/banner_ad_slot.dart';
 import '../widgets/clear_callout.dart';
 import 'confirm_quit_overlay.dart';
 import 'feedback_screen.dart';
@@ -192,6 +191,9 @@ class _GameplayScreenState extends State<GameplayScreen> {
       directorOn: _activeConfig.director != null,
       runIndex: _runIndex,
     );
+    // A head start on the ads most likely to be needed by the time this run
+    // ends, on top of the reload each dismissal already triggers.
+    widget.ads.notifyRunStarted();
   }
 
   /// Closes the analytics run; idempotent, so game over and quit can both
@@ -482,7 +484,6 @@ class _GameplayScreenState extends State<GameplayScreen> {
                 _GameplayBody(
                   game: _game,
                   storage: widget.storage,
-                  ads: widget.ads,
                   boardKey: _boardKey,
                   immersive: widget.immersive,
                   // Lets the coached caption fade while a finger is down.
@@ -549,7 +550,6 @@ class _GameplayBody extends StatelessWidget {
   const _GameplayBody({
     required this.game,
     required this.storage,
-    required this.ads,
     required this.dimmed,
     required this.boardKey,
     required this.immersive,
@@ -559,7 +559,6 @@ class _GameplayBody extends StatelessWidget {
 
   final TetrofallGame game;
   final StorageService storage;
-  final AdsService ads;
   final bool dimmed;
   final GlobalKey boardKey;
 
@@ -579,35 +578,27 @@ class _GameplayBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ui = context.scale;
-    final size = MediaQuery.sizeOf(context);
     final viewPadding = MediaQuery.viewPaddingOf(context);
 
-    // Every input is known before layout: ScoreHud has a fixed height and the
-    // banner slot reserves synchronously.
-    final bannerHeight = immersive
-        ? 0.0
-        : ads.reservedBannerHeight(
-            size.width.truncate(),
-            screenHeight: size.height,
-          );
-    final chrome = immersive
-        ? 0.0
-        : viewPadding.top + ui.hudHeight + bannerHeight + ui.spaceXs * 2;
+    // 2pt rather than `ui.spaceSm`: with no banner reserving height, most
+    // phones are width-bound (see `_boardAspect`), so this inset comes
+    // straight off the board's width.
+    final horizontalInset = immersive ? 0.0 : ui.px(2);
 
-    // Height the board wants if width-bound; what's left is slack.
-    final boardWantsHeight = (size.width - ui.spaceSm * 2) / _boardAspect;
-    final slack = size.height - chrome - boardWantsHeight;
-
-    // Spend slack holding the banner clear of the home indicator; with none,
-    // the banner runs edge to edge rather than shrinking the board.
-    final bannerBottomInset = slack <= 0
+    // Clear of the home indicator / gesture bar where the device has one; a
+    // flat floor elsewhere so the board never sits flush with the edge.
+    // Reserved below the board by the trailing `SizedBox` further down.
+    final bottomGuard = immersive
         ? 0.0
-        : math.min(viewPadding.bottom, slack);
+        : math.max(viewPadding.bottom, ui.spaceXs);
 
     // Immersive drops the frame: a border would be a visible seam.
     final boardPadding = immersive
         ? EdgeInsets.zero
-        : EdgeInsets.symmetric(horizontal: ui.spaceSm, vertical: ui.spaceXs);
+        : EdgeInsets.symmetric(
+            horizontal: horizontalInset,
+            vertical: ui.spaceXs,
+          );
     final boardRadius = immersive ? 0.0 : ui.radiusSm;
 
     final board = DecoratedBox(
@@ -693,7 +684,7 @@ class _GameplayBody extends StatelessWidget {
                     ),
                   ),
                 ),
-                BannerAdSlot(ads: ads, bottomInset: bannerBottomInset),
+                SizedBox(height: bottomGuard),
               ],
             ),
     );

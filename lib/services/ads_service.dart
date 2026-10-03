@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -9,6 +8,7 @@ import 'ad_unit_ids.dart';
 import 'analytics_service.dart';
 import 'connectivity_service.dart';
 import 'firebase_analytics_service.dart';
+import 'remote_flags.dart';
 import 'storage_service.dart';
 
 class _AdRetry {
@@ -49,13 +49,20 @@ class AdsService {
     : _connectivity = connectivity;
 
   static const _interstitialRunCap = 2;
-  static const _interstitialPlaySecondsCap = 3 * 60;
-  static const _appOpenMinBackgroundDuration = Duration(seconds: 30);
-  static const _appOpenMinInterval = Duration(minutes: 15);
+
+  /// Owed-break arming only, not the cadence's play-seconds cap (that one is
+  /// `RemoteFlags.interstitialPlaySecondsCap`): how long backgrounded before a
+  /// return owes the next natural break an interstitial, and the floor
+  /// between two such breaks (see [_maybeArmOwedBreak]).
+  static const _owedBreakMinBackground = Duration(seconds: 30);
+
+  /// Guardrail on top of [RemoteFlags.interstitialsPerSessionCap]: interstitial
+  /// shows per calendar day, regardless of session.
+  static const _interstitialDailyCap = 8;
+
   static const _fullScreenAdGap = Duration(seconds: 60);
   static const _interstitialTtl = Duration(minutes: 55);
   static const _rewardedTtl = Duration(minutes: 55);
-  static const _appOpenTtl = Duration(hours: 3, minutes: 55);
   static const _adClickGrace = Duration(seconds: 10);
   static const _testDeviceIds = <String>[];
 
@@ -64,16 +71,26 @@ class AdsService {
 
   RewardedAd? _rewardedAd;
   InterstitialAd? _interstitialAd;
-  AppOpenAd? _appOpenAd;
   DateTime? _rewardedLoadedAt;
   DateTime? _interstitialLoadedAt;
-  DateTime? _appOpenLoadedAt;
   DateTime? _lastFullScreenAdEndedAt;
   DateTime? _lastAdClickAt;
 
   bool _canRequestAds = false;
   bool _justWatchedRewardedContinue = false;
   DateTime? _backgroundedAt;
+
+  /// Set on an app return that qualifies for a break (see
+  /// [_maybeArmOwedBreak]) and consumed by the next [notifyRunEnded] as a
+  /// third "due" condition, alongside the run and play-seconds caps. Replaces
+  /// the app-open ad: same moment, but it waits for the next natural break
+  /// instead of showing on resume, and it shows the better-paid interstitial.
+  bool _breakOwed = false;
+
+  /// In-memory only: resets every cold start, which is the point of a
+  /// *session* cap. The daily cap in [StorageService] is the one that
+  /// survives a restart.
+  int _interstitialsShownThisSession = 0;
 
   bool get isRewardedContinueReady => _rewardedAd != null;
   ValueListenable<bool> get rewardedContinueReady => _rewardedContinueReady;
@@ -116,12 +133,6 @@ class AdsService {
       _interstitialLoadedAt = null;
       _loadInterstitial();
     }
-    if (_isExpired(_appOpenLoadedAt, _appOpenTtl)) {
-      _appOpenAd?.dispose();
-      _appOpenAd = null;
-      _appOpenLoadedAt = null;
-      _loadAppOpen();
-    }
   }
 
   bool get canRequestAds => _canRequestAds;
@@ -137,7 +148,7 @@ class AdsService {
       AdRequest(nonPersonalizedAds: _personalizedAds ? null : true);
 
   /// Bumped when what an ad request means changes (personalisation switch,
-  /// consent form). The banner listens and replaces itself.
+  /// consent form), so cached ads fetched under the old answer get dropped.
   ValueListenable<int> get adConfigRevision => _adConfigRevision;
   final ValueNotifier<int> _adConfigRevision = ValueNotifier(0);
 
@@ -162,68 +173,11 @@ class AdsService {
 
   AppLifecycleListener? _lifecycle;
 
-  /// Banner slot height when this device has never measured one: the
-  /// large-anchored ceiling, so a measurement can only shrink it.
-  static const fallbackBannerHeight = 100.0;
-
-  AdSize? _bannerSize;
-  int? _bannerSizeWidth;
-  Future<AdSize?>? _bannerSizeFuture;
-
-  /// AdMob's anchored banner rule for a device that has never measured one:
-  /// 32 / 50 / 90 by screen height, capped at 15% of it. Beats a flat
-  /// [fallbackBannerHeight], whose over-reserve comes straight off the board.
-  static double estimateBannerHeight(double screenHeight) {
-    final tier = screenHeight <= 400
-        ? 32.0
-        : screenHeight <= 720
-        ? 50.0
-        : 90.0;
-    return math.min(tier, screenHeight * 0.15);
-  }
-
-  /// Height gameplay reserves for the banner whether or not an ad ever loads,
-  /// so play-area size doesn't depend on fill: this session's measurement,
-  /// then the stored one, then an estimate.
-  double reservedBannerHeight(int width, {double? screenHeight}) {
-    final measured = _bannerSizeWidth == width ? _bannerSize : null;
-    return measured?.height.toDouble() ??
-        _storage.bannerAdHeightForWidth(width)?.toDouble() ??
-        (screenHeight == null
-            ? fallbackBannerHeight
-            : estimateBannerHeight(screenHeight));
-  }
-
-  /// Measures the adaptive banner size for a screen [width] once per width and
-  /// stores the height for future cold starts. Safe before consent resolves.
-  Future<AdSize?> resolveBannerSize(int width) {
-    if (_bannerSizeWidth != width) {
-      _bannerSizeWidth = width;
-      _bannerSizeFuture = _resolveBannerSize(width);
-    }
-    return _bannerSizeFuture!;
-  }
-
-  Future<AdSize?> _resolveBannerSize(int width) async {
-    final size = await AdSize.getLargeAnchoredAdaptiveBannerAdSize(width);
-    if (size == null) {
-      // A failure to measure, not an answer; don't cache it.
-      if (_bannerSizeWidth == width) {
-        _bannerSizeWidth = null;
-        _bannerSizeFuture = null;
-      }
-      return null;
-    }
-    _bannerSize = size;
-    await _storage.saveBannerAdSize(width: width, height: size.height);
-    return size;
-  }
-
   Future<void>? _readyFuture;
 
   /// Completes once the first startup attempt has been made, not once it
-  /// succeeded; blocking until ads work would hang the banner and Settings
-  /// while offline. The retry paths take over from there.
+  /// succeeded; blocking until ads work would hang Settings and the game-over
+  /// screen while offline. The retry paths take over from there.
   Future<void> init() => _readyFuture ??= _init();
 
   Future<void> _init() async {
@@ -299,7 +253,7 @@ class AdsService {
             .getPrivacyOptionsRequirementStatus() ==
         PrivacyOptionsRequirementStatus.required;
 
-    // Settings and the banner can't observe late consent themselves.
+    // Settings and the game-over screen can't observe late consent themselves.
     if (_canRequestAds != wasAllowed) _adRetryPulse.value++;
 
     _publishConsent();
@@ -339,7 +293,16 @@ class AdsService {
 
     _loadRewarded();
     _loadInterstitial();
-    _loadAppOpen();
+  }
+
+  /// Prefetches the two ads a run might end on: the rewarded continue
+  /// (offered at every game over) and the interstitial (shown on cadence or
+  /// an owed break). Both no-op if already held or in flight; called at run
+  /// start on top of the dismiss-triggered reloads so a quick run doesn't
+  /// reach game over before the previous show's reload has finished.
+  void notifyRunStarted() {
+    _loadRewarded();
+    _loadInterstitial();
   }
 
   /// Prints each mediation adapter's state after the handshake. `notReady` is
@@ -360,18 +323,16 @@ class AdsService {
       // Pending retries would fail; hold them.
       _rewardedRetry.pause();
       _interstitialRetry.pause();
-      _appOpenRetry.pause();
       return;
     }
     _retryNow();
   }
 
   /// Conditions improved: reset backoff, retry startup if it never completed,
-  /// refill empty slots and tell the banner to do the same.
+  /// and refill empty slots.
   void _retryNow() {
     _rewardedRetry.reset();
     _interstitialRetry.reset();
-    _appOpenRetry.reset();
     _adRetryPulse.value++;
     unawaited(_attemptStart());
   }
@@ -405,10 +366,8 @@ class AdsService {
     _discardCachedAds();
     _rewardedRetry.reset();
     _interstitialRetry.reset();
-    _appOpenRetry.reset();
     _loadRewarded();
     _loadInterstitial();
-    _loadAppOpen();
   }
 
   /// Drops every ad in hand because its consent/personalisation answer is
@@ -420,9 +379,6 @@ class AdsService {
     _interstitialAd?.dispose();
     _interstitialAd = null;
     _interstitialLoadedAt = null;
-    _appOpenAd?.dispose();
-    _appOpenAd = null;
-    _appOpenLoadedAt = null;
   }
 
   /// Whether an ad requested at [revision] may still be shown: consent must
@@ -569,12 +525,22 @@ class AdsService {
     );
   }
 
+  /// Whether the session/day guardrail caps allow one more interstitial,
+  /// independent of cadence due-ness. Checked only at show time, not at arm
+  /// time, so an owed break or a due cadence that's capped simply waits.
+  bool get _underInterstitialCap =>
+      _interstitialsShownThisSession < RemoteFlags.interstitialsPerSessionCap &&
+      _storage.interstitialsShownToday < _interstitialDailyCap;
+
   /// Shows the cached interstitial, returning a future that completes when it
-  /// leaves the screen, or null if there is no ad or one ran too recently.
+  /// leaves the screen, or null if there is no ad, one ran too recently, or a
+  /// guardrail cap is reached.
   Future<void>? _showInterstitial() {
     dropExpiredAds();
     final ad = _interstitialAd;
-    if (ad == null || _tooSoonAfterFullScreenAd) return null;
+    if (ad == null || _tooSoonAfterFullScreenAd || !_underInterstitialCap) {
+      return null;
+    }
     _interstitialAd = null;
     _interstitialLoadedAt = null;
 
@@ -600,6 +566,8 @@ class AdsService {
         _loadInterstitial();
       },
     );
+    _interstitialsShownThisSession++;
+    unawaited(_storage.saveInterstitialShownNow());
     AnalyticsService.ad(
       outcome: AdOutcome.shown,
       kind: AdKind.interstitial,
@@ -610,10 +578,12 @@ class AdsService {
   }
 
   /// Counts a finished run toward the interstitial cadence and shows one when
-  /// due, completing once it is dismissed so a new run doesn't tick behind it.
+  /// due — by the cadence caps or an owed break (see [_maybeArmOwedBreak]) —
+  /// completing once it is dismissed so a new run doesn't tick behind it.
   /// Counters reset only when an ad is shown, so a due cadence with nothing
-  /// loaded stays due. They persist across cold starts; the one exception is
-  /// straight after a rewarded continue.
+  /// loaded (or capped, see [_underInterstitialCap]) stays due. They persist
+  /// across cold starts; the one exception is straight after a rewarded
+  /// continue.
   Future<void> notifyRunEnded(Duration runDuration) async {
     final skipThisOne = _justWatchedRewardedContinue;
     _justWatchedRewardedContinue = false;
@@ -623,11 +593,17 @@ class AdsService {
         _storage.playSecondsSinceLastInterstitial + runDuration.inSeconds;
 
     final due =
-        runs >= _interstitialRunCap || seconds >= _interstitialPlaySecondsCap;
+        runs >= _interstitialRunCap ||
+        seconds >= RemoteFlags.interstitialPlaySecondsCap ||
+        _breakOwed;
     final shown = !skipThisOne && due ? _showInterstitial() : null;
     if (shown != null) {
       await _storage.saveRunsSinceLastInterstitial(0);
       await _storage.savePlaySecondsSinceLastInterstitial(0);
+      if (_breakOwed) {
+        _breakOwed = false;
+        await _storage.saveLastOwedBreakShownAt(DateTime.now());
+      }
       await shown;
       return;
     }
@@ -636,48 +612,11 @@ class AdsService {
     await _storage.savePlaySecondsSinceLastInterstitial(seconds);
   }
 
-  final _appOpenRetry = _AdRetry();
-  int? _appOpenLoadRevision;
-
-  void _loadAppOpen() {
-    if (!_canRequestAds ||
-        _appOpenAd != null ||
-        _appOpenLoadRevision != null) {
-      return;
-    }
-    final revision = _adConfigRevision.value;
-    _appOpenLoadRevision = revision;
-
-    AppOpenAd.load(
-      adUnitId: AdUnitIds.appOpen,
-      request: adRequest,
-      adLoadCallback: AppOpenAdLoadCallback(
-        onAdLoaded: (ad) {
-          _appOpenLoadRevision = null;
-          _appOpenRetry.reset();
-          if (!_isCurrent(revision)) {
-            ad.dispose();
-            _loadAppOpen();
-            return;
-          }
-          _appOpenAd = ad;
-          _appOpenLoadedAt = DateTime.now();
-        },
-        onAdFailedToLoad: (error) {
-          reportLoadFailure(AdPlacements.appOpen, AdKind.interstitial, error);
-          _appOpenLoadRevision = null;
-          _appOpenAd = null;
-          _appOpenRetry.schedule(_loadAppOpen);
-        },
-      ),
-    );
-  }
-
   void _onAppLifecycleStateChange(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       // On Android a full-screen ad (or a tap out to the browser) backgrounds
       // the app like leaving does; counting that would follow every rewarded
-      // video with an app-open ad.
+      // video with an owed break.
       final lastClick = _lastAdClickAt;
       final leftForAd =
           _fullScreenAdShowing.value ||
@@ -687,10 +626,9 @@ class AdsService {
       // Nothing requested from the background can be shown.
       _rewardedRetry.pause();
       _interstitialRetry.pause();
-      _appOpenRetry.pause();
     } else if (state == AppLifecycleState.resumed) {
       dropExpiredAds();
-      _maybeShowAppOpenAd();
+      _maybeArmOwedBreak();
       _backgroundedAt = null;
       // The likeliest moment for the network to have changed, and a chance to
       // recover if the connectivity stream missed it.
@@ -699,54 +637,29 @@ class AdsService {
     }
   }
 
-  void _maybeShowAppOpenAd() {
+  /// Arms [_breakOwed] on a qualifying return from background: the app-open
+  /// moment, without the app-open format. Nothing shows here — the next
+  /// natural break (game over or quit, in [notifyRunEnded]) picks it up as a
+  /// third "due" condition, so returning from background is never itself
+  /// interrupted by an ad.
+  void _maybeArmOwedBreak() {
+    if (!RemoteFlags.owedBreakEnabled) return;
     final backgroundedAt = _backgroundedAt;
     if (backgroundedAt == null) return;
-    // An early ad is most likely to lose a first-session player.
+    // An early break is most likely to lose a first-session player.
     if (!_storage.tutorialSeen) return;
-    if (_tooSoonAfterFullScreenAd) return;
-    if (DateTime.now().difference(backgroundedAt) <
-        _appOpenMinBackgroundDuration) {
+    if (DateTime.now().difference(backgroundedAt) < _owedBreakMinBackground) {
       return;
     }
 
-    final lastShown = _storage.lastAppOpenAdShownAt;
+    final lastShown = _storage.lastOwedBreakShownAt;
     if (lastShown != null &&
-        DateTime.now().difference(lastShown) < _appOpenMinInterval) {
+        DateTime.now().difference(lastShown) <
+            RemoteFlags.owedBreakMinInterval) {
       return;
     }
 
-    final ad = _appOpenAd;
-    if (ad == null) return;
-    _appOpenAd = null;
-    _appOpenLoadedAt = null;
-    _fullScreenAdStarted();
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdClicked: (_) => notifyAdClicked(),
-      onAdDismissedFullScreenContent: (ad) {
-        _fullScreenAdEnded();
-        ad.dispose();
-        _loadAppOpen();
-      },
-      onAdFailedToShowFullScreenContent: (ad, _) {
-        _fullScreenAdEnded();
-        AnalyticsService.ad(
-          outcome: AdOutcome.failed,
-          kind: AdKind.interstitial,
-          placement: AdPlacements.appOpen,
-        );
-        ad.dispose();
-        _loadAppOpen();
-      },
-    );
-    AnalyticsService.ad(
-      outcome: AdOutcome.shown,
-      // GameAnalytics has no app-open type; the placement tells them apart.
-      kind: AdKind.interstitial,
-      placement: AdPlacements.appOpen,
-    );
-    ad.show();
-    _storage.saveLastAppOpenAdShownAt(DateTime.now());
+    _breakOwed = true;
   }
 
   static const _diagnostics = !kReleaseMode;
@@ -801,7 +714,6 @@ class AdsService {
   void dispose() {
     _rewardedRetry.pause();
     _interstitialRetry.pause();
-    _appOpenRetry.pause();
     _connectivity?.isOnline.removeListener(_onOnlineChanged);
     _lifecycle?.dispose();
     _lifecycle = null;

@@ -16,9 +16,9 @@ class StorageService {
   static const _runsSinceLastInterstitialKey = 'ads_runs_since_interstitial';
   static const _playSecondsSinceLastInterstitialKey =
       'ads_play_seconds_since_interstitial';
-  static const _lastAppOpenAdEpochMsKey = 'ads_last_app_open_epoch_ms';
-  static const _bannerAdWidthKey = 'ads_banner_width';
-  static const _bannerAdHeightKey = 'ads_banner_height';
+  static const _lastOwedBreakEpochMsKey = 'ads_last_owed_break_epoch_ms';
+  static const _interstitialDailyCountKey = 'ads_interstitial_daily_count';
+  static const _interstitialDailyDateKey = 'ads_interstitial_daily_date';
   static const _personalizedAdsKey = 'ads_personalized_enabled';
   static const _installDateKey = 'install_date_ms';
   static const _sessionCountKey = 'session_count';
@@ -66,21 +66,33 @@ class StorageService {
   double get playSecondsSinceLastInterstitial =>
       _prefs.getDouble(_playSecondsSinceLastInterstitialKey) ?? 0;
 
-  /// When the last app-open ad was shown, or null.
-  DateTime? get lastAppOpenAdShownAt {
-    final epochMs = _prefs.getInt(_lastAppOpenAdEpochMsKey);
+  /// When the last owed-break interstitial (see `AdsService`) was shown, or
+  /// null.
+  DateTime? get lastOwedBreakShownAt {
+    final epochMs = _prefs.getInt(_lastOwedBreakEpochMsKey);
     return epochMs == null
         ? null
         : DateTime.fromMillisecondsSinceEpoch(epochMs);
   }
 
-  /// Last measured banner height for a screen [width], or null; lets gameplay
-  /// reserve the slot on the first frame instead of resizing when the ad
-  /// arrives.
-  int? bannerAdHeightForWidth(int width) =>
-      _prefs.getInt(_bannerAdWidthKey) == width
-      ? _prefs.getInt(_bannerAdHeightKey)
-      : null;
+  static int _epochDay(DateTime t) =>
+      DateTime.utc(t.year, t.month, t.day).millisecondsSinceEpoch ~/
+      Duration.millisecondsPerDay;
+
+  /// Interstitials shown today (UTC day), for the daily guardrail cap; resets
+  /// itself the moment the stored day no longer matches.
+  int get interstitialsShownToday {
+    final storedDay = _prefs.getInt(_interstitialDailyDateKey);
+    if (storedDay != _epochDay(DateTime.now())) return 0;
+    return _prefs.getInt(_interstitialDailyCountKey) ?? 0;
+  }
+
+  Future<void> saveInterstitialShownNow() async {
+    final today = _epochDay(DateTime.now());
+    final next = interstitialsShownToday + 1;
+    await _prefs.setInt(_interstitialDailyDateKey, today);
+    await _prefs.setInt(_interstitialDailyCountKey, next);
+  }
 
   /// On by default. Where UMP governs, its consent form is still the gate and
   /// this can only narrow it; see `AdsService.setPersonalizedAds`.
@@ -88,14 +100,6 @@ class StorageService {
       _prefs.getBool(_personalizedAdsKey) ?? true;
 
   Future<void> saveBestScore(int value) => _prefs.setInt(_bestScoreKey, value);
-
-  Future<void> saveBannerAdSize({
-    required int width,
-    required int height,
-  }) async {
-    await _prefs.setInt(_bannerAdWidthKey, width);
-    await _prefs.setInt(_bannerAdHeightKey, height);
-  }
 
   Future<void> saveMusicVolume(double value) =>
       _prefs.setDouble(_musicVolumeKey, value);
@@ -124,8 +128,8 @@ class StorageService {
   Future<void> savePlaySecondsSinceLastInterstitial(double value) =>
       _prefs.setDouble(_playSecondsSinceLastInterstitialKey, value);
 
-  Future<void> saveLastAppOpenAdShownAt(DateTime value) =>
-      _prefs.setInt(_lastAppOpenAdEpochMsKey, value.millisecondsSinceEpoch);
+  Future<void> saveLastOwedBreakShownAt(DateTime value) =>
+      _prefs.setInt(_lastOwedBreakEpochMsKey, value.millisecondsSinceEpoch);
 
   Future<void> savePersonalizedAdsEnabled(bool value) =>
       _prefs.setBool(_personalizedAdsKey, value);

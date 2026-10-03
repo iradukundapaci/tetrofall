@@ -24,7 +24,6 @@ void main() {
   late ConnectivityService connectivity;
   late AdsService ads;
   late bool reachable;
-  late int sizeMeasurements;
 
   final realConsent = ConsentInformation.instance;
 
@@ -44,11 +43,7 @@ void main() {
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(umpChannel, (_) async => null);
-    sizeMeasurements = 0;
-    messenger.setMockMethodCallHandler(adsChannel, (call) async {
-      if (call.method.startsWith('AdSize#get')) sizeMeasurements++;
-      return null;
-    });
+    messenger.setMockMethodCallHandler(adsChannel, (_) async => null);
     SharedPreferences.setMockInitialValues({});
     consent = _FakeConsentInformation();
     ConsentInformation.instance = consent;
@@ -88,8 +83,8 @@ void main() {
   });
 
   test('init() completes offline rather than waiting for a network', () async {
-    // The banner and Settings both await this; hanging here would stall them
-    // for as long as the player stayed offline.
+    // Settings and the game-over screen both await this; hanging here would
+    // stall them for as long as the player stayed offline.
     await ads.init().timeout(const Duration(seconds: 1));
   });
 
@@ -119,8 +114,9 @@ void main() {
     await settle();
 
     expect(ads.canRequestAds, isTrue);
-    // The banner has already given up and Settings has already drawn its
-    // Privacy rows; the pulse is the only thing that tells them otherwise.
+    // The game-over screen has already given up and Settings has already
+    // drawn its Privacy rows; the pulse is the only thing that tells them
+    // otherwise.
     expect(pulses, greaterThan(0));
   });
 
@@ -154,19 +150,6 @@ void main() {
     changes.add([ConnectivityResult.wifi]);
     await settle();
     expect(consent.updateRequests, 3, reason: 'already answered');
-  });
-
-  test('a banner size that could not be measured is not cached', () async {
-    // Measuring goes to the SDK, which the mock above answers null to — the
-    // same answer a device gives before the SDK has come up. Caching that
-    // null used to leave the banner unable to size itself for this width for
-    // the rest of the session, so the slot could retry forever and never
-    // get past it.
-    expect(await ads.resolveBannerSize(360), isNull);
-    expect(sizeMeasurements, 1);
-
-    expect(await ads.resolveBannerSize(360), isNull);
-    expect(sizeMeasurements, 2, reason: 'asked again rather than remembered');
   });
 
   test('resuming the app re-probes the network', () async {

@@ -68,8 +68,8 @@ void main() {
     });
 
     await ads.setPersonalizedAds(false);
-    // Setting it to what it already is changes nothing, so the banner must
-    // not tear down and re-request an identical ad.
+    // Setting it to what it already is changes nothing, so a live ad must
+    // not tear down and re-request an identical one.
     await ads.setPersonalizedAds(false);
     await ads.setPersonalizedAds(true);
 

@@ -345,8 +345,8 @@ void main() {
       AnalyticsService.setTutorialDimension(true);
       AnalyticsService.ad(
         outcome: AdOutcome.shown,
-        kind: AdKind.banner,
-        placement: 'banner',
+        kind: AdKind.interstitial,
+        placement: 'interstitial',
       );
     });
   });

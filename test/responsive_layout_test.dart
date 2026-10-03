@@ -113,12 +113,13 @@ void main() {
   });
 
   /// `GameplayScreen.immersive` exists only for the store-capture harness in
-  /// `tools/capture/`. It removes the banner slot outright — and that slot is
-  /// the app's only banner placement — so the shipped build depends on this
-  /// staying off. Constructing the widget is enough to catch a flipped
-  /// default; mounting it would boot Flame for no extra signal.
+  /// `tools/capture/`: it drops the board's frame/border and floats the HUD
+  /// over the board instead of reserving height for it, so a capture is a
+  /// clean full-bleed board. The shipped build depends on this staying off.
+  /// Constructing the widget is enough to catch a flipped default; mounting
+  /// it would boot Flame for no extra signal.
   group('immersive capture flag', () {
-    test('defaults to off, so the shipped layout keeps its banner', () async {
+    test('defaults to off, so the shipped layout keeps its frame', () async {
       TestWidgetsFlutterBinding.ensureInitialized();
       SharedPreferences.setMockInitialValues({});
       final storage = StorageService(await SharedPreferences.getInstance());
@@ -128,7 +129,7 @@ void main() {
 
     test('the board is exactly 9:16, which is why chrome costs width', () {
       // The reason immersive reclaims so much: with the board height-bound at
-      // 9:16 on a 9:16 screen, every point of HUD or banner above and below it
+      // 9:16 on a 9:16 screen, every point of HUD or frame above and below it
       // comes back out of the board's *width* at 0.5625pt a time.
       expect(BoardConfig.cols / BoardConfig.rows, closeTo(9 / 16, 1e-9));
     });

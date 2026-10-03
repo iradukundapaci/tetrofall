@@ -31,6 +31,9 @@ class GameOverOverlay extends StatelessWidget {
 
   final bool canContinueWithAd;
   final VoidCallback onContinueWithAd;
+
+  /// Whether the rewarded ad is actually in hand; the continue row is hidden
+  /// rather than disabled until it is.
   final bool continueAdReady;
 
   /// Set after several quick deaths: offers "Too hard? Tell us".
@@ -181,17 +184,21 @@ class GameOverOverlay extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (canContinueWithAd) ...[
+                  // The ad is prefetched at run start, so by game over it's
+                  // almost always ready; rather than a disabled "Loading
+                  // Ad…" button (a lost impression and a lost tap), the row
+                  // just isn't offered until it is — it pops in the moment
+                  // `continueAdReady` flips, via the ValueListenableBuilder
+                  // this overlay is built under.
+                  if (canContinueWithAd && continueAdReady) ...[
                     PrimaryButton(
-                      label: continueAdReady
-                          ? 'Watch Ad to Continue'
-                          : 'Loading Ad…',
+                      label: 'Continue — keep $score',
                       icon: Icon(
                         Icons.smart_display_outlined,
                         size: ui.iconSm,
                         color: Tokens.colorWoodDark,
                       ),
-                      onPressed: continueAdReady ? onContinueWithAd : null,
+                      onPressed: onContinueWithAd,
                     ),
                     SizedBox(height: ui.spaceMd),
                     SecondaryButton(label: 'Play Again', onPressed: onRestart),

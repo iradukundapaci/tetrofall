@@ -217,12 +217,12 @@ enum AdOutcome {
   final int _ga;
 }
 
-/// GameAnalytics has no app-open format; it is reported as an interstitial and
-/// told apart by its placement.
+/// GameAnalytics has no app-open format, and Tetrofall doesn't request one;
+/// the owed-break placement (`AdsService`) is reported as a plain interstitial
+/// and told apart by its placement.
 enum AdKind {
   rewardedVideo(GAAdType.RewardedVideo),
-  interstitial(GAAdType.Interstitial),
-  banner(GAAdType.Banner);
+  interstitial(GAAdType.Interstitial);
 
   const AdKind(this._ga);
   final int _ga;

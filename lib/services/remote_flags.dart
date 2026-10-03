@@ -14,12 +14,30 @@ abstract final class RemoteFlags {
   static const reviewPromptEnabledKey = 'review_prompt_enabled';
   static const feedbackEnabledKey = 'feedback_enabled';
 
+  /// Master switch for `AdsService`'s owed-break interstitial (the app-open
+  /// replacement, see `ads_slimdown_plan.md`).
+  static const owedBreakEnabledKey = 'owed_break_enabled';
+
+  /// How often a backgrounded return can arm an owed break, in seconds.
+  static const owedBreakMinIntervalSKey = 'owed_break_min_interval_s';
+
+  /// Cumulative play seconds that make an interstitial due, on top of the
+  /// run-count cap.
+  static const interstitialPlaySecondsCapKey = 'interstitial_play_seconds_cap';
+
+  /// Guardrail: interstitials shown per app session, regardless of cadence.
+  static const interstitialsPerSessionCapKey = 'interstitials_per_session_cap';
+
   static const _defaults = <String, Object>{
     directorEnabledKey: true,
     directorV2Key: true,
     gentleFirstRunsKey: true,
     reviewPromptEnabledKey: true,
     feedbackEnabledKey: true,
+    owedBreakEnabledKey: true,
+    owedBreakMinIntervalSKey: 900,
+    interstitialPlaySecondsCapKey: 180,
+    interstitialsPerSessionCapKey: 4,
   };
 
   static FirebaseRemoteConfig? _config;
@@ -60,6 +78,17 @@ abstract final class RemoteFlags {
     }
   }
 
+  static int _intFlag(String key) {
+    final config = _config;
+    if (config == null) return _defaults[key]! as int;
+    try {
+      return config.getInt(key);
+    } catch (error) {
+      logAnalyticsFailure('reading flag $key', error);
+      return _defaults[key]! as int;
+    }
+  }
+
   /// Off turns the Director into a [NullDirector]: the A/B control arm.
   static bool get directorEnabled => _flag(directorEnabledKey);
 
@@ -69,4 +98,15 @@ abstract final class RemoteFlags {
   static bool get gentleFirstRuns => _flag(gentleFirstRunsKey);
   static bool get reviewPromptEnabled => _flag(reviewPromptEnabledKey);
   static bool get feedbackEnabled => _flag(feedbackEnabledKey);
+
+  static bool get owedBreakEnabled => _flag(owedBreakEnabledKey);
+
+  static Duration get owedBreakMinInterval =>
+      Duration(seconds: _intFlag(owedBreakMinIntervalSKey));
+
+  static int get interstitialPlaySecondsCap =>
+      _intFlag(interstitialPlaySecondsCapKey);
+
+  static int get interstitialsPerSessionCap =>
+      _intFlag(interstitialsPerSessionCapKey);
 }
