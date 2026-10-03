@@ -192,7 +192,7 @@ class GameOverOverlay extends StatelessWidget {
                   // this overlay is built under.
                   if (canContinueWithAd && continueAdReady) ...[
                     PrimaryButton(
-                      label: 'Continue — keep $score',
+                      label: 'Continue to keep $score',
                       icon: Icon(
                         Icons.smart_display_outlined,
                         size: ui.iconSm,
