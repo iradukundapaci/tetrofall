@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../game/config/board_config.dart';
 import '../../theme/app_icons.dart';
 import '../../theme/tokens.dart';
 import '../../theme/ui_scale.dart';
@@ -37,6 +38,9 @@ const _skipFill = Color(0xE0140C06);
 
 /// What Skip dims to under a finger; not zero, so it stays findable.
 const _touchedOpacity = 0.15;
+
+/// What the hint dims to under a finger: still there to confirm the gesture.
+const _hintTouchedOpacity = 0.4;
 
 class _TutorialOverlayState extends State<TutorialOverlay> {
   Rect? _boardRect;
@@ -84,25 +88,56 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
           rect: rect,
           child: Stack(
             children: [
+              // The hole the rigged floor left, as a column to aim for.
+              if (c.gapCol != null)
+                Positioned(
+                  left: c.gapCol! / BoardConfig.cols * rect.width,
+                  width: 2 / BoardConfig.cols * rect.width,
+                  top: 0,
+                  bottom: 0,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Tokens.colorGold.withValues(alpha: 0.18),
+                        border: Border.symmetric(
+                          vertical: BorderSide(
+                            color: Tokens.colorGold.withValues(alpha: 0.8),
+                            width: ui.borderThick,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               // Over the piece being steered. A satisfied lesson leaves the
               // hint at `none` and the prompt fades out; the board confirms.
               AnimatedOpacity(
-                opacity: faded ? 0.0 : 1.0,
+                opacity: faded ? _hintTouchedOpacity : 1.0,
                 duration: _fadeDuration,
                 child: Align(
                   alignment: Alignment(0, c.hintAlignY),
-                  child: GestureHint(hint: c.hint, label: c.label),
+                  child: GestureHint(
+                    hint: c.hint,
+                    label: c.label,
+                    subLabel: c.subLabel,
+                  ),
                 ),
               ),
-              // The hole the rigged floor left.
               if (c.gapAlignX != null)
                 AnimatedOpacity(
-                  opacity: faded ? 0.0 : 1.0,
+                  opacity: faded ? _hintTouchedOpacity : 1.0,
                   duration: _fadeDuration,
                   child: Align(
                     alignment: Alignment(c.gapAlignX!, 0.92),
                     child: const _GapMarker(),
                   ),
+                ),
+              if (c.showGoal)
+                Center(child: _GoalCard(onPressed: c.dismissGoal)),
+              if (c.celebrating && !c.showGoal)
+                Align(
+                  alignment: const Alignment(0, -0.75),
+                  child: IgnorePointer(child: _plate(ui, 'Nice!', gold: true)),
                 ),
               // The top-right corner is never what the player is told to look
               // at.
@@ -113,7 +148,16 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                   child: AnimatedOpacity(
                     opacity: faded ? _touchedOpacity : 1.0,
                     duration: _fadeDuration,
-                    child: _SkipButton(onPressed: c.skip),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!c.showGoal) ...[
+                          _plate(ui, '${c.step}/${c.stepCount}'),
+                          SizedBox(width: ui.spaceXs),
+                        ],
+                        _SkipButton(onPressed: c.skip),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -121,6 +165,85 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
           ),
         ),
       ],
+    );
+  }
+}
+
+Widget _plate(UiScale ui, String text, {bool gold = false}) => Container(
+  padding: EdgeInsets.symmetric(horizontal: ui.spaceMd, vertical: ui.spaceXs),
+  decoration: BoxDecoration(
+    color: _skipFill,
+    borderRadius: BorderRadius.circular(ui.radiusMd),
+    border: Border.all(color: Tokens.colorPanelBorder),
+  ),
+  child: Text(
+    text,
+    style: TextStyle(
+      fontFamily: Tokens.fontDisplay,
+      fontSize: ui.fontSm,
+      fontWeight: FontWeight.w700,
+      color: gold ? Tokens.colorGold : Tokens.colorText,
+      letterSpacing: 0.5,
+    ),
+  ),
+);
+
+/// States the objective before the first lesson.
+class _GoalCard extends StatelessWidget {
+  const _GoalCard({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final ui = context.scale;
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: ui.spaceLg),
+      padding: EdgeInsets.all(ui.spaceMd),
+      decoration: BoxDecoration(
+        color: _skipFill,
+        borderRadius: BorderRadius.circular(ui.radiusMd),
+        border: Border.all(color: Tokens.colorPanelBorder),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Rows keep rising from the bottom,\npushing your stack up.\n\nEach new row has a gap. Drop pieces\ninto it to clear the row and push back.\n\nIf the stack hits the top, it\'s over.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: Tokens.fontDisplay,
+              fontSize: ui.fontSm * 1.15,
+              fontWeight: FontWeight.w700,
+              color: Tokens.colorText,
+              height: 1.3,
+            ),
+          ),
+          SizedBox(height: ui.spaceMd),
+          TextButton(
+            onPressed: onPressed,
+            style: TextButton.styleFrom(
+              backgroundColor: Tokens.colorGold,
+              padding: EdgeInsets.symmetric(
+                horizontal: ui.spaceLg,
+                vertical: ui.spaceSm,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(ui.radiusMd),
+              ),
+            ),
+            child: Text(
+              'Got it',
+              style: TextStyle(
+                fontFamily: Tokens.fontDisplay,
+                fontSize: ui.fontSm,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF2A1A0B),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -209,7 +332,7 @@ class _SkipButton extends StatelessWidget {
         ),
       ),
       child: Text(
-        'Skip',
+        'Skip tutorial',
         style: TextStyle(
           fontFamily: Tokens.fontDisplay,
           fontSize: ui.fontSm,

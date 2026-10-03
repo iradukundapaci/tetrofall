@@ -8,7 +8,15 @@ import '../../theme/tokens.dart';
 import '../../theme/ui_scale.dart';
 
 /// Which gesture animation plays over the board.
-enum TutorialHint { none, swipeHorizontal, tap, dragDown, flickDown }
+enum TutorialHint {
+  none,
+  swipeHorizontal,
+  swipeLeft,
+  swipeRight,
+  tap,
+  dragDown,
+  flickDown,
+}
 
 /// The label plate: dark enough to read against lit wood, translucent enough
 /// to see the board.
@@ -20,12 +28,15 @@ const _labelFade = Duration(milliseconds: 180);
 /// The looping "do this" prompt over the board: a fingertip with chevrons and
 /// a label naming what the gesture does, driven by one [AnimationController].
 class GestureHint extends StatefulWidget {
-  const GestureHint({super.key, required this.hint, this.label});
+  const GestureHint({super.key, required this.hint, this.label, this.subLabel});
 
   final TutorialHint hint;
 
   /// One or two words naming what the gesture does, or null.
   final String? label;
+
+  /// A dimmer line under [label] saying what the gesture does.
+  final String? subLabel;
 
   @override
   State<GestureHint> createState() => _GestureHintState();
@@ -40,8 +51,10 @@ class _GestureHintState extends State<GestureHint>
   /// Each loop is one demonstration plus a beat of rest.
   static const _durations = {
     TutorialHint.swipeHorizontal: Duration(milliseconds: 1800),
+    TutorialHint.swipeLeft: Duration(milliseconds: 1400),
+    TutorialHint.swipeRight: Duration(milliseconds: 1400),
     TutorialHint.tap: Duration(milliseconds: 1300),
-    TutorialHint.dragDown: Duration(milliseconds: 2000),
+    TutorialHint.dragDown: Duration(milliseconds: 2400),
     TutorialHint.flickDown: Duration(milliseconds: 1500),
   };
 
@@ -84,32 +97,37 @@ class _GestureHintState extends State<GestureHint>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.hint == TutorialHint.none) return const SizedBox.shrink();
     _ui = context.scale;
+    if (widget.hint == TutorialHint.none && widget.label == null) {
+      return const SizedBox.shrink();
+    }
     return IgnorePointer(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) => switch (widget.hint) {
-              TutorialHint.swipeHorizontal => _buildSwipe(_controller.value),
-              TutorialHint.tap => _buildTap(_controller.value),
-              TutorialHint.dragDown => _buildDrag(
-                _controller.value,
-                _ui.px(70),
-                0.12,
-                0.6,
-              ),
-              TutorialHint.flickDown => _buildDrag(
-                _controller.value,
-                _ui.px(110),
-                0.06,
-                0.26,
-              ),
-              TutorialHint.none => const SizedBox.shrink(),
-            },
-          ),
+          if (widget.hint != TutorialHint.none)
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => switch (widget.hint) {
+                TutorialHint.swipeHorizontal => _buildSwipe(_controller.value),
+                TutorialHint.swipeLeft => _buildOneWay(_controller.value, -1),
+                TutorialHint.swipeRight => _buildOneWay(_controller.value, 1),
+                TutorialHint.tap => _buildTap(_controller.value),
+                TutorialHint.dragDown => _buildDrag(
+                  _controller.value,
+                  _ui.px(70),
+                  0.12,
+                  0.5,
+                ),
+                TutorialHint.flickDown => _buildDrag(
+                  _controller.value,
+                  _ui.px(110),
+                  0.06,
+                  0.26,
+                ),
+                TutorialHint.none => const SizedBox.shrink(),
+              },
+            ),
           SizedBox(height: _ui.spaceSm),
           _buildLabel(),
         ],
@@ -136,16 +154,31 @@ class _GestureHintState extends State<GestureHint>
                 border: Border.all(color: Tokens.colorPanelBorder),
                 boxShadow: const [Tokens.shadowSoft],
               ),
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: Tokens.fontDisplay,
-                  fontSize: _ui.fontSm,
-                  fontWeight: FontWeight.w700,
-                  color: Tokens.colorText,
-                  letterSpacing: 0.5,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: Tokens.fontDisplay,
+                      fontSize: _ui.fontSm,
+                      fontWeight: FontWeight.w700,
+                      color: Tokens.colorText,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  if (widget.subLabel != null)
+                    Text(
+                      widget.subLabel!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: Tokens.fontDisplay,
+                        fontSize: _ui.fontSm * 0.85,
+                        color: Tokens.colorText.withValues(alpha: 0.7),
+                      ),
+                    ),
+                ],
               ),
             ),
     );
@@ -168,6 +201,32 @@ class _GestureHintState extends State<GestureHint>
           ),
           SizedBox(width: _ui.spaceSm),
           _chevron(0),
+        ],
+      ),
+    );
+  }
+
+  /// A swipe that only ever travels one way, with the chevrons ahead of the
+  /// finger, so it can't be read as "either direction".
+  Widget _buildOneWay(double t, int dir) {
+    final travel = _ui.px(Tokens.fingerHint);
+    final slide = Curves.easeInOut.transform(_seg(t, 0.1, 0.7));
+    final opacity = _seg(t, 0, 0.1) * (1 - _seg(t, 0.8, 0.95));
+    final angle = dir < 0 ? math.pi : 0.0;
+    final chevrons = [_chevron(angle), _chevron(angle), _chevron(angle)];
+    return Opacity(
+      opacity: opacity,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dir < 0) ...chevrons,
+          SizedBox(width: _ui.spaceSm),
+          Transform.translate(
+            offset: Offset(dir * (-travel * 0.6 + slide * travel * 1.2), 0),
+            child: _finger(),
+          ),
+          SizedBox(width: _ui.spaceSm),
+          if (dir > 0) ...chevrons,
         ],
       ),
     );

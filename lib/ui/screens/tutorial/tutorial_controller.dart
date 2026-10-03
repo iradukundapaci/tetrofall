@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../game/config/board_config.dart';
@@ -115,17 +117,54 @@ class TutorialController extends ChangeNotifier {
 
   bool _boardTouched = false;
 
-  /// Whether a finger is on the board; the prompt fades until it lifts.
+  /// Whether a finger is on the board; the prompt dims until it lifts.
   bool get boardTouched => _boardTouched;
+
+  /// The goal card shows first, over a frozen board, so the lessons have a
+  /// reason.
+  bool _showGoal = true;
+  bool get showGoal => _showGoal;
+
+  /// Briefly true after a lesson is performed, so the player knows it worked.
+  bool _celebrating = false;
+  bool get celebrating => _celebrating;
+  Timer? _niceTimer;
+
+  /// 1-based position of the prompt on screen, and the lesson count.
+  int get step => (_lesson?.index ?? TutorialLesson.values.length - 1) + 1;
+  int get stepCount => TutorialLesson.values.length;
+
+  /// Left column of the rigged gap, or null outside the floor lessons.
+  int? get gapCol =>
+      _floorsPending || !_isFloorLesson(_lesson) ? null : _gapCol;
+
+  void dismissGoal() {
+    if (!_showGoal) return;
+    _showGoal = false;
+    AnalyticsService.design('tutorial:goal_ok');
+    notifyListeners();
+  }
+
+  void _celebrate() {
+    _celebrating = true;
+    _niceTimer?.cancel();
+    _niceTimer = Timer(const Duration(milliseconds: 800), () {
+      _celebrating = false;
+      if (!_finished) notifyListeners();
+    });
+  }
 
   @override
   void dispose() {
+    _niceTimer?.cancel();
     game.engine.removeEventListener(_onEvent);
     super.dispose();
   }
 
   void setBoardTouched(bool touched) {
     if (_finished || _boardTouched == touched) return;
+    // Touching the board means they've read the card.
+    if (touched && _showGoal) _showGoal = false;
     _boardTouched = touched;
     notifyListeners();
   }
@@ -137,7 +176,7 @@ class TutorialController extends ChangeNotifier {
       lesson == TutorialLesson.clearRow || lesson == TutorialLesson.cascadeRow;
 
   /// Which looping hint plays over the board, if any.
-  TutorialHint get hint => _floorsPending
+  TutorialHint get hint => _showGoal || _floorsPending
       ? TutorialHint.none
       : switch (_lesson) {
           TutorialLesson.move => TutorialHint.swipeHorizontal,
@@ -147,21 +186,53 @@ class TutorialController extends ChangeNotifier {
           // Both floor lessons are steering: the piece fits, it must reach the
           // gap.
           TutorialLesson.clearRow ||
-          TutorialLesson.cascadeRow => TutorialHint.swipeHorizontal,
+          TutorialLesson.cascadeRow => switch (_gapDirection) {
+            < 0 => TutorialHint.swipeLeft,
+            > 0 => TutorialHint.swipeRight,
+            _ => TutorialHint.flickDown,
+          },
           null => TutorialHint.none,
         };
 
-  /// The whole text of the tutorial: what the gesture does, since the
-  /// animation shows what it is.
-  String? get label => _floorsPending
+  /// Which way the piece must move to sit over the gap: -1 left, 1 right, 0
+  /// when it is already there. Read live, so the hint follows the piece.
+  int get _gapDirection {
+    final piece = game.engine.pieceController.piece;
+    if (piece == null) return 0;
+    return (_gapCol - piece.anchorCol).sign;
+  }
+
+  /// What to do, in plain words.
+  String? get label => _showGoal
       ? null
+      : _floorsPending
+      ? 'Rows are rising...'
       : switch (_lesson) {
-          TutorialLesson.move => 'Move',
-          TutorialLesson.rotate => 'Rotate',
-          TutorialLesson.hardDrop => 'Slam',
+          TutorialLesson.move => 'Swipe left or right',
+          TutorialLesson.rotate => 'Tap the board',
+          TutorialLesson.hardDrop => 'Flick down fast',
+          TutorialLesson.softDrop => 'Drag down and hold',
+          TutorialLesson.clearRow ||
+          TutorialLesson.cascadeRow => switch (_gapDirection) {
+            < 0 => 'Swipe left to the gap',
+            > 0 => 'Swipe right to the gap',
+            _ => 'Flick down to drop',
+          },
+          null => null,
+        };
+
+  /// What the gesture does.
+  String? get subLabel => _showGoal
+      ? null
+      : _floorsPending
+      ? 'Watch the gap appear'
+      : switch (_lesson) {
+          TutorialLesson.move => 'Move the piece',
+          TutorialLesson.rotate => 'Rotate the piece',
+          TutorialLesson.hardDrop => 'Drop it instantly',
           TutorialLesson.softDrop => 'Fall faster',
-          TutorialLesson.clearRow => 'Fill the row',
-          TutorialLesson.cascadeRow => 'Again',
+          TutorialLesson.clearRow => 'A full row clears',
+          TutorialLesson.cascadeRow => 'Clears can chain',
           null => null,
         };
 
@@ -205,7 +276,10 @@ class TutorialController extends ChangeNotifier {
   /// performed early; [_next] skips anything in [_done].
   void _credit(TutorialLesson lesson) {
     if (!_done.add(lesson)) return;
-    if (_lesson == lesson) _next();
+    if (_lesson == lesson) {
+      _celebrate();
+      _next();
+    }
   }
 
   /// Advances to the next unperformed lesson, or ends the tutorial.
@@ -489,6 +563,8 @@ class TutorialController extends ChangeNotifier {
         _engagePiece();
         switch (action) {
           case PlayerAction.moveLeft || PlayerAction.moveRight:
+            // The hint's direction depends on where the piece now is.
+            if (_isFloorLesson(_lesson)) notifyListeners();
             if (++_moveCount >= _movesToAdvance) _credit(TutorialLesson.move);
           case PlayerAction.rotate:
             _credit(TutorialLesson.rotate);
